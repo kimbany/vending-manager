@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
 <title>🥤 자판기 관리</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
-<!-- Firebase Compat (전역 함수에서 바로 사용 가능) -->
-<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
+<!-- Firebase Compat SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <style>
 :root{--bg:#0d0d12;--bg2:#13131a;--bg3:#1a1a24;--border:#2a2a3a;--text:#e8ddd0;--text2:#a0a0b8;--text3:#5a5a7a;--gold:#e8b86d;--gold2:#d49a50;--blue:#7ec8e3;--green:#7ada9a;--red:#e05858;--radius:12px;}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
@@ -109,6 +109,7 @@ input[type=date]{color-scheme:dark;}
   </div>
 
   <div id="content">
+    <!-- 홈 -->
     <div class="tab active" id="tab-home">
       <div class="fr"><label class="lbl">📅 날짜 선택</label><input type="date" id="home-date" oninput="renderHome()"/></div>
       <div class="card">
@@ -128,6 +129,7 @@ input[type=date]{color-scheme:dark;}
       </div>
     </div>
 
+    <!-- 재고 -->
     <div class="tab" id="tab-inventory">
       <button class="btn-p" onclick="openModal('inv-modal')">➕ 재고 입력</button>
       <div class="card">
@@ -136,6 +138,7 @@ input[type=date]{color-scheme:dark;}
       </div>
     </div>
 
+    <!-- 판매통계 -->
     <div class="tab" id="tab-sales">
       <button class="btn-p btn-b" onclick="openModal('csv-modal')">📤 판매 데이터 업로드 (CSV)</button>
       <div class="stabs">
@@ -147,6 +150,7 @@ input[type=date]{color-scheme:dark;}
       <div id="sales-list"></div>
     </div>
 
+    <!-- 자판기 -->
     <div class="tab" id="tab-machine">
       <div style="margin-bottom:14px"><div style="font-size:16px;font-weight:700;margin-bottom:3px">🏪 자판기 현황</div><div style="font-size:12px;color:var(--text2)">컬럼별 제품 배치 현황</div></div>
       <div class="vmw" id="vm-grid"></div>
@@ -156,6 +160,7 @@ input[type=date]{color-scheme:dark;}
       </div>
     </div>
 
+    <!-- 제품등록 -->
     <div class="tab" id="tab-products">
       <button class="btn-p" onclick="openProductModal()">➕ 제품 등록</button>
       <div class="card">
@@ -243,26 +248,33 @@ input[type=date]{color-scheme:dark;}
 </div>
 
 <script>
-// ─── Firebase 초기화 ──────────────────────────────────────────────────────────
+// ─── Firebase 초기화 (Realtime Database) ──────────────────────────────────────
 firebase.initializeApp({
   apiKey:"AIzaSyDKgGwpAwmeZLiIHRyTIz87JvRaGM_G240",
   authDomain:"vending-manager-2d64e.firebaseapp.com",
+  databaseURL:"https://vending-manager-2d64e-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId:"vending-manager-2d64e",
   storageBucket:"vending-manager-2d64e.firebasestorage.app",
   messagingSenderId:"840768320205",
   appId:"1:840768320205:web:9cf171935ef01de8852f84"
 });
-var db = firebase.firestore();
-var REF = db.collection('vending').doc('appData');
+var db = firebase.database();
+var REF = db.ref('vendingApp');
 
 // ─── 전역 상태 ────────────────────────────────────────────────────────────────
 var D = {products:[],inventory:[],inventoryLogs:[],salesData:[]};
 var salesSort='date', csvH=[], csvR=[], invDir='plus';
 
-// ─── Firebase 로드/저장 ───────────────────────────────────────────────────────
+// ─── 로드 / 저장 ──────────────────────────────────────────────────────────────
 function load(){
-  REF.get().then(function(s){
-    if(s.exists) D=Object.assign({products:[],inventory:[],inventoryLogs:[],salesData:[]},s.data());
+  REF.once('value').then(function(snap){
+    var val = snap.val();
+    if(val){
+      D.products      = val.products      || [];
+      D.inventory     = val.inventory     || [];
+      D.inventoryLogs = val.inventoryLogs || [];
+      D.salesData     = val.salesData     || [];
+    }
     document.getElementById('loading').style.display='none';
     document.getElementById('app').style.display='flex';
     document.getElementById('home-date').value=td();
@@ -273,14 +285,14 @@ function load(){
     document.getElementById('app').style.display='flex';
     document.getElementById('home-date').value=td();
     renderAll();
-    showToast('⚠️ Firebase 연결 실패 - 로컬 모드');
+    showToast('⚠️ Firebase 연결 실패');
   });
 }
 
 function save(){
   REF.set(JSON.parse(JSON.stringify(D))).catch(function(e){
     console.error(e);
-    showToast('⚠️ 저장 실패: Firebase 규칙 확인 필요');
+    showToast('⚠️ 저장 실패 - Firebase 규칙 확인 필요');
   });
 }
 
@@ -300,18 +312,15 @@ function renderAll(){ renderHome(); renderInv(); renderSales(); renderMachine();
 function renderHome(){
   var date=document.getElementById('home-date').value||td();
   document.getElementById('home-dt').textContent=date+' 판매 현황';
-  // 재고 부족
   var low=D.inventory.filter(function(i){return i.qty<=5;}).map(function(i){return {i:i,p:gp(i.productId)};}).filter(function(x){return x.p;});
   document.getElementById('low-list').innerHTML=low.length
     ?low.map(function(x){return '<div class="li"><div><div class="in">'+x.p.name+'</div><div class="is">컬럼: '+(x.p.column||'-')+'</div></div><span class="badge '+(x.i.qty===0?'br':'bo')+'">'+x.i.qty+'개</span></div>';}).join('')
     :'<div class="empty"><div class="ei">✅</div><div class="et">재고 부족 제품 없음</div></div>';
-  // 판매
   var ds=D.salesData.filter(function(s){return s.date===date;});
   var qty=ds.reduce(function(s,x){return s+(x.qty||0);},0);
   var amt=ds.reduce(function(s,x){var p=gp(x.productId);return s+(x.qty||0)*(p?p.sellPrice:0);},0);
   document.getElementById('home-qty').textContent=fmt(qty)+'개';
   document.getElementById('home-amt').textContent=fmt(amt)+'원';
-  // top3
   var byP={};
   ds.forEach(function(s){byP[s.productId]=(byP[s.productId]||0)+s.qty;});
   var top3=Object.keys(byP).map(function(id){return {p:gp(id),q:byP[id]};}).filter(function(x){return x.p;}).sort(function(a,b){return b.q-a.q;}).slice(0,3);
