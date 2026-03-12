@@ -163,6 +163,7 @@ input[type=date]{color-scheme:dark;}
     <!-- 제품등록 -->
     <div class="tab" id="tab-products">
       <button class="btn-p" onclick="openProductModal()">➕ 제품 등록</button>
+      <button class="btn-p btn-b" style="margin-top:-8px" onclick="openModal('bulk-modal')">📋 일괄 등록 (CSV)</button>
       <div class="card">
         <div class="ch"><div class="ca" style="background:var(--gold)"></div><div><div class="ct" id="prod-title">등록 제품</div></div></div>
         <div class="cb" id="prod-list"></div>
@@ -207,6 +208,30 @@ input[type=date]{color-scheme:dark;}
   </div>
 </div>
 
+
+<!-- 일괄 등록 모달 -->
+<div class="modal-bg" id="bulk-modal">
+  <div class="modal">
+    <div class="mh"><div class="mt">📋 제품 일괄 등록</div><button class="mc" onclick="closeModal('bulk-modal')">✕</button></div>
+    <div id="bulk-s1">
+      <div style="background:var(--bg3);border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--text2);line-height:1.8">
+        📌 양식 파일을 다운로드해서 작성 후 업로드하세요.<br/>
+        <b style="color:var(--gold)">컬럼 위치</b>는 쉼표로 여러 개 입력 가능해요.<br/>
+        예: <span style="color:var(--green)">47, 31, 52</span>
+      </div>
+      <button class="btn-p btn-b" style="margin-bottom:10px" onclick="downloadBulkTemplate()">⬇️ 양식 파일 다운로드</button>
+      <input type="file" id="bulk-file" accept=".csv" style="display:none" onchange="handleBulkCSV(this)"/>
+      <button class="btn-p" style="margin-bottom:0" onclick="document.getElementById('bulk-file').click()">📁 CSV 파일 업로드</button>
+    </div>
+    <div id="bulk-s2" style="display:none">
+      <div style="font-size:13px;color:var(--text2);margin-bottom:12px" id="bulk-preview-title"></div>
+      <div id="bulk-preview" style="max-height:300px;overflow-y:auto;margin-bottom:16px"></div>
+      <button class="btn-p" style="margin-bottom:8px" onclick="confirmBulk()">✅ 등록 확인</button>
+      <button class="btn-p" style="margin-bottom:0;background:var(--bg3);color:var(--text2)" onclick="resetBulk()">↩️ 다시 선택</button>
+    </div>
+  </div>
+</div>
+
 <!-- CSV 모달 -->
 <div class="modal-bg" id="csv-modal">
   <div class="modal">
@@ -242,7 +267,7 @@ input[type=date]{color-scheme:dark;}
       <div><label class="lbl">마진가 (자동)</label><div class="af" id="p-ma" style="color:var(--gold)">-</div></div>
       <div><label class="lbl">마진율 (자동)</label><div class="af" id="p-mr" style="color:var(--gold)">-</div></div>
     </div>
-    <div class="fr"><label class="lbl">컬럼 위치 (예: 47 = 4층 7번)</label><input type="text" id="p-col" placeholder="47, 31 등 입력 (층+칸번호)"/></div>
+    <div class="fr"><label class="lbl">컬럼 위치 (예: 47, 31 → 쉼표로 여러 위치 입력 가능)</label><input type="text" id="p-col" placeholder="47, 31, 52 등 쉼표로 구분"/></div>
     <button class="btn-p" style="margin-bottom:0" id="p-save-btn" onclick="saveProduct()">등록 완료</button>
   </div>
 </div>
@@ -314,7 +339,7 @@ function renderHome(){
   document.getElementById('home-dt').textContent=date+' 판매 현황';
   var low=D.inventory.filter(function(i){return i.qty<=5;}).map(function(i){return {i:i,p:gp(i.productId)};}).filter(function(x){return x.p;});
   document.getElementById('low-list').innerHTML=low.length
-    ?low.map(function(x){return '<div class="li"><div><div class="in">'+x.p.name+'</div><div class="is">컬럼: '+(x.p.column||'-')+'</div></div><span class="badge '+(x.i.qty===0?'br':'bo')+'">'+x.i.qty+'개</span></div>';}).join('')
+    ?low.map(function(x){var cl=Array.isArray(x.p.column)?x.p.column.join(', '):(x.p.column||'-');return '<div class="li"><div><div class="in">'+x.p.name+'</div><div class="is">컬럼: '+cl+'</div></div><span class="badge '+(x.i.qty===0?'br':'bo')+'">'+x.i.qty+'개</span></div>';}).join('')
     :'<div class="empty"><div class="ei">✅</div><div class="et">재고 부족 제품 없음</div></div>';
   var ds=D.salesData.filter(function(s){return s.date===date;});
   var qty=ds.reduce(function(s,x){return s+(x.qty||0);},0);
@@ -337,7 +362,9 @@ function renderInv(){
   if(!D.products.length){el.innerHTML='<div class="empty"><div class="ei">📦</div><div class="et">등록된 제품이 없습니다</div></div>';return;}
   el.innerHTML=D.products.map(function(p){
     var q=gq(p.id),lw=q<=5;
-    return '<div class="item" style="'+(lw?'border-color:rgba(224,88,88,.3)':'')+'"><div><div class="in">'+p.name+'</div><div class="is">컬럼: '+(p.column||'-')+' | 판매가: '+fmt(p.sellPrice)+'원</div></div><span class="badge '+(q===0?'br':lw?'bo':'bg')+'">'+q+'개</span></div>';
+    var cols=Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
+    var colLabel=cols.length?cols.join(', '):'-';
+    return '<div class="item" style="'+(lw?'border-color:rgba(224,88,88,.3)':'')+'"><div><div class="in">'+p.name+'</div><div class="is">컬럼: '+colLabel+' | 판매가: '+fmt(p.sellPrice)+'원</div></div><span class="badge '+(q===0?'br':lw?'bo':'bg')+'">'+q+'개</span></div>';
   }).join('');
   var sel=document.getElementById('inv-product');
   sel.innerHTML='<option value="">제품 선택</option>'+D.products.map(function(p){return '<option value="'+p.id+'">'+p.name+'</option>';}).join('');
@@ -451,29 +478,26 @@ function parseCol(col){
 function renderMachine(){
   var html='<div class="vmh">🥤 VENDING MACHINE</div>';
 
-  // 등록된 제품에서 층/칸 파싱
-  var placed=D.products.filter(function(p){return p.column;});
-
-  // 존재하는 층 목록 (6→1 내림차순)
-  var floorSet={};
-  placed.forEach(function(p){
-    var pc=parseCol(p.column);
-    if(pc) floorSet[pc.floor]=true;
+  // 등록된 제품에서 층/칸 파싱 (column은 배열)
+  // 각 제품의 각 컬럼 위치를 개별 항목으로 펼침
+  var allSlots=[]; // {floor, slot, prod}
+  D.products.forEach(function(p){
+    var cols=Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
+    cols.forEach(function(c){
+      var pc=parseCol(c);
+      if(pc) allSlots.push({floor:pc.floor,slot:pc.slot,prod:p});
+    });
   });
-  var floors=Object.keys(floorSet).map(Number).sort(function(a,b){return b-a;}); // 6,5,4...
-  if(!floors.length) floors=[6,5,4,3,2,1]; // 기본값
+
+  // 존재하는 층 목록 (내림차순)
+  var floorSet={};
+  allSlots.forEach(function(s){floorSet[s.floor]=true;});
+  var floors=Object.keys(floorSet).map(Number).sort(function(a,b){return b-a;});
+  if(!floors.length) floors=[6,5,4,3,2,1];
 
   floors.forEach(function(floor){
-    // 이 층에 있는 제품들
-    var floorProds=placed.filter(function(p){
-      var pc=parseCol(p.column);
-      return pc && pc.floor===floor;
-    });
-
-    // 이 층의 슬롯 범위: 0 ~ 최대슬롯
-    var slots=floorProds.map(function(p){return parseCol(p.column).slot;});
-    var maxSlot=slots.length?Math.max.apply(null,slots):0;
-    // 0번부터 maxSlot까지 표시 (최소 1칸)
+    var floorSlots=allSlots.filter(function(s){return s.floor===floor;});
+    var maxSlot=floorSlots.length?Math.max.apply(null,floorSlots.map(function(s){return s.slot;})):0;
     var slotCount=Math.max(maxSlot+1,1);
     var slotArr=[];
     for(var i=0;i<slotCount;i++) slotArr.push(i);
@@ -494,10 +518,8 @@ function renderMachine(){
     // 칸 셀
     html+='<div style="display:grid;grid-template-columns:repeat('+slotCount+',1fr);gap:3px;margin-bottom:10px">';
     slotArr.forEach(function(s){
-      var p=placed.find(function(x){
-        var pc=parseCol(x.column);
-        return pc && pc.floor===floor && pc.slot===s;
-      });
+      var entry=floorSlots.find(function(x){return x.slot===s;});
+      var p=entry?entry.prod:null;
       var q=p?gq(p.id):0;
       var cl=!p?'':q<=5?' ls':' hp';
       html+='<div class="vmc'+cl+'" style="min-height:54px">';
@@ -517,14 +539,13 @@ function renderMachine(){
 
   html+='<div class="vml"><div class="vmli"><div class="vmld" style="border:1px solid rgba(126,200,227,.4);background:rgba(126,200,227,.1)"></div>정상</div><div class="vmli"><div class="vmld" style="border:1px solid rgba(224,88,88,.4);background:rgba(224,88,88,.1)"></div>부족(≤5)</div><div class="vmli"><div class="vmld" style="border:1px solid var(--border);background:var(--bg)"></div>비어있음</div></div>';
   document.getElementById('vm-grid').innerHTML=html;
-  var placed2=D.products.filter(function(p){return p.column;}).sort(function(a,b){
-    var pa=parseCol(a.column), pb=parseCol(b.column);
-    if(!pa||!pb) return 0;
-    if(pb.floor!==pa.floor) return pb.floor-pa.floor;
-    return pa.slot-pb.slot;
+  // 배치 목록: 슬롯 기준으로 펼쳐서 표시
+  var placed2=allSlots.slice().sort(function(a,b){
+    if(b.floor!==a.floor) return b.floor-a.floor;
+    return a.slot-b.slot;
   });
   document.getElementById('vm-list').innerHTML=placed2.length
-    ?placed2.map(function(p){var q=gq(p.id);var pc=parseCol(p.column);var label=pc?pc.floor+'층 '+pc.slot+'번':p.column;return '<div class="item"><div style="display:flex;align-items:center;gap:10px"><span style="background:rgba(232,184,109,.15);border:1px solid rgba(232,184,109,.4);border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;color:var(--gold)">'+label+'</span><span>'+p.name+'</span></div><span style="color:'+(q<=5?'var(--red)':'var(--green)')+';font-weight:700">'+q+'개</span></div>';}).join('')
+    ?placed2.map(function(s){var q=gq(s.prod.id);var label=s.floor+'층 '+s.slot+'번';return '<div class="item"><div style="display:flex;align-items:center;gap:10px"><span style="background:rgba(232,184,109,.15);border:1px solid rgba(232,184,109,.4);border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;color:var(--gold)">'+label+'</span><span>'+s.prod.name+'</span></div><span style="color:'+(q<=5?'var(--red)':'var(--green)')+';font-weight:700">'+q+'개</span></div>';}).join('')
     :'<div class="empty"><div class="ei">🏪</div><div class="et">컬럼 배정된 제품 없음</div></div>';
 }
 
@@ -534,7 +555,9 @@ function renderProds(){
   var el=document.getElementById('prod-list');
   if(!D.products.length){el.innerHTML='<div class="empty"><div class="ei">🏷️</div><div class="et">등록된 제품이 없습니다</div></div>';return;}
   el.innerHTML=D.products.map(function(p){
-    return '<div class="pc"><div class="pch"><div><div class="in">'+p.name+'</div><div class="is">컬럼: '+(p.column||'미배정')+'</div></div><div style="display:flex;gap:6px"><button class="btn-sm" style="background:#1a2a4a;color:var(--blue)" onclick="editProd(\''+p.id+'\')">수정</button><button class="btn-sm" style="background:#2a1a1a;color:var(--red)" onclick="delProd(\''+p.id+'\')">삭제</button></div></div><div class="pm">'+[['구매가',fmt(p.buyPrice)+'원'],['낱개가',fmt(p.unitPrice)+'원'],['판매가',fmt(p.sellPrice)+'원'],['마진가',fmt(p.marginAmt)+'원'],['마진율',(p.marginRate||0)+'%'],['총수량',p.totalQty+'개']].map(function(lv){return '<div class="pmb"><div class="pml">'+lv[0]+'</div><div class="pmv">'+lv[1]+'</div></div>';}).join('')+'</div></div>';
+    var cols=Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
+    var colLabel=cols.length?cols.join(', '):'미배정';
+    return '<div class="pc"><div class="pch"><div><div class="in">'+p.name+'</div><div class="is">컬럼: '+colLabel+'</div></div><div style="display:flex;gap:6px"><button class="btn-sm" style="background:#1a2a4a;color:var(--blue)" onclick="editProd(\''+p.id+'\')">수정</button><button class="btn-sm" style="background:#2a1a1a;color:var(--red)" onclick="delProd(\''+p.id+'\')">삭제</button></div></div><div class="pm">'+[['구매가',fmt(p.buyPrice)+'원'],['낱개가',fmt(p.unitPrice)+'원'],['판매가',fmt(p.sellPrice)+'원'],['마진가',fmt(p.marginAmt)+'원'],['마진율',(p.marginRate||0)+'%'],['총수량',p.totalQty+'개']].map(function(lv){return '<div class="pmb"><div class="pml">'+lv[0]+'</div><div class="pmv">'+lv[1]+'</div></div>';}).join('')+'</div></div>';
   }).join('');
 }
 
@@ -573,7 +596,8 @@ function editProd(id){
   document.getElementById('p-buy').value=p.buyPrice;
   document.getElementById('p-total').value=p.totalQty;
   document.getElementById('p-sell').value=p.sellPrice;
-  document.getElementById('p-col').value=p.column||'';
+  var cols=Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
+  document.getElementById('p-col').value=cols.join(', ');
   calcProduct();
   openModal('prod-modal');
 }
@@ -587,8 +611,22 @@ function saveProduct(){
   var unit=total>0?Math.round(buy/total):0;
   var ma=sell-unit;
   var mr=sell>0?Math.round(ma/sell*100):0;
-  var col=document.getElementById('p-col').value.trim().toUpperCase();
+  var colRaw=document.getElementById('p-col').value;
+  var col=colRaw.split(',').map(function(c){return c.trim();}).filter(function(c){return c.length>0;});
   var eid=document.getElementById('p-eid').value;
+  // 중복 위치 체크: 다른 제품이 이미 사용 중인 컬럼인지 확인
+  var conflicts=[];
+  col.forEach(function(c){
+    D.products.forEach(function(p){
+      if(p.id===eid) return; // 수정 중인 제품 자신은 제외
+      var pCols=Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
+      if(pCols.indexOf(c)>=0) conflicts.push({col:c, name:p.name});
+    });
+  });
+  if(conflicts.length){
+    var msg=conflicts.map(function(c){return c.col+'번 ('+c.name+')';}).join(', ');
+    if(!confirm('⚠️ 중복된 컬럼 위치가 있어요!\n\n'+msg+'\n\n이미 위 제품이 배정된 위치예요.\n그래도 저장할까요?')) return;
+  }
   var prod={id:eid||Date.now().toString(),name:name,buyPrice:buy,totalQty:total,unitPrice:unit,sellPrice:sell,marginAmt:ma,marginRate:mr,column:col};
   if(eid)D.products=D.products.map(function(p){return p.id===eid?prod:p;});
   else D.products.push(prod);
@@ -604,6 +642,134 @@ function delProd(id){
   save();
   showToast('✅ 삭제 완료');
   renderAll();
+}
+
+// ─── 일괄 등록 ────────────────────────────────────────────────────────────────
+var bulkRows = [];
+
+function downloadBulkTemplate(){
+  var csv = '제품명,구매가,총수량,판매가,컬럼위치\n';
+  csv += '콜라,15000,30,800,"47,31"\n';
+  csv += '사이다,14000,30,800,52\n';
+  csv += '물,8000,24,500,"11,12,13"\n';
+  var blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '제품일괄등록_양식.csv';
+  a.click();
+}
+
+function handleBulkCSV(input){
+  var file = input.files[0]; if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e){
+    var text = e.target.result;
+    if(text.charCodeAt(0)===0xFEFF) text=text.slice(1);
+    var lines = text.trim().split('\n');
+    if(lines.length < 2){ showToast('❌ 데이터가 없어요'); return; }
+    var headers = lines[0].split(',').map(function(h){return h.trim().replace(/"/g,'');});
+    var required = ['제품명','구매가','총수량','판매가'];
+    var missing = required.filter(function(r){return headers.indexOf(r)<0;});
+    if(missing.length){ showToast('❌ 필수 컬럼 없음: '+missing.join(', ')); return; }
+    bulkRows = [];
+    for(var i=1;i<lines.length;i++){
+      var line = lines[i].trim(); if(!line) continue;
+      var cells = parseCSVLine(line);
+      var row = {};
+      headers.forEach(function(h,idx){ row[h] = (cells[idx]||'').trim(); });
+      bulkRows.push(row);
+    }
+    showBulkPreview();
+    document.getElementById('bulk-s1').style.display='none';
+    document.getElementById('bulk-s2').style.display='block';
+  };
+  reader.readAsText(file, 'utf-8');
+}
+
+function parseCSVLine(line){
+  var result=[], cur='', inQ=false;
+  for(var i=0;i<line.length;i++){
+    var ch=line[i];
+    if(ch==='"'){ inQ=!inQ; }
+    else if(ch===','&&!inQ){ result.push(cur); cur=''; }
+    else { cur+=ch; }
+  }
+  result.push(cur);
+  return result;
+}
+
+function showBulkPreview(){
+  var html = '';
+  var okCount = 0, errCount = 0;
+  bulkRows.forEach(function(row){
+    var name = row['제품명']||'';
+    var buy = parseFloat(row['구매가'])||0;
+    var total = parseFloat(row['총수량'])||0;
+    var sell = parseFloat(row['판매가'])||0;
+    var colRaw = row['컬럼위치']||'';
+    var cols = colRaw.split(',').map(function(c){return c.trim();}).filter(function(c){return c;});
+    var errors = [];
+    if(!name) errors.push('제품명 없음');
+    if(!buy) errors.push('구매가 없음');
+    if(!total) errors.push('총수량 없음');
+    if(!sell) errors.push('판매가 없음');
+    var dupConflicts = [];
+    cols.forEach(function(c){
+      D.products.forEach(function(p){
+        var pCols = Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
+        if(pCols.indexOf(c)>=0) dupConflicts.push(c+'번('+p.name+')');
+      });
+    });
+    if(dupConflicts.length) errors.push('중복 컬럼: '+dupConflicts.join(', '));
+    var hasErr = errors.length > 0;
+    if(hasErr) errCount++; else okCount++;
+    var unit = total>0?Math.round(buy/total):0;
+    var mr = sell>0?Math.round((sell-unit)/sell*100):0;
+    html += '<div style="background:'+(hasErr?'rgba(224,88,88,.08)':'rgba(122,218,154,.06)')+';border:1px solid '+(hasErr?'rgba(224,88,88,.3)':'rgba(122,218,154,.2)')+';border-radius:8px;padding:10px 12px;margin-bottom:8px">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">';
+    html += '<span style="font-size:13px;font-weight:700">'+(name||'(이름없음)')+'</span>';
+    html += '<span style="font-size:11px;color:'+(hasErr?'var(--red)':'var(--green)')+'">'+( hasErr ? '⚠️ 오류' : '✅ 정상')+'</span>';
+    html += '</div>';
+    if(cols.length) html += '<div style="font-size:11px;color:var(--text3);margin-bottom:3px">컬럼: '+cols.join(', ')+'</div>';
+    html += '<div style="font-size:11px;color:var(--text2)">구매가 '+fmt(buy)+'원 / 총'+total+'개 / 판매가 '+fmt(sell)+'원 / 마진 '+mr+'%</div>';
+    if(hasErr) html += '<div style="font-size:11px;color:var(--red);margin-top:4px">❌ '+errors.join(' · ')+'</div>';
+    html += '</div>';
+  });
+  document.getElementById('bulk-preview-title').innerHTML =
+    '총 <b>'+bulkRows.length+'개</b> 제품 · <span style="color:var(--green)">정상 '+okCount+'개</span> · <span style="color:var(--red)">오류 '+errCount+'개</span>';
+  document.getElementById('bulk-preview').innerHTML = html;
+}
+
+function confirmBulk(){
+  var added=0, skipped=[];
+  bulkRows.forEach(function(row){
+    var name = row['제품명']||'';
+    var buy = parseFloat(row['구매가'])||0;
+    var total = parseFloat(row['총수량'])||0;
+    var sell = parseFloat(row['판매가'])||0;
+    var colRaw = row['컬럼위치']||'';
+    var cols = colRaw.split(',').map(function(c){return c.trim();}).filter(function(c){return c;});
+    if(!name||!buy||!total||!sell){ skipped.push(name||'(이름없음)'); return; }
+    var unit = total>0?Math.round(buy/total):0;
+    var ma = sell-unit;
+    var mr = sell>0?Math.round(ma/sell*100):0;
+    D.products.push({id:Date.now().toString()+Math.random(),name:name,buyPrice:buy,totalQty:total,unitPrice:unit,sellPrice:sell,marginAmt:ma,marginRate:mr,column:cols});
+    added++;
+  });
+  save();
+  closeModal('bulk-modal');
+  resetBulk();
+  var msg = '✅ '+added+'개 등록 완료';
+  if(skipped.length) msg += ' (⚠️ '+skipped.length+'개 스킵)';
+  showToast(msg);
+  renderAll();
+}
+
+function resetBulk(){
+  bulkRows=[];
+  document.getElementById('bulk-s1').style.display='block';
+  document.getElementById('bulk-s2').style.display='none';
+  document.getElementById('bulk-file').value='';
 }
 
 // ─── UI ───────────────────────────────────────────────────────────────────────
