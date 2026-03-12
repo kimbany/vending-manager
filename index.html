@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+<title>🥤 자판기 관리</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0d0d12;
+    --bg2: #13131a;
+    --bg3: #1a1a24;
+    --bg4: #20202e;
+    --border: #2a2a3a;
+    --text: #e8ddd0;
+    --text2: #a0a0b8;
+    --text3: #5a5a7a;
+    --gold: #e8b86d;
+    --gold2: #d49a50;
+    --blue: #7ec8e3;
+    --green: #7ada9a;
+    --red: #e05858;
+    --radius: 12px;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  ::-webkit-scrollbar { display:none; }
+  body { background:var(--bg); color:var(--text); font-family:'Noto Sans KR',sans-serif; min-height:100vh; }
+
+  /* Layout */
+  #app { max-width:480px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column; position:relative; }
+  #header { background:var(--bg2); border-bottom:1px solid var(--border); padding:14px 18px 12px; display:flex; align-items:center; gap:10px; position:sticky; top:0; z-index:50; }
+  #header .logo { font-size:22px; }
+  #header .title { font-size:16px; font-weight:800; color:var(--text); letter-spacing:-0.5px; }
+  #header .sub { font-size:10px; color:var(--text3); margin-top:1px; }
+  #content { flex:1; overflow-y:auto; padding:16px 16px 90px; }
+  #nav { position:fixed; bottom:0; left:50%; transform:translateX(-50%); width:100%; max-width:480px; background:var(--bg2); border-top:1px solid var(--border); display:flex; z-index:50; }
+  .nav-btn { flex:1; background:none; border:none; padding:10px 4px 8px; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:3px; color:var(--text3); transition:color .2s; font-family:inherit; }
+  .nav-btn.active { color:var(--gold); }
+  .nav-btn svg { width:20px; height:20px; }
+  .nav-btn span { font-size:10px; font-weight:600; }
+
+  /* Tabs */
+  .tab { display:none; }
+  .tab.active { display:block; }
+
+  /* Cards */
+  .card { background:var(--bg2); border-radius:var(--radius); border:1px solid var(--border); margin-bottom:14px; overflow:hidden; }
+  .card-header { padding:12px 16px 10px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px; }
+  .card-accent { width:3px; height:16px; border-radius:2px; flex-shrink:0; }
+  .card-title { font-size:14px; font-weight:700; }
+  .card-sub { font-size:11px; color:var(--text2); margin-top:1px; }
+  .card-body { padding:14px; }
+
+  /* Buttons */
+  .btn-primary { width:100%; background:linear-gradient(135deg,var(--gold),var(--gold2)); border:none; border-radius:var(--radius); padding:14px; font-size:15px; font-weight:700; color:#1a1208; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; font-family:inherit; margin-bottom:16px; }
+  .btn-primary:active { opacity:.85; }
+  .btn-blue { background:linear-gradient(135deg,#4a6ee8,#3a5ed8); color:#fff; }
+  .btn-sm { padding:6px 12px; border:none; border-radius:6px; font-size:12px; cursor:pointer; font-family:inherit; font-weight:600; }
+
+  /* Form */
+  label.lbl { font-size:12px; color:var(--text2); display:block; margin-bottom:5px; font-weight:500; }
+  input, select, textarea { width:100%; background:var(--bg3); border:1px solid var(--border); border-radius:8px; color:var(--text); padding:10px 12px; font-size:14px; font-family:inherit; outline:none; }
+  input:focus, select:focus { border-color:var(--gold); }
+  select option { background:var(--bg3); }
+  .auto-field { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:10px 12px; font-size:14px; font-weight:600; }
+
+  /* Items */
+  .item { background:var(--bg3); border-radius:10px; border:1px solid var(--border); padding:12px 14px; display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+  .item:last-child { margin-bottom:0; }
+  .item-name { font-size:14px; font-weight:600; }
+  .item-sub { font-size:11px; color:var(--text3); margin-top:2px; }
+  .badge { border-radius:20px; padding:4px 12px; font-size:13px; font-weight:700; }
+  .badge-green { background:#1a3a2a; color:var(--green); }
+  .badge-red { background:#3a1a1a; color:var(--red); }
+  .badge-orange { background:#3a2010; color:#f09060; }
+  .badge-gold { background:#3a2a10; color:var(--gold); }
+
+  /* Stats grid */
+  .stats-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px; }
+  .stat-box { background:var(--bg3); border-radius:10px; padding:14px; }
+  .stat-lbl { font-size:11px; color:var(--text2); margin-bottom:4px; }
+  .stat-val { font-size:20px; font-weight:800; }
+
+  /* Top 3 */
+  .top-item { background:var(--bg3); border-radius:8px; padding:10px 12px; display:flex; align-items:center; gap:10px; margin-bottom:7px; }
+  .top-item:last-child { margin-bottom:0; }
+
+  /* Low stock */
+  .low-item { background:rgba(224,88,88,.08); border:1px solid rgba(224,88,88,.2); border-radius:8px; padding:10px 12px; display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+  .low-item:last-child { margin-bottom:0; }
+
+  /* Modal */
+  .modal-bg { display:none; position:fixed; inset:0; background:rgba(0,0,0,.75); z-index:200; align-items:flex-end; justify-content:center; }
+  .modal-bg.open { display:flex; }
+  .modal { background:var(--bg2); border-radius:20px 20px 0 0; width:100%; max-width:480px; max-height:90vh; overflow-y:auto; padding:20px; padding-bottom:36px; border:1px solid var(--border); }
+  .modal-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; }
+  .modal-title { font-size:16px; font-weight:700; }
+  .modal-close { background:var(--bg3); border:none; border-radius:6px; padding:6px 10px; cursor:pointer; color:var(--text2); font-size:14px; }
+  .form-row { margin-bottom:13px; }
+  .form-2col { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:13px; }
+
+  /* Sort tabs */
+  .sort-tabs { display:flex; background:var(--bg3); border-radius:10px; padding:4px; margin-bottom:14px; }
+  .sort-tab { flex:1; padding:8px 4px; border:none; border-radius:7px; cursor:pointer; font-size:12px; font-family:inherit; font-weight:600; background:transparent; color:var(--text3); transition:.2s; }
+  .sort-tab.active { background:var(--gold); color:#1a1208; }
+
+  /* Direction btns */
+  .dir-btns { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .dir-btn { padding:10px; border-radius:8px; border:none; cursor:pointer; font-family:inherit; font-size:14px; font-weight:600; background:var(--bg3); color:var(--text3); }
+  .dir-btn.plus.active { background:#1a3a2a; color:var(--green); }
+  .dir-btn.minus.active { background:#3a1a1a; color:var(--red); }
+
+  /* Vending machine */
+  .vm-wrap { background:linear-gradient(160deg,var(--bg3),var(--bg2)); border-radius:16px; border:2px solid var(--border); padding:14px; box-shadow:0 8px 32px rgba(0,0,0,.4); }
+  .vm-header { text-align:center; padding:8px; background:rgba(232,184,109,.08); border:1px solid rgba(232,184,109,.2); border-radius:8px; margin-bottom:12px; font-size:12px; color:var(--gold); font-weight:700; letter-spacing:2px; }
+  .vm-col-headers { display:grid; gap:4px; margin-bottom:6px; }
+  .vm-col-hd { text-align:center; font-size:11px; color:var(--gold); font-weight:700; }
+  .vm-row { display:grid; gap:4px; margin-bottom:4px; }
+  .vm-cell { background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:5px 3px; text-align:center; min-height:58px; display:flex; flex-direction:column; align-items:center; justify-content:center; position:relative; cursor:default; }
+  .vm-cell.has-product { border-color:rgba(126,200,227,.3); background:rgba(126,200,227,.06); }
+  .vm-cell.low-stock { border-color:rgba(224,88,88,.4); background:rgba(224,88,88,.08); }
+  .vm-cell .cell-pos { position:absolute; top:2px; left:3px; font-size:8px; color:var(--text3); }
+  .vm-cell .cell-icon { font-size:14px; margin-bottom:1px; }
+  .vm-cell .cell-name { font-size:8px; color:var(--text); font-weight:600; line-height:1.2; }
+  .vm-cell .cell-qty { font-size:9px; font-weight:700; margin-top:1px; }
+  .vm-legend { display:flex; gap:12px; justify-content:center; margin-top:10px; }
+  .vm-legend-item { display:flex; align-items:center; gap:4px; font-size:10px; color:var(--text3); }
+  .vm-legend-dot { width:10px; height:10px; border-radius:2px; }
+
+  /* Product card */
+  .prod-card { background:var(--bg3); border-radius:10px; border:1px solid var(--border); overflow:hidden; margin-bottom:10px; }
+  .prod-card:last-child { margin-bottom:0; }
+  .prod-card-head { padding:12px 14px; display:flex; align-items:center; justify-content:space-between; }
+  .prod-meta { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; padding:8px 14px 12px; }
+  .prod-meta-box { background:var(--bg); border-radius:6px; padding:6px 8px; }
+  .prod-meta-lbl { font-size:10px; color:var(--text3); }
+  .prod-meta-val { font-size:12px; font-weight:600; }
+
+  /* Date input */
+  input[type=date] { color-scheme:dark; }
+
+  /* Empty */
+  .empty { text-align:center; padding:24px 0; color:var(--text3); }
+  .empty-icon { font-size:32px; margin-bottom:8px; }
+  .empty-txt { font-size:13px; }
+
+  /* Toast */
+  #toast { position:fixed; top:70px; left:50%; transform:translateX(-50%); background:#1a3a2a; border:1px solid #4a8a4a; border-radius:10px; padding:10px 18px; font-size:14px; color:var(--green); z-index:300; display:none; white-space:nowrap; }
+
+  /* Loading */
+  #loading { position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center; z-index:999; flex-direction:column; gap:12px; }
+  #loading .spin { font-size:48px; animation:spin 1.5s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spin">🥤</div>
+  <div style="color:var(--text2);font-size:16px;">로딩 중...</div>
+</div>
+
+<div id="toast"></div>
+
+<div id="app" style="display:none">
+  <div id="header">
+    <div class="logo">🥤</div>
+    <div>
+      <div class="title">자판기 관리</div>
+      <div class="sub">Vending Manager</div>
+    </div>
+  </div>
+
+  <div id="content">
+    <!-- HOME -->
+    <div class="tab active" id="tab-home">
+      <div class="form-row">
+        <label class="lbl">📅 날짜 선택</label>
+        <input type="date" id="home-date"/>
+      </div>
+      <div class="card" id="low-stock-card">
+        <div class="card-header">
+          <div class="card-accent" style="background:var(--red)"></div>
+          <div><div class="card-title">⚠️ 재고 부족 제품</div><div class="card-sub">재고 5개 이하</div></div>
+        </div>
+        <div class="card-body" id="low-stock-list"></div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-accent" style="background:var(--gold)"></div>
+          <div><div class="card-title" id="home-date-title">오늘 판매 현황</div></div>
+        </div>
+        <div class="card-body">
+          <div class="stats-grid">
+            <div class="stat-box"><div class="stat-lbl">판매 수량</div><div class="stat-val" id="home-qty" style="color:var(--blue)">0개</div></div>
+            <div class="stat-box"><div class="stat-lbl">판매 금액</div><div class="stat-val" id="home-amt" style="color:var(--gold)">0원</div></div>
+          </div>
+          <div style="font-size:12px;color:var(--text2);font-weight:600;margin-bottom:8px;">TOP 3 판매 제품</div>
+          <div id="home-top3"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- INVENTORY -->
+    <div class="tab" id="tab-inventory">
+      <button class="btn-primary" onclick="openModal('inv-modal')">➕ 재고 입력</button>
+      <div id="inv-msg" style="display:none;background:#1a3a2a;border:1px solid #4a8a4a;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:14px;color:var(--green)"></div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-accent" style="background:var(--blue)"></div>
+          <div><div class="card-title" id="inv-count-title">전체 재고 현황</div></div>
+        </div>
+        <div class="card-body" id="inv-list"></div>
+      </div>
+    </div>
+
+    <!-- SALES -->
+    <div class="tab" id="tab-sales">
+      <button class="btn-primary btn-blue" onclick="openModal('csv-modal')">📤 판매 데이터 업로드 (CSV)</button>
+      <div class="sort-tabs">
+        <button class="sort-tab active" onclick="setSalesSort('date',this)">📅 날짜별</button>
+        <button class="sort-tab" onclick="setSalesSort('product',this)">📦 제품명</button>
+        <button class="sort-tab" onclick="setSalesSort('qty',this)">🔢 판매량</button>
+      </div>
+      <div class="form-row">
+        <input type="date" id="sales-date-filter" oninput="renderSales()"/>
+      </div>
+      <div id="sales-list"></div>
+    </div>
+
+    <!-- MACHINE -->
+    <div class="tab" id="tab-machine">
+      <div style="margin-bottom:14px;">
+        <div style="font-size:16px;font-weight:700;margin-bottom:3px;">🏪 자판기 현황</div>
+        <div style="font-size:12px;color:var(--text2)">컬럼별 제품 배치 현황</div>
+      </div>
+      <div class="vm-wrap" id="vm-grid"></div>
+      <div class="card" style="margin-top:14px;">
+        <div class="card-header">
+          <div class="card-accent" style="background:var(--blue)"></div>
+          <div><div class="card-title">컬럼 배치 현황</div></div>
+        </div>
+        <div class="card-body" id="vm-list"></div>
+      </div>
+    </div>
+
+    <!-- PRODUCTS -->
+    <div class="tab" id="tab-products">
+      <button class="btn-primary" onclick="openProductModal()">➕ 제품 등록</button>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-accent" style="background:var(--gold)"></div>
+          <div><div class="card-title" id="prod-count-title">등록 제품</div></div>
+        </div>
+        <div class="card-body" id="prod-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <nav id="nav">
+    <button class="nav-btn active" onclick="switchTab('home',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg>
+      <span>홈</span>
+    </button>
+    <button class="nav-btn" onclick="switchTab('inventory',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+      <span>재고</span>
+    </button>
+    <button class="nav-btn" onclick="switchTab('sales',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+      <span>판매통계</span>
+    </button>
+    <button class="nav-btn" onclick="switchTab('machine',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><circle cx="15" cy="9" r=".5" fill="currentColor"/><circle cx="15" cy="12" r=".5" fill="currentColor"/><circle cx="15" cy="15" r=".5" fill="currentColor"/></svg>
+      <span>자판기</span>
+    </button>
+    <button class="nav-btn" onclick="switchTab('products',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r=".5" fill="currentColor"/></svg>
+      <span>제품등록</span>
+    </button>
+  </nav>
+</div>
+
+<!-- INVENTORY MODAL -->
+<div class="modal-bg" id="inv-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">재고 입력</div>
+      <button class="modal-close" onclick="closeModal('inv-modal')">✕</button>
+    </div>
+    <div class="form-row">
+      <label class="lbl">제품 선택</label>
+      <select id="inv-product"></select>
+    </div>
+    <div class="form-row">
+      <label class="lbl">수량</label>
+      <input type="number" id="inv-qty" placeholder="수량 입력" min="1"/>
+    </div>
+    <div class="form-row">
+      <label class="lbl">입출고 선택</label>
+      <div class="dir-btns">
+        <button class="dir-btn plus active" id="dir-plus" onclick="setDir('plus')">➕ 입고</button>
+        <button class="dir-btn minus" id="dir-minus" onclick="setDir('minus')">➖ 출고</button>
+      </div>
+    </div>
+    <div class="form-row">
+      <label class="lbl">메모 (선택)</label>
+      <input type="text" id="inv-memo" placeholder="메모를 입력하세요"/>
+    </div>
+    <button class="btn-primary" style="margin-bottom:0" onclick="submitInventory()">확인</button>
+  </div>
+</div>
+
+<!-- CSV MODAL -->
+<div class="modal-bg" id="csv-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">판매 데이터 업로드</div>
+      <button class="modal-close" onclick="closeModal('csv-modal')">✕</button>
+    </div>
+    <div id="csv-step1">
+      <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:16px;">CSV 파일을 업로드하세요.<br/>날짜, 제품명, 판매 수량 컬럼이 필요해요.</p>
+      <input type="file" id="csv-file" accept=".csv" style="display:none" onchange="handleCSV(this)"/>
+      <button class="btn-primary" style="margin-bottom:0" onclick="document.getElementById('csv-file').click()">📁 CSV 파일 선택</button>
+    </div>
+    <div id="csv-step2" style="display:none">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:14px;">파일 컬럼과 항목을 매칭하세요</p>
+      <div class="form-row"><label class="lbl">📅 날짜 컬럼</label><select id="csv-date-col"></select></div>
+      <div class="form-row"><label class="lbl">📦 제품명 컬럼</label><select id="csv-prod-col"></select></div>
+      <div class="form-row"><label class="lbl">🔢 수량 컬럼</label><select id="csv-qty-col"></select></div>
+      <button class="btn-primary" style="margin-bottom:0" onclick="importCSV()">데이터 불러오기</button>
+    </div>
+  </div>
+</div>
+
+<!-- PRODUCT MODAL -->
+<div class="modal-bg" id="prod-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title" id="prod-modal-title">제품 등록</div>
+      <button class="modal-close" onclick="closeModal('prod-modal')">✕</button>
+    </div>
+    <input type="hidden" id="prod-edit-id"/>
+    <div class="form-row"><label class="lbl">제품명</label><input type="text" id="p-name" placeholder="제품명 입력"/></div>
+    <div class="form-2col">
+      <div><label class="lbl">구매가 (원)</label><input type="number" id="p-buy" placeholder="총 구매금액" oninput="calcProduct()"/></div>
+      <div><label class="lbl">총 수량 (개)</label><input type="number" id="p-total" placeholder="구매 수량" oninput="calcProduct()"/></div>
+    </div>
+    <div class="form-row">
+      <label class="lbl">낱개가 (자동계산)</label>
+      <div class="auto-field" id="p-unit" style="color:var(--green)">구매가 ÷ 총수량</div>
+    </div>
+    <div class="form-row"><label class="lbl">판매가 (원)</label><input type="number" id="p-sell" placeholder="판매 가격" oninput="calcProduct()"/></div>
+    <div class="form-2col">
+      <div><label class="lbl">마진가 (자동)</label><div class="auto-field" id="p-margin-amt" style="color:var(--gold)">-</div></div>
+      <div><label class="lbl">마진율 (자동)</label><div class="auto-field" id="p-margin-rate" style="color:var(--gold)">-</div></div>
+    </div>
+    <div class="form-row"><label class="lbl">컬럼 위치 (예: A1, B3)</label><input type="text" id="p-col" placeholder="A1, B2 등 입력" oninput="this.value=this.value.toUpperCase()"/></div>
+    <button class="btn-primary" style="margin-bottom:0" onclick="saveProduct()">등록 완료</button>
+  </div>
+</div>
+
+<!-- Firebase SDK -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js";
+import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDKgGwpAwmeZLiIHRyTIz87JvRaGM_G240",
+  authDomain: "vending-manager-2d64e.firebaseapp.com",
+  projectId: "vending-manager-2d64e",
+  storageBucket: "vending-manager-2d64e.firebasestorage.app",
+  messagingSenderId: "840768320205",
+  appId: "1:840768320205:web:9cf171935ef01de8852f84",
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const REF = () => doc(db, "vending", "appData");
+
+const DEFAULT = { products:[], inventory:[], inventoryLogs:[], salesData:[] };
+let DATA = { ...DEFAULT };
+let salesSort = 'date';
+let csvHeaders = [], csvRows = [], invDir = 'plus';
+
+// ── Load ──────────────────────────────────────────────────────────────────────
+async function load() {
+  try {
+    const snap = await getDoc(REF());
+    DATA = snap.exists() ? { ...DEFAULT, ...snap.data() } : { ...DEFAULT };
+  } catch(e) { console.error(e); DATA = { ...DEFAULT }; }
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  // init
+  document.getElementById('home-date').value = today();
+  renderAll();
+}
+
+async function save() {
+  try { await setDoc(REF(), DATA); } catch(e) { console.error(e); }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function today() { return new Date().toISOString().slice(0,10); }
+function fmt(n) { return (n||0).toLocaleString('ko-KR'); }
+function getQty(pid) { const i = DATA.inventory.find(x=>x.productId===pid); return i ? i.qty : 0; }
+function getProd(id) { return DATA.products.find(p=>p.id===id); }
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.style.display = 'block';
+  setTimeout(()=>{ t.style.display='none'; }, 2200);
+}
+
+// ── Render All ────────────────────────────────────────────────────────────────
+function renderAll() {
+  renderHome();
+  renderInventory();
+  renderSales();
+  renderMachine();
+  renderProducts();
+}
+
+// ── HOME ──────────────────────────────────────────────────────────────────────
+window.renderHome = function() {
+  const date = document.getElementById('home-date').value || today();
+  document.getElementById('home-date-title').textContent = `${date} 판매 현황`;
+
+  // Low stock
+  const lowEl = document.getElementById('low-stock-list');
+  const low = DATA.inventory.filter(i=>i.qty<=5).map(i=>({...i,p:getProd(i.productId)})).filter(x=>x.p);
+  if(!low.length) {
+    lowEl.innerHTML = `<div class="empty"><div class="empty-icon">✅</div><div class="empty-txt">재고 부족 제품 없음</div></div>`;
+  } else {
+    lowEl.innerHTML = low.map(i=>`
+      <div class="low-item">
+        <div><div class="item-name">${i.p.name}</div><div class="item-sub">컬럼: ${i.p.column||'-'}</div></div>
+        <span class="badge ${i.qty===0?'badge-red':'badge-orange'}">${i.qty}개</span>
+      </div>`).join('');
+  }
+
+  // Day sales
+  const ds = DATA.salesData.filter(s=>s.date===date);
+  const qty = ds.reduce((s,x)=>s+(x.qty||0),0);
+  const amt = ds.reduce((s,x)=>{const p=getProd(x.productId);return s+(x.qty||0)*(p?.sellPrice||0);},0);
+  document.getElementById('home-qty').textContent = fmt(qty)+'개';
+  document.getElementById('home-amt').textContent = fmt(amt)+'원';
+
+  // Top3
+  const byP = {};
+  ds.forEach(s=>{ byP[s.productId]=(byP[s.productId]||0)+s.qty; });
+  const top3 = Object.entries(byP).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([id,q])=>({p:getProd(id),q})).filter(x=>x.p);
+  const emojis=['🥇','🥈','🥉'], colors=['var(--gold)','#b0b0c0','#c87941'];
+  const top3El = document.getElementById('home-top3');
+  if(!top3.length) {
+    top3El.innerHTML = `<div class="empty"><div class="empty-icon">📦</div><div class="empty-txt">판매 데이터 없음</div></div>`;
+  } else {
+    top3El.innerHTML = top3.map((x,i)=>`
+      <div class="top-item" style="border:1px solid ${colors[i]}33">
+        <span style="font-size:20px">${emojis[i]}</span>
+        <div style="flex:1"><div class="item-name">${x.p.name}</div></div>
+        <span style="color:${colors[i]};font-weight:800;font-size:15px">${x.q}개</span>
+      </div>`).join('');
+  }
+}
+document.getElementById('home-date').addEventListener('input', window.renderHome);
+
+// ── INVENTORY ─────────────────────────────────────────────────────────────────
+function renderInventory() {
+  const list = document.getElementById('inv-list');
+  document.getElementById('inv-count-title').textContent = `전체 재고 현황 (${DATA.products.length}개 제품)`;
+  if(!DATA.products.length) {
+    list.innerHTML = `<div class="empty"><div class="empty-icon">📦</div><div class="empty-txt">등록된 제품이 없습니다</div></div>`; return;
+  }
+  list.innerHTML = DATA.products.map(p=>{
+    const q = getQty(p.id), low = q<=5;
+    return `<div class="item" style="${low?'border-color:rgba(224,88,88,.3)':''}">
+      <div><div class="item-name">${p.name}</div><div class="item-sub">컬럼: ${p.column||'-'} | 판매가: ${fmt(p.sellPrice)}원</div></div>
+      <span class="badge ${q===0?'badge-red':low?'badge-orange':'badge-green'}">${q}개</span>
+    </div>`;
+  }).join('');
+
+  // populate product select
+  const sel = document.getElementById('inv-product');
+  sel.innerHTML = '<option value="">제품 선택</option>' + DATA.products.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+}
+
+window.setDir = function(d) {
+  invDir = d;
+  document.getElementById('dir-plus').className = 'dir-btn plus'+(d==='plus'?' active':'');
+  document.getElementById('dir-minus').className = 'dir-btn minus'+(d==='minus'?' active':'');
+}
+
+window.submitInventory = async function() {
+  const pid = document.getElementById('inv-product').value;
+  const qty = parseInt(document.getElementById('inv-qty').value);
+  const memo = document.getElementById('inv-memo').value;
+  if(!pid || isNaN(qty) || qty<=0) { toast('❌ 제품과 수량을 입력하세요'); return; }
+  const delta = invDir==='plus' ? qty : -qty;
+  const idx = DATA.inventory.findIndex(i=>i.productId===pid);
+  if(idx>=0) DATA.inventory[idx].qty = Math.max(0, DATA.inventory[idx].qty+delta);
+  else DATA.inventory.push({productId:pid, qty:Math.max(0,delta)});
+  DATA.inventoryLogs.push({id:Date.now().toString(), productId:pid, delta, memo, date:today()});
+  await save();
+  closeModal('inv-modal');
+  document.getElementById('inv-qty').value='';
+  document.getElementById('inv-memo').value='';
+  toast(invDir==='plus'?`✅ +${qty}개 입고 완료`:`✅ -${qty}개 출고 완료`);
+  renderAll();
+}
+
+// ── SALES ─────────────────────────────────────────────────────────────────────
+window.setSalesSort = function(s, el) {
+  salesSort = s;
+  document.querySelectorAll('.sort-tab').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  renderSales();
+}
+
+window.renderSales = function() {
+  const filterDate = document.getElementById('sales-date-filter').value;
+  const filtered = filterDate ? DATA.salesData.filter(s=>s.date===filterDate) : DATA.salesData;
+  const el = document.getElementById('sales-list');
+
+  if(salesSort==='date') {
+    const byDate = {};
+    filtered.forEach(s=>{
+      if(!byDate[s.date]) byDate[s.date]={qty:0,amt:0};
+      const p=getProd(s.productId);
+      byDate[s.date].qty+=s.qty;
+      byDate[s.date].amt+=s.qty*(p?.sellPrice||0);
+    });
+    const rows = Object.entries(byDate).sort((a,b)=>b[0].localeCompare(a[0]));
+    el.innerHTML = rows.length ? rows.map(([d,v])=>`
+      <div class="card" style="margin-bottom:8px">
+        <div class="card-body" style="padding:12px 14px">
+          <div style="font-weight:700;color:var(--gold);margin-bottom:6px">${d}</div>
+          <div style="display:flex;gap:16px;font-size:13px">
+            <span style="color:var(--blue)">판매량 <b>${fmt(v.qty)}개</b></span>
+            <span style="color:var(--green)">금액 <b>${fmt(v.amt)}원</b></span>
+          </div>
+        </div>
+      </div>`).join('') : `<div class="empty"><div class="empty-icon">📊</div><div class="empty-txt">판매 데이터 없음</div></div>`;
+  } else {
+    const byP = {};
+    filtered.forEach(s=>{ byP[s.productId]=(byP[s.productId]||0)+s.qty; });
+    let rows = Object.entries(byP).map(([id,q])=>({p:getProd(id),q})).filter(x=>x.p);
+    if(salesSort==='product') rows.sort((a,b)=>a.p.name.localeCompare(b.p.name));
+    else rows.sort((a,b)=>b.q-a.q);
+    el.innerHTML = rows.length ? rows.map((x,i)=>`
+      <div class="item">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:12px;color:var(--text3);min-width:22px">#${i+1}</span>
+          <div><div class="item-name">${x.p.name}</div><div class="item-sub">판매가 ${fmt(x.p.sellPrice)}원</div></div>
+        </div>
+        <span style="color:var(--blue);font-weight:700;font-size:15px">${x.q}개</span>
+      </div>`).join('') : `<div class="empty"><div class="empty-icon">📦</div><div class="empty-txt">판매 데이터 없음</div></div>`;
+  }
+}
+
+// CSV
+window.handleCSV = function(input) {
+  const file = input.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const lines = e.target.result.trim().split('\n').map(l=>l.split(',').map(c=>c.trim().replace(/"/g,'')));
+    if(lines.length<2) return;
+    csvHeaders = lines[0]; csvRows = lines.slice(1);
+    const opts = csvHeaders.map(h=>`<option value="${h}">${h}</option>`).join('');
+    ['csv-date-col','csv-prod-col','csv-qty-col'].forEach(id=>document.getElementById(id).innerHTML='<option value="">선택</option>'+opts);
+    document.getElementById('csv-step1').style.display='none';
+    document.getElementById('csv-step2').style.display='block';
+  };
+  reader.readAsText(file,'utf-8');
+}
+
+window.importCSV = async function() {
+  const dIdx = csvHeaders.indexOf(document.getElementById('csv-date-col').value);
+  const pIdx = csvHeaders.indexOf(document.getElementById('csv-prod-col').value);
+  const qIdx = csvHeaders.indexOf(document.getElementById('csv-qty-col').value);
+  if(dIdx<0||pIdx<0||qIdx<0) { toast('❌ 모든 컬럼을 선택하세요'); return; }
+  let added=0;
+  csvRows.forEach(row=>{
+    const d=row[dIdx], q=parseInt(row[qIdx]), name=row[pIdx];
+    if(!d||isNaN(q)) return;
+    const p=DATA.products.find(x=>x.name===name||x.column===name);
+    if(!p) return;
+    DATA.salesData.push({id:Date.now().toString()+Math.random(),date:d,productId:p.id,qty:q});
+    added++;
+  });
+  await save();
+  closeModal('csv-modal');
+  document.getElementById('csv-step1').style.display='block';
+  document.getElementById('csv-step2').style.display='none';
+  document.getElementById('csv-file').value='';
+  toast(`✅ ${added}건 데이터 추가 완료`);
+  renderSales();
+}
+
+// ── MACHINE ───────────────────────────────────────────────────────────────────
+function renderMachine() {
+  const cols = ['A','B','C','D','E','F','G','H'];
+  const rows = [1,2,3,4,5,6];
+  const grid = document.getElementById('vm-grid');
+
+  let html = `<div class="vm-header">🥤 VENDING MACHINE</div>`;
+  html += `<div class="vm-col-headers" style="grid-template-columns:repeat(${cols.length},1fr)">` + cols.map(c=>`<div class="vm-col-hd">${c}</div>`).join('') + `</div>`;
+  rows.forEach(r=>{
+    html += `<div class="vm-row" style="grid-template-columns:repeat(${cols.length},1fr)">`;
+    cols.forEach(c=>{
+      const p = DATA.products.find(x=>x.column===`${c}${r}`);
+      const q = p ? getQty(p.id) : 0;
+      const cls = !p ? '' : q<=5 ? ' low-stock' : ' has-product';
+      html += `<div class="vm-cell${cls}">
+        <span class="cell-pos">${c}${r}</span>
+        ${p ? `<div class="cell-icon">🥤</div><div class="cell-name">${p.name.length>5?p.name.slice(0,5)+'…':p.name}</div><div class="cell-qty" style="color:${q<=5?'var(--red)':'var(--green)'}">${q}개</div>` : `<div style="font-size:16px;opacity:.15">□</div>`}
+      </div>`;
+    });
+    html += `</div>`;
+  });
+  html += `<div class="vm-legend">
+    <div class="vm-legend-item"><div class="vm-legend-dot" style="border:1px solid rgba(126,200,227,.4);background:rgba(126,200,227,.1)"></div>정상</div>
+    <div class="vm-legend-item"><div class="vm-legend-dot" style="border:1px solid rgba(224,88,88,.4);background:rgba(224,88,88,.1)"></div>부족(≤5)</div>
+    <div class="vm-legend-item"><div class="vm-legend-dot" style="border:1px solid var(--border);background:var(--bg)"></div>비어있음</div>
+  </div>`;
+  grid.innerHTML = html;
+
+  // list
+  const listEl = document.getElementById('vm-list');
+  const placed = DATA.products.filter(p=>p.column).sort((a,b)=>a.column.localeCompare(b.column));
+  listEl.innerHTML = placed.length ? placed.map(p=>{
+    const q=getQty(p.id);
+    return `<div class="item">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="background:rgba(232,184,109,.15);border:1px solid rgba(232,184,109,.4);border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;color:var(--gold)">${p.column}</span>
+        <span style="font-size:14px">${p.name}</span>
+      </div>
+      <span style="color:${q<=5?'var(--red)':'var(--green)'};font-weight:700">${q}개</span>
+    </div>`;
+  }).join('') : `<div class="empty"><div class="empty-icon">🏪</div><div class="empty-txt">컬럼 배정된 제품 없음</div></div>`;
+}
+
+// ── PRODUCTS ──────────────────────────────────────────────────────────────────
+function renderProducts() {
+  document.getElementById('prod-count-title').textContent = `등록 제품 (${DATA.products.length}개)`;
+  const el = document.getElementById('prod-list');
+  if(!DATA.products.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">🏷️</div><div class="empty-txt">등록된 제품이 없습니다</div></div>`; return;
+  }
+  el.innerHTML = DATA.products.map(p=>`
+    <div class="prod-card">
+      <div class="prod-card-head">
+        <div><div class="item-name">${p.name}</div><div class="item-sub">컬럼: ${p.column||'미배정'}</div></div>
+        <div style="display:flex;gap:6px">
+          <button class="btn-sm" style="background:#1a2a4a;color:var(--blue)" onclick="editProduct('${p.id}')">수정</button>
+          <button class="btn-sm" style="background:#2a1a1a;color:var(--red)" onclick="deleteProduct('${p.id}')">삭제</button>
+        </div>
+      </div>
+      <div class="prod-meta">
+        ${[['구매가',fmt(p.buyPrice)+'원'],['낱개가',fmt(p.unitPrice)+'원'],['판매가',fmt(p.sellPrice)+'원'],['마진가',fmt(p.marginAmt)+'원'],['마진율',p.marginRate+'%'],['총수량',p.totalQty+'개']].map(([l,v])=>`
+          <div class="prod-meta-box"><div class="prod-meta-lbl">${l}</div><div class="prod-meta-val">${v}</div></div>`).join('')}
+      </div>
+    </div>`).join('');
+}
+
+window.calcProduct = function() {
+  const buy = parseFloat(document.getElementById('p-buy').value);
+  const total = parseFloat(document.getElementById('p-total').value);
+  const sell = parseFloat(document.getElementById('p-sell').value);
+  const unit = (!isNaN(buy)&&!isNaN(total)&&total>0) ? Math.round(buy/total) : null;
+  document.getElementById('p-unit').textContent = unit!=null ? fmt(unit)+'원' : '구매가 ÷ 총수량';
+  if(unit!=null && !isNaN(sell)) {
+    document.getElementById('p-margin-amt').textContent = fmt(sell-unit)+'원';
+    document.getElementById('p-margin-rate').textContent = sell>0 ? Math.round((sell-unit)/sell*100)+'%' : '-';
+  } else {
+    document.getElementById('p-margin-amt').textContent = '-';
+    document.getElementById('p-margin-rate').textContent = '-';
+  }
+}
+
+window.openProductModal = function() {
+  document.getElementById('prod-edit-id').value='';
+  document.getElementById('prod-modal-title').textContent='제품 등록';
+  ['p-name','p-buy','p-total','p-sell','p-col'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('p-unit').textContent='구매가 ÷ 총수량';
+  document.getElementById('p-margin-amt').textContent='-';
+  document.getElementById('p-margin-rate').textContent='-';
+  document.querySelector('#prod-modal .btn-primary').textContent='등록 완료';
+  openModal('prod-modal');
+}
+
+window.editProduct = function(id) {
+  const p = getProd(id); if(!p) return;
+  document.getElementById('prod-edit-id').value = id;
+  document.getElementById('prod-modal-title').textContent='제품 수정';
+  document.getElementById('p-name').value = p.name;
+  document.getElementById('p-buy').value = p.buyPrice;
+  document.getElementById('p-total').value = p.totalQty;
+  document.getElementById('p-sell').value = p.sellPrice;
+  document.getElementById('p-col').value = p.column||'';
+  document.querySelector('#prod-modal .btn-primary').textContent='수정 완료';
+  calcProduct();
+  openModal('prod-modal');
+}
+
+window.saveProduct = async function() {
+  const name = document.getElementById('p-name').value.trim();
+  if(!name) { toast('❌ 제품명을 입력하세요'); return; }
+  const buy = parseFloat(document.getElementById('p-buy').value)||0;
+  const total = parseFloat(document.getElementById('p-total').value)||0;
+  const sell = parseFloat(document.getElementById('p-sell').value)||0;
+  const unit = total>0 ? Math.round(buy/total) : 0;
+  const marginAmt = sell-unit;
+  const marginRate = sell>0 ? Math.round(marginAmt/sell*100) : 0;
+  const col = document.getElementById('p-col').value.trim().toUpperCase();
+  const editId = document.getElementById('prod-edit-id').value;
+  const prod = { id:editId||Date.now().toString(), name, buyPrice:buy, totalQty:total, unitPrice:unit, sellPrice:sell, marginAmt, marginRate, column:col };
+  if(editId) DATA.products = DATA.products.map(p=>p.id===editId?prod:p);
+  else DATA.products.push(prod);
+  await save();
+  closeModal('prod-modal');
+  toast(editId?'✅ 수정 완료':'✅ 제품 등록 완료');
+  renderAll();
+}
+
+window.deleteProduct = async function(id) {
+  if(!confirm('삭제하시겠습니까?')) return;
+  DATA.products = DATA.products.filter(p=>p.id!==id);
+  await save();
+  toast('✅ 삭제 완료');
+  renderAll();
+}
+
+// ── UI Helpers ────────────────────────────────────────────────────────────────
+window.switchTab = function(name, btn) {
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  btn.classList.add('active');
+}
+
+window.openModal = function(id) { document.getElementById(id).classList.add('open'); }
+window.closeModal = function(id) { document.getElementById(id).classList.remove('open'); }
+
+// close modal on bg click
+document.querySelectorAll('.modal-bg').forEach(bg=>{
+  bg.addEventListener('click', e=>{ if(e.target===bg) bg.classList.remove('open'); });
+});
+
+load();
+</script>
+</body>
+</html>
