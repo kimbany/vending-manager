@@ -8,6 +8,7 @@
 <!-- Firebase Compat SDK -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root{--bg:#0d0d12;--bg2:#13131a;--bg3:#1a1a24;--border:#2a2a3a;--text:#e8ddd0;--text2:#a0a0b8;--text3:#5a5a7a;--gold:#e8b86d;--gold2:#d49a50;--blue:#7ec8e3;--green:#7ada9a;--red:#e05858;--radius:12px;}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
@@ -131,7 +132,24 @@ input[type=date]{color-scheme:dark;}
 
     <!-- 재고 -->
     <div class="tab" id="tab-inventory">
-      <button class="btn-p" onclick="openModal('inv-modal')">➕ 재고 입력</button>
+      <!-- 버튼 -->
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <button class="btn-p" style="margin-bottom:0;flex:1" onclick="openModal('inv-modal')">➕ 재고 입력</button>
+        <button class="btn-p btn-b" style="margin-bottom:0;flex:1" onclick="openModal('bulk-inv-modal')">📋 일괄 입력</button>
+      </div>
+      <!-- 정렬 탭 -->
+      <div class="stabs" style="margin-bottom:10px">
+        <button class="stab active" id="isort-name" onclick="setInvSort('name',this)">제품명</button>
+        <button class="stab" id="isort-col" onclick="setInvSort('col',this)">컬럼순</button>
+        <button class="stab" id="isort-qasc" onclick="setInvSort('qasc',this)">재고 ↑</button>
+        <button class="stab" id="isort-qdesc" onclick="setInvSort('qdesc',this)">재고 ↓</button>
+      </div>
+      <!-- 재고 부족 알림 -->
+      <div id="inv-low-card" style="display:none;background:rgba(224,88,88,.08);border:1px solid rgba(224,88,88,.3);border-radius:12px;padding:12px 14px;margin-bottom:12px">
+        <div style="font-size:12px;font-weight:700;color:var(--red);margin-bottom:8px">⚠️ 재고 부족 제품</div>
+        <div id="inv-low-list"></div>
+      </div>
+      <!-- 전체 목록 -->
       <div class="card">
         <div class="ch"><div class="ca" style="background:var(--blue)"></div><div><div class="ct" id="inv-title">전체 재고 현황</div></div></div>
         <div class="cb" id="inv-list"></div>
@@ -140,7 +158,9 @@ input[type=date]{color-scheme:dark;}
 
     <!-- 판매통계 -->
     <div class="tab" id="tab-sales">
-      <button class="btn-p btn-b" onclick="openModal('csv-modal')">📤 판매 데이터 업로드 (CSV)</button>
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button class="btn-p btn-b" style="margin-bottom:0;flex:1" onclick="openModal('csv-modal')">📤 거래내역 업로드 (XLSX/CSV)</button>
+      </div>
       <div class="stabs">
         <button class="stab active" onclick="setSalesSort('date',this)">📅 날짜별</button>
         <button class="stab" onclick="setSalesSort('product',this)">📦 제품명</button>
@@ -155,7 +175,7 @@ input[type=date]{color-scheme:dark;}
       <div style="margin-bottom:14px"><div style="font-size:16px;font-weight:700;margin-bottom:3px">🏪 자판기 현황</div><div style="font-size:12px;color:var(--text2)">컬럼별 제품 배치 현황</div></div>
       <div class="vmw" id="vm-grid"></div>
       <div class="card" style="margin-top:14px">
-        <div class="ch"><div class="ca" style="background:var(--blue)"></div><div><div class="ct">컬럼 배치 현황</div></div></div>
+        <div class="ch"><div class="ca" style="background:var(--blue)"></div><div><div class="ct">컬럼 배치 현황</div><div style="font-size:11px;color:var(--text3);margin-top:2px">제품 눌러서 상세 보기</div></div></div>
         <div class="cb" id="vm-list"></div>
       </div>
     </div>
@@ -207,6 +227,55 @@ input[type=date]{color-scheme:dark;}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r=".5" fill="currentColor"/></svg><span>제품등록</span>
     </button>
   </nav>
+</div>
+
+<!-- 재고 상세 팝업 -->
+<div class="modal-bg" id="inv-detail-modal">
+  <div class="modal">
+    <div class="mh"><div class="mt" id="idm-title">재고 관리</div><button class="mc" onclick="closeModal('inv-detail-modal')">✕</button></div>
+    <!-- 재고 현황 -->
+    <div id="idm-stock" style="text-align:center;padding:14px 0 10px;margin-bottom:14px;border-bottom:1px solid var(--border)"></div>
+    <!-- +/- 입력 -->
+    <div style="margin-bottom:14px">
+      <div class="fr" style="margin-bottom:8px">
+        <div class="dbtns">
+          <button class="dbtn plus active" id="idm-dir-plus" onclick="setIdmDir('plus')">➕ 입고</button>
+          <button class="dbtn minus" id="idm-dir-minus" onclick="setIdmDir('minus')">➖ 출고</button>
+        </div>
+      </div>
+      <div class="f2" style="margin-bottom:8px">
+        <div><label class="lbl">수량</label><input type="number" id="idm-qty" placeholder="수량" min="1"/></div>
+        <div><label class="lbl">메모</label><input type="text" id="idm-memo" placeholder="메모 (선택)"/></div>
+      </div>
+      <button class="btn-p" style="margin-bottom:0" onclick="submitIdmInventory()">확인</button>
+    </div>
+    <!-- 내역 -->
+    <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px">📋 입출고 내역</div>
+    <div id="idm-logs" style="max-height:220px;overflow-y:auto"></div>
+  </div>
+</div>
+
+<!-- 일괄 재고 입력 모달 -->
+<div class="modal-bg" id="bulk-inv-modal">
+  <div class="modal">
+    <div class="mh"><div class="mt">📋 재고 일괄 입력</div><button class="mc" onclick="closeModal('bulk-inv-modal')">✕</button></div>
+    <div id="bulk-inv-s1">
+      <div style="background:var(--bg3);border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--text2);line-height:1.8">
+        📌 양식 파일을 다운로드해서 작성 후 업로드하세요.<br/>
+        <b style="color:var(--gold)">+입고</b> 또는 <b style="color:var(--blue)">-출고</b> 칸에 수량을 입력하세요.<br/>
+        둘 다 비워두면 해당 행은 건너뜁니다.
+      </div>
+      <button class="btn-p btn-b" style="margin-bottom:10px" onclick="downloadInvTemplate()">⬇️ 양식 파일 다운로드</button>
+      <input type="file" id="bulk-inv-file" accept=".csv" style="display:none" onchange="handleBulkInvCSV(this)"/>
+      <button class="btn-p" style="margin-bottom:0" onclick="document.getElementById('bulk-inv-file').click()">📁 CSV 파일 업로드</button>
+    </div>
+    <div id="bulk-inv-s2" style="display:none">
+      <div style="font-size:13px;color:var(--text2);margin-bottom:12px" id="bulk-inv-summary"></div>
+      <div id="bulk-inv-preview" style="max-height:300px;overflow-y:auto;margin-bottom:16px"></div>
+      <button class="btn-p" style="margin-bottom:8px" onclick="confirmBulkInv()">✅ 일괄 적용</button>
+      <button class="btn-p" style="margin-bottom:0;background:var(--bg3);color:var(--text2)" onclick="resetBulkInv()">↩️ 다시 선택</button>
+    </div>
+  </div>
 </div>
 
 <!-- 재고 모달 -->
@@ -262,22 +331,33 @@ input[type=date]{color-scheme:dark;}
   </div>
 </div>
 
-<!-- CSV 모달 -->
+<!-- 판매 업로드 모달 -->
 <div class="modal-bg" id="csv-modal">
   <div class="modal">
-    <div class="mh"><div class="mt">판매 데이터 업로드</div><button class="mc" onclick="closeModal('csv-modal')">✕</button></div>
+    <div class="mh"><div class="mt">📤 거래내역 업로드</div><button class="mc" onclick="closeModal('csv-modal')">✕</button></div>
     <div id="csv-s1">
-      <p style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:16px">CSV 파일을 업로드하세요.<br/>날짜, 제품명, 판매 수량 컬럼이 필요해요.</p>
-      <input type="file" id="csv-file" accept=".csv" style="display:none" onchange="handleCSV(this)"/>
-      <button class="btn-p" style="margin-bottom:0" onclick="document.getElementById('csv-file').click()">📁 CSV 파일 선택</button>
+      <div style="background:var(--bg3);border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--text2);line-height:1.8">
+        📌 자판기 거래내역 파일을 업로드하세요.<br/>
+        <b style="color:var(--gold)">거래일시, 판매항목, 컬럼</b> 컬럼이 필요해요.<br/>
+        컬럼 번호로 제품을 자동 매칭하고 재고도 차감해요.
+      </div>
+      <input type="file" id="csv-file" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleSalesFile(this)"/>
+      <button class="btn-p" style="margin-bottom:0" onclick="document.getElementById('csv-file').click()">📁 파일 선택 (XLSX / CSV)</button>
     </div>
     <div id="csv-s2" style="display:none">
-      <p style="font-size:13px;color:var(--text2);margin-bottom:14px">파일 컬럼과 항목을 매칭하세요</p>
-      <div class="fr"><label class="lbl">📅 날짜 컬럼</label><select id="csv-dc"></select></div>
-      <div class="fr"><label class="lbl">📦 제품명 컬럼</label><select id="csv-pc"></select></div>
-      <div class="fr"><label class="lbl">🔢 수량 컬럼</label><select id="csv-qc"></select></div>
-      <button class="btn-p" style="margin-bottom:0" onclick="importCSV()">데이터 불러오기</button>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:12px" id="csv-preview-title"></div>
+      <div id="csv-preview" style="max-height:300px;overflow-y:auto;margin-bottom:16px"></div>
+      <button class="btn-p" style="margin-bottom:8px" onclick="importSalesData()">✅ 가져오기 + 재고 차감</button>
+      <button class="btn-p" style="margin-bottom:0;background:var(--bg3);color:var(--text2)" onclick="resetCsvModal()">↩️ 다시 선택</button>
     </div>
+  </div>
+</div>
+
+<!-- 제품 상세 팝업 -->
+<div class="modal-bg" id="prod-detail-modal">
+  <div class="modal">
+    <div class="mh"><div class="mt" id="pdm-title">제품 상세</div><button class="mc" onclick="closeModal('prod-detail-modal')">✕</button></div>
+    <div id="pdm-body"></div>
   </div>
 </div>
 
@@ -402,24 +482,81 @@ function renderHome(){
 }
 
 // ─── 재고 ─────────────────────────────────────────────────────────────────────
+var invSort = 'name';
+
+function setInvSort(s, btn){
+  invSort = s;
+  document.querySelectorAll('.stab').forEach(function(b){ if(b.id&&b.id.startsWith('isort')) b.classList.remove('active'); });
+  btn.classList.add('active');
+  renderInv();
+}
+
+function getSortedProducts(){
+  var prods = D.products.slice();
+  if(invSort==='name'){
+    prods.sort(function(a,b){return a.name.localeCompare(b.name,'ko');});
+  } else if(invSort==='col'){
+    prods.sort(function(a,b){
+      var ac = Array.isArray(a.column)?a.column:(a.column?[a.column]:[]); var av = ac.length?parseInt(ac[0])||0:999;
+      var bc = Array.isArray(b.column)?b.column:(b.column?[b.column]:[]); var bv = bc.length?parseInt(bc[0])||0:999;
+      return av-bv;
+    });
+  } else if(invSort==='qasc'){
+    prods.sort(function(a,b){return gq(a.id)-gq(b.id);});
+  } else if(invSort==='qdesc'){
+    prods.sort(function(a,b){return gq(b.id)-gq(a.id);});
+  }
+  return prods;
+}
+
 function renderInv(){
-  document.getElementById('inv-title').textContent='전체 재고 현황 ('+D.products.length+'개)';
+  var prods = getSortedProducts();
+  document.getElementById('inv-title').textContent='전체 재고 현황 ('+prods.length+'개)';
   var el=document.getElementById('inv-list');
-  if(!D.products.length){el.innerHTML='<div class="empty"><div class="ei">📦</div><div class="et">등록된 제품이 없습니다</div></div>';return;}
-  el.innerHTML=D.products.map(function(p){
+  if(!prods.length){el.innerHTML='<div class="empty"><div class="ei">📦</div><div class="et">등록된 제품이 없습니다</div></div>';return;}
+
+  // 재고 부족 카드
+  var lowProds = prods.filter(function(p){return gq(p.id)<=5;});
+  var lowCard = document.getElementById('inv-low-card');
+  if(lowProds.length){
+    lowCard.style.display='block';
+    document.getElementById('inv-low-list').innerHTML = lowProds.map(function(p){
+      var q=gq(p.id);
+      var cols=Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
+      return '<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(224,88,88,.15);cursor:pointer" onclick="openInvDetail(\"'+p.id+'\")">'+
+        '<div><span style="font-size:13px;font-weight:600">'+p.name+'</span>'+
+        '<span style="font-size:11px;color:var(--text3);margin-left:6px">컬럼 '+cols.join(', ')+'</span></div>'+
+        '<span style="font-size:13px;font-weight:800;color:'+(q===0?'var(--red)':'var(--gold)')+'">'+q+'개</span></div>';
+    }).join('');
+  } else {
+    lowCard.style.display='none';
+  }
+
+  el.innerHTML=prods.map(function(p){
     var q=gq(p.id),lw=q<=5;
     var cols=Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
     var colLabel=cols.length?cols.join(', '):'-';
-    return '<div class="item" style="'+(lw?'border-color:rgba(224,88,88,.3)':'')+'"><div><div class="in">'+p.name+'</div><div class="is">컬럼: '+colLabel+' | 판매가: '+fmt(p.sellPrice)+'원</div></div><span class="badge '+(q===0?'br':lw?'bo':'bg')+'">'+q+'개</span></div>';
+    return '<div class="item" style="cursor:pointer;'+(lw?'border-color:rgba(224,88,88,.3)':'')+'" onclick="openInvDetail(\"'+p.id+'\")">'+
+      '<div><div class="in">'+p.name+'</div><div class="is">컬럼: '+colLabel+' | 판매가: '+fmt(p.sellPrice)+'원</div></div>'+
+      '<span class="badge '+(q===0?'br':lw?'bo':'bg')+'">'+q+'개</span></div>';
   }).join('');
+
   var sel=document.getElementById('inv-product');
   sel.innerHTML='<option value="">제품 선택</option>'+D.products.map(function(p){return '<option value="'+p.id+'">'+p.name+'</option>';}).join('');
 }
+
 
 function setDir(d){
   invDir=d;
   document.getElementById('dir-plus').className='dbtn plus'+(d==='plus'?' active':'');
   document.getElementById('dir-minus').className='dbtn minus'+(d==='minus'?' active':'');
+}
+
+function applyInventoryChange(pid, delta, memo){
+  var idx=D.inventory.findIndex(function(i){return i.productId===pid;});
+  if(idx>=0) D.inventory[idx].qty=Math.max(0,D.inventory[idx].qty+delta);
+  else D.inventory.push({productId:pid,qty:Math.max(0,delta)});
+  D.inventoryLogs.push({id:Date.now().toString()+Math.random(),productId:pid,delta:delta,memo:memo||'',date:td()});
 }
 
 function submitInventory(){
@@ -428,16 +565,85 @@ function submitInventory(){
   var memo=document.getElementById('inv-memo').value;
   if(!pid||isNaN(qty)||qty<=0){showToast('❌ 제품과 수량을 입력하세요');return;}
   var delta=invDir==='plus'?qty:-qty;
-  var idx=D.inventory.findIndex(function(i){return i.productId===pid;});
-  if(idx>=0)D.inventory[idx].qty=Math.max(0,D.inventory[idx].qty+delta);
-  else D.inventory.push({productId:pid,qty:Math.max(0,delta)});
-  D.inventoryLogs.push({id:Date.now().toString(),productId:pid,delta:delta,memo:memo,date:td()});
+  applyInventoryChange(pid,delta,memo);
   save();
   closeModal('inv-modal');
   document.getElementById('inv-qty').value='';
   document.getElementById('inv-memo').value='';
   showToast(invDir==='plus'?'✅ +'+qty+'개 입고 완료':'✅ -'+qty+'개 출고 완료');
   renderAll();
+}
+
+// ─── 재고 상세 팝업 ───────────────────────────────────────────────────────────
+var idmDir = 'plus';
+var idmPid = '';
+
+function openInvDetail(pid){
+  idmPid = pid;
+  idmDir = 'plus';
+  document.getElementById('idm-qty').value='';
+  document.getElementById('idm-memo').value='';
+  setIdmDir('plus');
+  renderIdmDetail();
+  openModal('inv-detail-modal');
+}
+
+function setIdmDir(d){
+  idmDir = d;
+  document.getElementById('idm-dir-plus').className='dbtn plus'+(d==='plus'?' active':'');
+  document.getElementById('idm-dir-minus').className='dbtn minus'+(d==='minus'?' active':'');
+}
+
+function renderIdmDetail(){
+  var p = D.products.find(function(x){return x.id===idmPid;}); if(!p) return;
+  var q = gq(idmPid);
+  var lw = q<=5;
+
+  // 상단 재고 현황
+  document.getElementById('idm-title').textContent = p.name;
+  document.getElementById('idm-stock').innerHTML =
+    '<div style="font-size:12px;color:var(--text2);margin-bottom:6px">현재 재고</div>'+
+    '<div style="font-size:36px;font-weight:800;color:'+(lw?'var(--red)':'var(--green)')+'">'+q+
+    '<span style="font-size:15px;font-weight:400;color:var(--text2);margin-left:6px">개</span></div>'+
+    (lw?'<div style="font-size:11px;color:var(--red);margin-top:4px">⚠️ 재고 부족</div>':'');
+
+  // 내역 (최신순)
+  var logs = D.inventoryLogs.filter(function(l){return l.productId===idmPid;})
+    .sort(function(a,b){return b.id.localeCompare(a.id)});
+
+  if(!logs.length){
+    document.getElementById('idm-logs').innerHTML='<div style="text-align:center;padding:16px;color:var(--text3);font-size:13px">내역이 없어요</div>';
+    return;
+  }
+
+  document.getElementById('idm-logs').innerHTML = logs.map(function(l){
+    var isPlus = l.delta > 0;
+    var absQty = Math.abs(l.delta);
+    return '<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">'+
+      '<span style="font-size:18px;font-weight:800;color:'+(isPlus?'var(--green)':'var(--red)')+'">'+
+        (isPlus?'+':'-')+absQty+'</span>'+
+      '<div style="flex:1;min-width:0">'+
+        '<div style="font-size:11px;color:var(--text2)">'+l.date+'</div>'+
+        (l.memo?'<div style="font-size:12px;color:var(--text1);margin-top:1px">'+l.memo+'</div>':'')+
+      '</div>'+
+      '<span style="font-size:10px;color:var(--text3);background:var(--bg3);border-radius:4px;padding:2px 6px">'+
+        (isPlus?'입고':'출고')+'</span>'+
+    '</div>';
+  }).join('');
+}
+
+function submitIdmInventory(){
+  var qty = parseInt(document.getElementById('idm-qty').value);
+  var memo = document.getElementById('idm-memo').value.trim();
+  if(isNaN(qty)||qty<=0){showToast('❌ 수량을 입력하세요');return;}
+  var delta = idmDir==='plus' ? qty : -qty;
+  applyInventoryChange(idmPid, delta, memo);
+  save();
+  document.getElementById('idm-qty').value='';
+  document.getElementById('idm-memo').value='';
+  showToast(idmDir==='plus'?'✅ +'+qty+'개 입고':'✅ -'+qty+'개 출고');
+  renderIdmDetail(); // 팝업 내 재고/내역 즉시 갱신
+  renderInv();       // 목록도 갱신
 }
 
 // ─── 판매 통계 ─────────────────────────────────────────────────────────────────
@@ -472,42 +678,173 @@ function renderSales(){
   }
 }
 
-function handleCSV(input){
-  var file=input.files[0];if(!file)return;
-  var reader=new FileReader();
-  reader.onload=function(e){
-    var lines=e.target.result.trim().split('\n').map(function(l){return l.split(',').map(function(c){return c.trim().replace(/"/g,'');});});
-    if(lines.length<2)return;
-    csvH=lines[0];csvR=lines.slice(1);
-    var opts='<option value="">선택</option>'+csvH.map(function(h){return '<option value="'+h+'">'+h+'</option>';}).join('');
-    ['csv-dc','csv-pc','csv-qc'].forEach(function(id){document.getElementById(id).innerHTML=opts;});
-    document.getElementById('csv-s1').style.display='none';
-    document.getElementById('csv-s2').style.display='block';
-  };
-  reader.readAsText(file,'utf-8');
+// 컬럼 번호로 제품 찾기 (25 → "25" 포함 여부 체크)
+function findProductByColumn(colStr){
+  var col = String(colStr).trim();
+  return D.products.find(function(p){
+    var cols = Array.isArray(p.column) ? p.column : (p.column ? [p.column] : []);
+    return cols.some(function(c){
+      // 단일 "25" 또는 범위 "25~26" 에서 25 포함 체크
+      c = c.trim();
+      if(c === col) return true;
+      var rm = c.match(/^(\d+)~(\d+)$/);
+      if(rm){
+        // 범위형: 앞숫자만 같으면 포함
+        var a = parseInt(rm[1]), b = parseInt(rm[2]);
+        var n = parseInt(col);
+        return n >= a && n <= b;
+      }
+      return false;
+    });
+  });
 }
 
-function importCSV(){
-  var di=csvH.indexOf(document.getElementById('csv-dc').value);
-  var pi=csvH.indexOf(document.getElementById('csv-pc').value);
-  var qi=csvH.indexOf(document.getElementById('csv-qc').value);
-  if(di<0||pi<0||qi<0){showToast('❌ 모든 컬럼을 선택하세요');return;}
-  var added=0;
-  csvR.forEach(function(row){
-    var d=row[di],q=parseInt(row[qi]),name=row[pi];
-    if(!d||isNaN(q))return;
-    var p=D.products.find(function(x){return x.name===name||x.column===name;});
-    if(!p)return;
-    D.salesData.push({id:Date.now().toString()+Math.random(),date:d,productId:p.id,qty:q});
+var salesPreviewRows = []; // 파싱된 행 임시 저장
+
+function handleSalesFile(input){
+  var file = input.files[0]; if(!file) return;
+  var ext = file.name.split('.').pop().toLowerCase();
+  if(ext==='xlsx'||ext==='xls'){
+    var reader = new FileReader();
+    reader.onload = function(e){
+      var data = new Uint8Array(e.target.result);
+      var wb = XLSX.read(data, {type:'array'});
+      var ws = wb.Sheets[wb.SheetNames[0]];
+      var rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+      parseSalesRows(rows);
+    };
+    reader.readAsArrayBuffer(file);
+  } else {
+    var reader2 = new FileReader();
+    reader2.onload = function(e){
+      var text = e.target.result;
+      if(text.charCodeAt(0)===0xFEFF) text=text.slice(1);
+      text = text.replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+      var rows = text.trim().split('\n').map(function(l){ return parseCSVLine(l); });
+      parseSalesRows(rows);
+    };
+    reader2.readAsText(file,'utf-8');
+  }
+}
+
+function parseSalesRows(rows){
+  // 헤더 행 찾기: '거래일시' 또는 '컬럼' 이 있는 행
+  var headerIdx = -1;
+  for(var i=0;i<Math.min(10,rows.length);i++){
+    var r = rows[i].map(function(v){return String(v||'').trim();});
+    if(r.indexOf('거래일시')>=0 || r.indexOf('컬럼')>=0){ headerIdx=i; break; }
+  }
+  if(headerIdx<0){ showToast('❌ 헤더를 찾을 수 없어요 (거래일시/컬럼 컬럼 필요)'); return; }
+
+  var headers = rows[headerIdx].map(function(v){return String(v||'').trim();});
+  var colDate  = headers.indexOf('거래일시');
+  var colItem  = headers.indexOf('판매항목');
+  var colNum   = headers.indexOf('컬럼');
+  var colState = headers.indexOf('진행상태');
+
+  if(colNum<0){ showToast('❌ 컬럼 필드가 없어요'); return; }
+
+  salesPreviewRows = [];
+  var matched=0, unmatched=[];
+
+  for(var i=headerIdx+1;i<rows.length;i++){
+    var row = rows[i];
+    var dateRaw = String(row[colDate]||''). trim();
+    var itemName = String(row[colItem]||''). trim();
+    var colVal  = String(row[colNum]||''). trim();
+    var state   = colState>=0 ? String(row[colState]||'').trim() : '구매';
+
+    if(!dateRaw||!colVal) continue;
+    if(state && state!=='구매') continue; // 취소 등 제외
+
+    // 날짜 정규화: "2026-03-12 16:31:58" → "2026-03-12"
+    var dateStr = dateRaw.length>=10 ? dateRaw.slice(0,10) : dateRaw;
+
+    var prod = findProductByColumn(colVal);
+    salesPreviewRows.push({
+      date: dateStr,
+      itemName: itemName,
+      colVal: colVal,
+      prod: prod,
+      qty: 1  // 거래내역은 1건=1개 판매
+    });
+    if(prod) matched++;
+    else if(unmatched.indexOf(colVal)<0) unmatched.push(colVal);
+  }
+
+  showSalesPreview(matched, unmatched);
+}
+
+function showSalesPreview(matched, unmatched){
+  var total = salesPreviewRows.length;
+  var unm = total - matched;
+  var html = '';
+
+  // 컬럼별 집계 미리보기
+  var summary = {};
+  salesPreviewRows.forEach(function(r){
+    var key = r.colVal;
+    if(!summary[key]) summary[key]={colVal:key, prod:r.prod, itemName:r.itemName, qty:0};
+    summary[key].qty++;
+  });
+
+  Object.keys(summary).sort().forEach(function(k){
+    var s = summary[k];
+    var hasMatch = !!s.prod;
+    html += '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;margin-bottom:5px;background:'+( hasMatch?'rgba(122,218,154,.06)':'rgba(224,88,88,.08)')+';border:1px solid '+(hasMatch?'rgba(122,218,154,.2)':'rgba(224,88,88,.3)')+'">';
+    html += '<span style="font-size:11px;font-weight:700;color:var(--gold);min-width:28px">'+ s.colVal+'번</span>';
+    html += '<div style="flex:1;min-width:0">';
+    html += '<div style="font-size:12px;font-weight:600">' + (hasMatch ? s.prod.name : s.itemName) + '</div>';
+    if(!hasMatch) html += '<div style="font-size:10px;color:var(--red)">⚠️ 등록된 제품 없음</div>';
+    html += '</div>';
+    html += '<span style="font-size:13px;font-weight:700;color:var(--blue)">'+s.qty+'개</span>';
+    html += '</div>';
+  });
+
+  document.getElementById('csv-preview-title').innerHTML =
+    '총 <b>'+total+'건</b> · ' +
+    '<span style="color:var(--green)">매칭 '+matched+'건</span> · ' +
+    (unm>0?'<span style="color:var(--red)">미매칭 '+unm+'건 (컬럼: '+unmatched.join(', ')+ ')</span>':'<span style="color:var(--text3)">미매칭 없음</span>');
+  document.getElementById('csv-preview').innerHTML = html;
+  document.getElementById('csv-s1').style.display='none';
+  document.getElementById('csv-s2').style.display='block';
+}
+
+function importSalesData(){
+  var added=0, invAdded=0;
+  var qtyMap={}; // productId → 총 차감 수량
+
+  salesPreviewRows.forEach(function(r){
+    if(!r.prod) return;
+    D.salesData.push({id:Date.now().toString()+Math.random(), date:r.date, productId:r.prod.id, qty:r.qty});
+    qtyMap[r.prod.id] = (qtyMap[r.prod.id]||0) + r.qty;
     added++;
   });
+
+  // 재고 차감: 제품별로 모아서 한 번에
+  Object.keys(qtyMap).forEach(function(pid){
+    var qty = qtyMap[pid];
+    var prod = D.products.find(function(p){return p.id===pid;});
+    if(!prod) return;
+    // 현재 재고에서 차감
+    var cur = gq(pid);
+    D.inventory.push({id:Date.now().toString()+Math.random(), productId:pid, qty:-qty});
+    D.inventoryLogs.push({id:Date.now().toString()+Math.random(), productId:pid, qty:qty, dir:'minus', memo:'판매데이터 자동차감', date:new Date().toISOString().slice(0,10)});
+    invAdded++;
+  });
+
   save();
   closeModal('csv-modal');
+  resetCsvModal();
+  showToast('✅ '+added+'건 등록 · '+invAdded+'개 제품 재고 차감 완료');
+  renderAll();
+}
+
+function resetCsvModal(){
+  salesPreviewRows=[];
   document.getElementById('csv-s1').style.display='block';
   document.getElementById('csv-s2').style.display='none';
   document.getElementById('csv-file').value='';
-  showToast('✅ '+added+'건 추가 완료');
-  renderSales();
 }
 
 // ─── 자판기 ───────────────────────────────────────────────────────────────────
@@ -629,9 +966,6 @@ function renderMachine(){
   html+='<div class="vml" style="margin-top:8px"><div class="vmli"><div class="vmld" style="border:1px solid rgba(126,200,227,.4);background:rgba(126,200,227,.1)"></div>정상</div><div class="vmli"><div class="vmld" style="border:1px solid rgba(224,88,88,.4);background:rgba(224,88,88,.1)"></div>부족(≤5)</div><div class="vmli"><div class="vmld" style="border:1px solid var(--border);background:var(--bg)"></div>비어있음</div></div>';
   document.getElementById('vm-grid').innerHTML=html;
 
-  html+='<div class="vml"><div class="vmli"><div class="vmld" style="border:1px solid rgba(126,200,227,.4);background:rgba(126,200,227,.1)"></div>정상</div><div class="vmli"><div class="vmld" style="border:1px solid rgba(224,88,88,.4);background:rgba(224,88,88,.1)"></div>부족(≤5)</div><div class="vmli"><div class="vmld" style="border:1px solid var(--border);background:var(--bg)"></div>비어있음</div></div>';
-  document.getElementById('vm-grid').innerHTML=html;
-
   // 배치 목록 (제품 기준으로 중복 없이)
   var listItems=[];
   D.products.forEach(function(p){
@@ -652,7 +986,10 @@ function renderMachine(){
       var tagHtml=item.labels.map(function(l){
         return '<span style="background:rgba(232,184,109,.15);border:1px solid rgba(232,184,109,.4);border-radius:6px;padding:2px 7px;font-size:11px;font-weight:700;color:var(--gold)">'+l+'</span>';
       }).join(' ');
-      return '<div class="item" style="flex-wrap:wrap;gap:6px"><div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;flex:1">'+tagHtml+'<span style="font-size:13px;font-weight:600">'+item.name+'</span></div><span style="color:'+(q<=5?'var(--red)':'var(--green)')+';font-weight:700">'+q+'개</span></div>';
+      return '<div class="item" style="flex-wrap:wrap;gap:6px;cursor:pointer" onclick="openProdDetail(\"'+item.id+'\")">'+
+        '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;flex:1">'+tagHtml+
+        '<span style="font-size:13px;font-weight:600">'+item.name+'</span></div>'+
+        '<span style="color:'+(q<=5?'var(--red)':'var(--green)')+';font-weight:700">'+q+'개</span></div>';
     }).join('')
     :'<div class="empty"><div class="ei">🏪</div><div class="et">컬럼 배정된 제품 없음</div></div>';
 }
@@ -944,6 +1281,111 @@ function resetBulk(){
 }
 
 
+
+// ─── 일괄 재고 입력 ──────────────────────────────────────────────────────────
+var bulkInvRows = [];
+
+function downloadInvTemplate(){
+  var csv = '\uFEFF제품명,컬럼번호,+입고,-출고,메모\n';
+  D.products.forEach(function(p){
+    var cols = Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
+    csv += p.name+','+(cols[0]||'')+',,,' +'\n';
+  });
+  if(!D.products.length){
+    csv += '콜라,25,30,,최초입고\n';
+    csv += '사이다,24,,2,판매차감\n';
+  }
+  var blob = new Blob([csv],{type:'text/csv;charset=utf-8'});
+  var a = document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='재고일괄입력_양식.csv'; a.click();
+}
+
+function handleBulkInvCSV(input){
+  var file = input.files[0]; if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e){
+    var text = e.target.result;
+    if(text.charCodeAt(0)===0xFEFF) text=text.slice(1);
+    text = text.replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+    var lines = text.trim().split('\n');
+    if(lines.length<2){showToast('❌ 데이터가 없어요');return;}
+    var headers = lines[0].split(',').map(function(h){return h.trim().replace(/"/g,'');});
+
+    bulkInvRows = [];
+    for(var i=1;i<lines.length;i++){
+      var line=lines[i].trim().replace(/\r/g,''); if(!line) continue;
+      var cells=parseCSVLine(line);
+      var row={};
+      headers.forEach(function(h,idx){row[h]=(cells[idx]||'').replace(/"/g,'').trim();});
+
+      var name   = row['제품명']||'';
+      var colNum = row['컬럼번호']||'';
+      var plus   = cleanNum(row['+입고'])||0;
+      var minus  = cleanNum(row['-출고'])||0;
+      var memo   = row['메모']||'';
+
+      if(!name && !colNum) continue;
+      if(!plus && !minus) continue; // 둘 다 0이면 스킵
+
+      // 제품 찾기: 이름 우선, 없으면 컬럼 번호로
+      var prod = D.products.find(function(p){return p.name===name;});
+      if(!prod && colNum) prod = findProductByColumn(colNum);
+
+      var delta = plus>0 ? plus : -minus;
+      bulkInvRows.push({name:name, colNum:colNum, prod:prod, delta:delta, memo:memo});
+    }
+
+    showBulkInvPreview();
+    document.getElementById('bulk-inv-s1').style.display='none';
+    document.getElementById('bulk-inv-s2').style.display='block';
+  };
+  reader.readAsText(file,'utf-8');
+}
+
+function showBulkInvPreview(){
+  var ok=0, err=0, html='';
+  bulkInvRows.forEach(function(row){
+    var hasErr = !row.prod;
+    if(hasErr) err++; else ok++;
+    var isPlus = row.delta>0;
+    html += '<div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;margin-bottom:5px;background:'+(hasErr?'rgba(224,88,88,.08)':'rgba(122,218,154,.06)')+';border:1px solid '+(hasErr?'rgba(224,88,88,.3)':'rgba(122,218,154,.2)') +'">';
+    html += '<span style="font-size:18px;font-weight:800;color:'+(isPlus?'var(--green)':'var(--red)')+'">'+( isPlus?'+':'')+row.delta+'</span>';
+    html += '<div style="flex:1;min-width:0">';
+    html += '<div style="font-size:13px;font-weight:600">'+(row.prod?row.prod.name:row.name||('컬럼 '+row.colNum))+'</div>';
+    if(row.memo) html += '<div style="font-size:11px;color:var(--text2)">'+row.memo+'</div>';
+    if(hasErr) html += '<div style="font-size:11px;color:var(--red)">⚠️ 제품을 찾을 수 없어요</div>';
+    html += '</div>';
+    html += '<span style="font-size:10px;background:var(--bg3);padding:2px 7px;border-radius:4px;color:var(--text2)">'+(isPlus?'입고':'출고')+'</span>';
+    html += '</div>';
+  });
+  document.getElementById('bulk-inv-summary').innerHTML =
+    '총 <b>'+bulkInvRows.length+'건</b> · <span style="color:var(--green)">정상 '+ok+'건</span> · <span style="color:var(--red)">오류 '+err+'건</span>';
+  document.getElementById('bulk-inv-preview').innerHTML = html;
+}
+
+function confirmBulkInv(){
+  var done=0, skipped=0;
+  bulkInvRows.forEach(function(row){
+    if(!row.prod){skipped++;return;}
+    applyInventoryChange(row.prod.id, row.delta, row.memo||'일괄입력');
+    done++;
+  });
+  save();
+  closeModal('bulk-inv-modal');
+  resetBulkInv();
+  var msg='✅ '+done+'건 처리 완료';
+  if(skipped) msg+=' (⚠️ '+skipped+'건 스킵)';
+  showToast(msg);
+  renderAll();
+}
+
+function resetBulkInv(){
+  bulkInvRows=[];
+  document.getElementById('bulk-inv-s1').style.display='block';
+  document.getElementById('bulk-inv-s2').style.display='none';
+  document.getElementById('bulk-inv-file').value='';
+}
+
 // ─── 일괄 수정 ────────────────────────────────────────────────────────────────
 var bulkEditChanges = [];
 
@@ -1060,6 +1502,60 @@ function confirmBulkEdit(){
   showToast('✅ '+bulkEditChanges.length+'개 제품 수정 완료');
   bulkEditChanges = [];
   renderAll();
+}
+
+
+// ─── 제품 상세 팝업 ────────────────────────────────────────────────────────────
+function openProdDetail(id){
+  var p = D.products.find(function(x){return x.id===id;});
+  if(!p) return;
+  var q = gq(id);
+  var cols = Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
+  var colLabels = cols.map(function(c){
+    var pc = parseCol(c);
+    if(!pc) return c;
+    return pc.span>1 ? pc.floor+'층 '+pc.slot+'~'+(pc.slot+pc.span-1)+'번' : pc.floor+'층 '+pc.slot+'번';
+  });
+
+  // 최근 판매 내역 (최근 5건)
+  var sales = D.salesData.filter(function(s){return s.productId===id;})
+    .sort(function(a,b){return b.date.localeCompare(a.date);}).slice(0,5);
+
+  var html = '';
+  // 컬럼 태그
+  html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">';
+  colLabels.forEach(function(l){
+    html += '<span style="background:rgba(232,184,109,.15);border:1px solid rgba(232,184,109,.4);border-radius:6px;padding:3px 10px;font-size:12px;font-weight:700;color:var(--gold)">'+l+'</span>';
+  });
+  html += '</div>';
+
+  // 재고 현황
+  html += '<div style="background:'+(q<=5?'rgba(224,88,88,.08)':'rgba(122,218,154,.06)')+';border:1px solid '+(q<=5?'rgba(224,88,88,.3)':'rgba(122,218,154,.2)')+';border-radius:10px;padding:12px 14px;margin-bottom:14px">';
+  html += '<div style="font-size:12px;color:var(--text2);margin-bottom:4px">현재 재고</div>';
+  html += '<div style="font-size:28px;font-weight:800;color:'+(q<=5?'var(--red)':'var(--green)')+'">'+q+'<span style="font-size:14px;font-weight:500;color:var(--text2);margin-left:4px">개</span></div>';
+  html += '</div>';
+
+  // 가격 정보 그리드
+  html += '<div class="pm" style="background:var(--bg3);border-radius:10px;margin-bottom:14px">';
+  [['구매가',fmt(p.buyPrice)+'원'],['낱개가',fmt(p.unitPrice)+'원'],['판매가',fmt(p.sellPrice)+'원'],['마진가',fmt(p.marginAmt)+'원'],['마진율',(p.marginRate||0)+'%'],['총수량',p.totalQty+'개']].forEach(function(lv){
+    html += '<div class="pmb"><div class="pml">'+lv[0]+'</div><div class="pmv">'+lv[1]+'</div></div>';
+  });
+  html += '</div>';
+
+  // 최근 판매
+  if(sales.length){
+    html += '<div style="font-size:12px;color:var(--text2);font-weight:600;margin-bottom:8px">📊 최근 판매</div>';
+    sales.forEach(function(s){
+      html += '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">';
+      html += '<span style="color:var(--text2)">'+s.date+'</span>';
+      html += '<span style="font-weight:700;color:var(--blue)">'+s.qty+'개</span>';
+      html += '</div>';
+    });
+  }
+
+  document.getElementById('pdm-title').textContent = p.name;
+  document.getElementById('pdm-body').innerHTML = html;
+  openModal('prod-detail-modal');
 }
 
 // ─── UI ───────────────────────────────────────────────────────────────────────
