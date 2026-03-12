@@ -708,9 +708,10 @@ function handleSalesFile(input){
     var reader = new FileReader();
     reader.onload = function(e){
       var data = new Uint8Array(e.target.result);
-      var wb = XLSX.read(data, {type:'array'});
+      var wb = XLSX.read(data, {type:'array', cellText:true, cellDates:false});
       var ws = wb.Sheets[wb.SheetNames[0]];
-      var rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+      // raw:false → 모든 값을 표시 문자열로 읽음 (긴 숫자 정밀도 손실 방지)
+      var rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:'', raw:false});
       parseSalesRows(rows);
     };
     reader.readAsArrayBuffer(file);
