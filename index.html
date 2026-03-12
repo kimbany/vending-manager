@@ -307,8 +307,27 @@ var D = {products:[],inventory:[],inventoryLogs:[],salesData:[]};
 var salesSort='date', csvH=[], csvR=[], invDir='plus';
 
 // ─── 로드 / 저장 ──────────────────────────────────────────────────────────────
+function startApp(){
+  document.getElementById('loading').style.display='none';
+  document.getElementById('app').style.display='flex';
+  document.getElementById('home-date').value=td();
+  renderAll();
+}
+
 function load(){
+  // 5초 타임아웃 - 연결 안되면 로컬 모드로 시작
+  var done = false;
+  var timer = setTimeout(function(){
+    if(done) return;
+    done = true;
+    startApp();
+    showToast('⚠️ Firebase 연결 실패 - 로컬 모드');
+  }, 5000);
+
   REF.once('value').then(function(snap){
+    if(done) return;
+    done = true;
+    clearTimeout(timer);
     var val = snap.val();
     if(val){
       D.products      = val.products      || [];
@@ -316,17 +335,14 @@ function load(){
       D.inventoryLogs = val.inventoryLogs || [];
       D.salesData     = val.salesData     || [];
     }
-    document.getElementById('loading').style.display='none';
-    document.getElementById('app').style.display='flex';
-    document.getElementById('home-date').value=td();
-    renderAll();
+    startApp();
   }).catch(function(e){
+    if(done) return;
+    done = true;
+    clearTimeout(timer);
     console.error(e);
-    document.getElementById('loading').style.display='none';
-    document.getElementById('app').style.display='flex';
-    document.getElementById('home-date').value=td();
-    renderAll();
-    showToast('⚠️ Firebase 연결 실패');
+    startApp();
+    showToast('⚠️ Firebase 연결 실패 - 로컬 모드');
   });
 }
 
@@ -549,7 +565,7 @@ function renderMachine(){
       var q=p?gq(p.id):0;
       var cl=!p?'':q<=5?' ls':' hp';
       var isEmpty=!p;
-      html+='<div class="vmc'+cl+'" style="min-height:'+(isEmpty?'44px':'54px')+';'+(isEmpty?'opacity:0.4':''')+'">';
+      html+='<div class="vmc'+cl+'" style="min-height:'+(isEmpty?'44px':'54px')+';'+(isEmpty?'opacity:0.4':'')+'">';
       html+='<span style="position:absolute;top:2px;left:2px;font-size:7px;color:var(--text3)">'+floor+s+'</span>';
       if(p){
         html+='<div style="font-size:12px">🥤</div>';
