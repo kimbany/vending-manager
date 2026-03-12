@@ -283,7 +283,7 @@ input[type=date]{color-scheme:dark;}
       <div><label class="lbl">마진가 (자동)</label><div class="af" id="p-ma" style="color:var(--gold)">-</div></div>
       <div><label class="lbl">마진율 (자동)</label><div class="af" id="p-mr" style="color:var(--gold)">-</div></div>
     </div>
-    <div class="fr"><label class="lbl">컬럼 위치 (예: 47, 31 → 쉼표로 여러 위치 입력 가능)</label><input type="text" id="p-col" placeholder="47, 31, 52 등 쉼표로 구분"/></div>
+    <div class="fr"><label class="lbl">컬럼 위치 · 쉼표=여러위치, ~=두칸차지</label><input type="text" id="p-col" placeholder="예) 47  /  45,47  /  45~46"/></div>
     <button class="btn-p" style="margin-bottom:0" id="p-save-btn" onclick="saveProduct()">등록 완료</button>
   </div>
 </div>
@@ -497,39 +497,57 @@ function importCSV(){
 }
 
 // ─── 자판기 ───────────────────────────────────────────────────────────────────
-// 컬럼 형식: "47" = 4층 7번 칸
-// 가로: 0~8 (숫자), 세로: 6층(위) ~ 1층(아래)
+// 컬럼 형식:
+//   "47"    = 4층 7번 칸 (1칸)
+//   "45~46" = 4층 5~6번 칸 (2칸 span)
+//   "45,46" = 4층 5번, 4층 6번 (각각 별개)
+// 가로: 0~7 (8칸), 세로: 층
+
 function parseCol(col){
-  if(!col||col.length<2) return null;
-  var floor=parseInt(col.slice(0,-1));   // 앞 숫자 = 층
-  var slot=parseInt(col.slice(-1));      // 마지막 숫자 = 칸번호
-  if(isNaN(floor)||isNaN(slot)) return null;
-  return {floor:floor, slot:slot};
+  if(!col) return null;
+  col = col.trim();
+  // 범위형: "45~46"
+  var rangeMatch = col.match(/^(\d+)~(\d+)$/);
+  if(rangeMatch){
+    var floor = parseInt(col.slice(0, -2));  // 앞 숫자(들)
+    // 층은 앞부분, 슬롯은 마지막 1자리
+    var a = rangeMatch[1], b = rangeMatch[2];
+    var floorA = parseInt(a.slice(0,-1)), slotA = parseInt(a.slice(-1));
+    var floorB = parseInt(b.slice(0,-1)), slotB = parseInt(b.slice(-1));
+    if(isNaN(floorA)||isNaN(slotA)||isNaN(slotB)) return null;
+    return {floor:floorA, slot:slotA, span:slotB-slotA+1, label:col};
+  }
+  // 단일형: "47"
+  if(col.length < 2) return null;
+  var f = parseInt(col.slice(0,-1));
+  var s = parseInt(col.slice(-1));
+  if(isNaN(f)||isNaN(s)) return null;
+  return {floor:f, slot:s, span:1, label:col};
 }
 
 function renderMachine(){
   var html='<div class="vmh">🥤 VENDING MACHINE</div>';
-  var TOTAL_SLOTS = 9; // 0~8 고정
+  var TOTAL_SLOTS = 8; // 0~7 고정
 
-  // 제품 슬롯 파싱
-  var allSlots=[];
+  // 제품 슬롯 파싱 — span 포함
+  var allSlots=[]; // {floor, slot, span, prod, label}
   D.products.forEach(function(p){
     var cols=Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
     cols.forEach(function(c){
       var pc=parseCol(c);
-      if(pc) allSlots.push({floor:pc.floor,slot:pc.slot,prod:p});
+      if(pc) allSlots.push({floor:pc.floor, slot:pc.slot, span:pc.span||1, prod:p, label:pc.label||c});
     });
   });
 
-  // 층 목록 (내림차순 6→1)
+  // 층 목록 (내림차순)
   var floorSet={};
   allSlots.forEach(function(s){floorSet[s.floor]=true;});
   var floors=Object.keys(floorSet).map(Number).sort(function(a,b){return b-a;});
   if(!floors.length) floors=[6,5,4,3,2,1];
 
-  // 공통 헤더: 0~8 번호
+  // 공통 헤더: 0~7
   html+='<div style="display:flex;align-items:center;margin-bottom:4px">';
-  html+='<div style="width:32px;flex-shrink:0"></div>'; // 층 라벨 자리
+  html+='<div style="width:32px;flex-shrink:0"></div>';
   html+='<div style="flex:1;display:grid;grid-template-columns:repeat('+TOTAL_SLOTS+',1fr);gap:2px">';
   for(var h=0;h<TOTAL_SLOTS;h++){
     html+='<div style="text-align:center;font-size:10px;color:var(--text3);font-weight:700">'+h+'</div>';
@@ -538,38 +556,48 @@ function renderMachine(){
 
   floors.forEach(function(floor){
     var floorSlots=allSlots.filter(function(s){return s.floor===floor;});
-    // 이 층에 있는 슬롯 번호들 (0~8 중에서 실제로 사용된 것들)
-    var usedSlots={};
-    floorSlots.forEach(function(s){usedSlots[s.slot]=true;});
-    var usedCount=Object.keys(usedSlots).length;
 
-    // 각 칸의 width 비율:
-    // 사용된 칸은 2fr, 빈 칸은 1fr → 사용 칸이 더 넓게
+    // 사용된 칸 파악 (span 포함)
+    var usedSlots={};
+    floorSlots.forEach(function(e){
+      for(var i=e.slot;i<e.slot+e.span;i++) usedSlots[i]=true;
+    });
+
+    // 비율: 사용칸 2fr, 빈칸 1fr
     var colSizes=[];
-    for(var i=0;i<TOTAL_SLOTS;i++){
-      colSizes.push(usedSlots[i]?'2fr':'1fr');
-    }
+    for(var i=0;i<TOTAL_SLOTS;i++) colSizes.push(usedSlots[i]?'2fr':'1fr');
     var gridCols=colSizes.join(' ');
 
     html+='<div style="display:flex;align-items:stretch;margin-bottom:4px">';
-    // 층 라벨
     html+='<div style="width:32px;flex-shrink:0;display:flex;align-items:center;justify-content:center">';
     html+='<div style="background:rgba(232,184,109,.2);border:1px solid rgba(232,184,109,.4);border-radius:5px;padding:2px 4px;font-size:10px;font-weight:700;color:var(--gold)">'+floor+'F</div>';
     html+='</div>';
-
-    // 셀들
     html+='<div style="flex:1;display:grid;grid-template-columns:'+gridCols+';gap:2px">';
+
+    // span 처리를 위해 건너뛸 슬롯 기록
+    var skipSlots={};
     for(var s=0;s<TOTAL_SLOTS;s++){
+      if(skipSlots[s]){ html+=''; continue; } // span으로 이미 차지됨 (CSS가 처리)
+
       var entry=floorSlots.find(function(x){return x.slot===s;});
       var p=entry?entry.prod:null;
+      var span=entry?entry.span:1;
       var q=p?gq(p.id):0;
       var cl=!p?'':q<=5?' ls':' hp';
       var isEmpty=!p;
-      html+='<div class="vmc'+cl+'" style="min-height:'+(isEmpty?'44px':'54px')+';'+(isEmpty?'opacity:0.4':'')+'">';
-      html+='<span style="position:absolute;top:2px;left:2px;font-size:7px;color:var(--text3)">'+floor+s+'</span>';
+
+      // span이 2 이상이면 grid-column 사용, 건너뛸 칸 표시
+      var spanStyle='';
+      if(span>1){
+        spanStyle='grid-column:span '+span+';';
+        for(var sk=s+1;sk<s+span;sk++) skipSlots[sk]=true;
+      }
+
+      html+='<div class="vmc'+cl+'" style="min-height:'+(isEmpty?'40px':'54px')+';'+(isEmpty?'opacity:0.35':'')+';'+spanStyle+'">';
+      html+='<span style="position:absolute;top:2px;left:2px;font-size:7px;color:var(--text3)">'+(entry?entry.label:floor+String(s))+'</span>';
       if(p){
         html+='<div style="font-size:12px">🥤</div>';
-        html+='<div style="font-size:7px;font-weight:600;line-height:1.2;text-align:center;padding:0 1px;word-break:keep-all">'+(p.name.length>5?p.name.slice(0,5)+'…':p.name)+'</div>';
+        html+='<div style="font-size:7px;font-weight:600;line-height:1.2;text-align:center;padding:0 2px;word-break:keep-all">'+(p.name.length>6?p.name.slice(0,6)+'…':p.name)+'</div>';
         html+='<div style="font-size:9px;font-weight:700;color:'+(q<=5?'var(--red)':'var(--green)')+'">'+q+'개</div>';
       } else {
         html+='<div style="font-size:10px;opacity:.3">□</div>';
@@ -581,13 +609,29 @@ function renderMachine(){
 
   html+='<div class="vml"><div class="vmli"><div class="vmld" style="border:1px solid rgba(126,200,227,.4);background:rgba(126,200,227,.1)"></div>정상</div><div class="vmli"><div class="vmld" style="border:1px solid rgba(224,88,88,.4);background:rgba(224,88,88,.1)"></div>부족(≤5)</div><div class="vmli"><div class="vmld" style="border:1px solid var(--border);background:var(--bg)"></div>비어있음</div></div>';
   document.getElementById('vm-grid').innerHTML=html;
-  // 배치 목록: 슬롯 기준으로 펼쳐서 표시
-  var placed2=allSlots.slice().sort(function(a,b){
-    if(b.floor!==a.floor) return b.floor-a.floor;
-    return a.slot-b.slot;
+
+  // 배치 목록 (제품 기준으로 중복 없이)
+  var listItems=[];
+  D.products.forEach(function(p){
+    var cols=Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
+    if(!cols.length) return;
+    var q=gq(p.id);
+    var labels=cols.map(function(c){
+      var pc=parseCol(c);
+      if(!pc) return c;
+      return pc.span>1 ? pc.floor+'층 '+pc.slot+'~'+( pc.slot+pc.span-1)+'번' : pc.floor+'층 '+pc.slot+'번';
+    });
+    listItems.push({name:p.name, labels:labels, q:q});
+    listItems.sort(function(a,b){return a.labels[0].localeCompare(b.labels[0]);});
   });
-  document.getElementById('vm-list').innerHTML=placed2.length
-    ?placed2.map(function(s){var q=gq(s.prod.id);var label=s.floor+'층 '+s.slot+'번';return '<div class="item"><div style="display:flex;align-items:center;gap:10px"><span style="background:rgba(232,184,109,.15);border:1px solid rgba(232,184,109,.4);border-radius:6px;padding:3px 8px;font-size:12px;font-weight:700;color:var(--gold)">'+label+'</span><span>'+s.prod.name+'</span></div><span style="color:'+(q<=5?'var(--red)':'var(--green)')+';font-weight:700">'+q+'개</span></div>';}).join('')
+  document.getElementById('vm-list').innerHTML=listItems.length
+    ?listItems.map(function(item){
+      var q=item.q;
+      var tagHtml=item.labels.map(function(l){
+        return '<span style="background:rgba(232,184,109,.15);border:1px solid rgba(232,184,109,.4);border-radius:6px;padding:2px 7px;font-size:11px;font-weight:700;color:var(--gold)">'+l+'</span>';
+      }).join(' ');
+      return '<div class="item" style="flex-wrap:wrap;gap:6px"><div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;flex:1">'+tagHtml+'<span style="font-size:13px;font-weight:600">'+item.name+'</span></div><span style="color:'+(q<=5?'var(--red)':'var(--green)')+';font-weight:700">'+q+'개</span></div>';
+    }).join('')
     :'<div class="empty"><div class="ei">🏪</div><div class="et">컬럼 배정된 제품 없음</div></div>';
 }
 
