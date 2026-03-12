@@ -396,7 +396,12 @@ async function load() {
 }
 
 async function save() {
-  try { await setDoc(REF(), DATA); } catch(e) { console.error(e); }
+  try {
+    await setDoc(REF(), JSON.parse(JSON.stringify(DATA)));
+  } catch(e) {
+    console.error('Firebase 저장 오류:', e);
+    toast('⚠️ 저장 실패 - Firebase 규칙을 확인하세요');
+  }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -716,7 +721,11 @@ window.saveProduct = async function() {
   const prod = { id:editId||Date.now().toString(), name, buyPrice:buy, totalQty:total, unitPrice:unit, sellPrice:sell, marginAmt, marginRate, column:col };
   if(editId) DATA.products = DATA.products.map(p=>p.id===editId?prod:p);
   else DATA.products.push(prod);
-  await save();
+  try {
+    await save();
+  } catch(e) {
+    console.error(e);
+  }
   closeModal('prod-modal');
   toast(editId?'✅ 수정 완료':'✅ 제품 등록 완료');
   renderAll();
