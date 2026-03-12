@@ -168,17 +168,20 @@ input[type=date]{color-scheme:dark;}
       </div>
       <button class="btn-p btn-b" style="margin-bottom:16px" onclick="openModal('bulk-modal')">📋 일괄 등록 (CSV)</button>
       <!-- 편집 모드 툴바 -->
-      <div id="edit-toolbar" style="display:none;background:var(--bg3);border-radius:10px;padding:10px 14px;margin-bottom:12px;display:none">
-        <div style="display:flex;align-items:center;justify-content:space-between">
+      <div id="edit-toolbar" style="display:none;background:var(--bg3);border-radius:10px;padding:10px 14px;margin-bottom:12px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600">
             <input type="checkbox" id="select-all-cb" onchange="toggleSelectAll(this.checked)" style="width:18px;height:18px;accent-color:var(--gold)"/>
             전체 선택
           </label>
-          <div style="display:flex;gap:8px">
-            <span id="selected-count" style="font-size:12px;color:var(--text2);align-self:center">0개 선택</span>
-            <button class="btn-sm" style="background:#3a1a1a;color:var(--red)" onclick="deleteSelected()">🗑️ 삭제</button>
-          </div>
+          <span id="selected-count" style="font-size:12px;color:var(--text2)">0개 선택</span>
         </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn-sm" style="flex:1;background:#1a2a3a;color:var(--blue)" onclick="downloadSelectedCSV()">⬇️ 선택 다운로드</button>
+          <button class="btn-sm" style="flex:1;background:#1a3a2a;color:var(--green)" onclick="document.getElementById('bulk-edit-file').click()">⬆️ 수정 업로드</button>
+          <button class="btn-sm" style="background:#3a1a1a;color:var(--red)" onclick="deleteSelected()">🗑️ 삭제</button>
+        </div>
+        <input type="file" id="bulk-edit-file" accept=".csv" style="display:none" onchange="handleBulkEditCSV(this)"/>
       </div>
       <div class="card">
         <div class="ch"><div class="ca" style="background:var(--gold)"></div><div><div class="ct" id="prod-title">등록 제품</div></div></div>
@@ -224,6 +227,17 @@ input[type=date]{color-scheme:dark;}
   </div>
 </div>
 
+
+<!-- 일괄 수정 확인 모달 -->
+<div class="modal-bg" id="bulk-edit-modal">
+  <div class="modal">
+    <div class="mh"><div class="mt">📝 일괄 수정 확인</div><button class="mc" onclick="closeModal('bulk-edit-modal')">✕</button></div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:12px" id="bulk-edit-summary"></div>
+    <div id="bulk-edit-preview" style="max-height:320px;overflow-y:auto;margin-bottom:16px"></div>
+    <button class="btn-p" style="margin-bottom:8px" onclick="confirmBulkEdit()">✅ 수정 적용</button>
+    <button class="btn-p" style="margin-bottom:0;background:var(--bg3);color:var(--text2)" onclick="closeModal('bulk-edit-modal')">취소</button>
+  </div>
+</div>
 
 <!-- 일괄 등록 모달 -->
 <div class="modal-bg" id="bulk-modal">
@@ -903,6 +917,125 @@ function resetBulk(){
   document.getElementById('bulk-s1').style.display='block';
   document.getElementById('bulk-s2').style.display='none';
   document.getElementById('bulk-file').value='';
+}
+
+
+// ─── 일괄 수정 ────────────────────────────────────────────────────────────────
+var bulkEditChanges = [];
+
+function getSelectedIds(){
+  return Array.from(document.querySelectorAll('.prod-cb:checked')).map(function(cb){return cb.value;});
+}
+
+function downloadSelectedCSV(){
+  var ids = getSelectedIds();
+  if(!ids.length){ showToast('❌ 선택된 제품이 없어요'); return; }
+  var prods = D.products.filter(function(p){ return ids.indexOf(p.id) >= 0; });
+  var csv = '\uFEFF제품ID,제품명,구매가,총수량,판매가,컬럼위치\n';
+  prods.forEach(function(p){
+    var cols = Array.isArray(p.column) ? p.column : (p.column ? [p.column] : []);
+    var colStr = cols.join('/');
+    // 쉼표 포함 필드는 따옴표로 감싸기
+    csv += [p.id, p.name, p.buyPrice, p.totalQty, p.sellPrice, '"'+colStr+'"'].join(',') + '\n';
+  });
+  var blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '제품수정_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+  showToast('✅ '+prods.length+'개 제품 다운로드');
+}
+
+function handleBulkEditCSV(input){
+  var file = input.files[0]; if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e){
+    var text = e.target.result;
+    if(text.charCodeAt(0)===0xFEFF) text=text.slice(1);
+    var lines = text.trim().split('\n');
+    if(lines.length < 2){ showToast('❌ 데이터가 없어요'); return; }
+    var headers = lines[0].split(',').map(function(h){return h.trim().replace(/"/g,'');});
+    var idIdx = headers.indexOf('제품ID');
+    if(idIdx < 0){ showToast('❌ 제품ID 컬럼이 없어요 (양식 파일을 사용해주세요)'); return; }
+
+    bulkEditChanges = [];
+    for(var i=1;i<lines.length;i++){
+      var line = lines[i].trim(); if(!line) continue;
+      var cells = parseCSVLine(line);
+      var row = {};
+      headers.forEach(function(h,idx){ row[h] = (cells[idx]||'').trim().replace(/^"|"$/g,''); });
+      var orig = D.products.find(function(p){ return p.id === row['제품ID']; });
+      if(!orig) continue;
+
+      // 변경된 필드 찾기
+      var changes = [];
+      var newName = row['제품명']||orig.name;
+      var newBuy = parseFloat(row['구매가'])||orig.buyPrice;
+      var newTotal = parseFloat(row['총수량'])||orig.totalQty;
+      var newSell = parseFloat(row['판매가'])||orig.sellPrice;
+      var newColRaw = row['컬럼위치']||'';
+      var newCols = newColRaw ? newColRaw.split('/').map(function(c){return c.trim();}).filter(function(c){return c;}) : (Array.isArray(orig.column)?orig.column:(orig.column?[orig.column]:[]));
+
+      if(newName !== orig.name) changes.push({field:'제품명', before:orig.name, after:newName});
+      if(newBuy !== orig.buyPrice) changes.push({field:'구매가', before:orig.buyPrice+'원', after:newBuy+'원'});
+      if(newTotal !== orig.totalQty) changes.push({field:'총수량', before:orig.totalQty+'개', after:newTotal+'개'});
+      if(newSell !== orig.sellPrice) changes.push({field:'판매가', before:orig.sellPrice+'원', after:newSell+'원'});
+      var origColStr = (Array.isArray(orig.column)?orig.column:(orig.column?[orig.column]:[])).join('/');
+      if(newCols.join('/') !== origColStr) changes.push({field:'컬럼위치', before:origColStr||'미배정', after:newCols.join(', ')||'미배정'});
+
+      if(changes.length){
+        var unit = newTotal>0 ? Math.round(newBuy/newTotal) : 0;
+        var ma = newSell - unit;
+        var mr = newSell>0 ? Math.round(ma/newSell*100) : 0;
+        bulkEditChanges.push({
+          id: orig.id,
+          name: orig.name,
+          changes: changes,
+          newProd: {id:orig.id, name:newName, buyPrice:newBuy, totalQty:newTotal, unitPrice:unit, sellPrice:newSell, marginAmt:ma, marginRate:mr, column:newCols}
+        });
+      }
+    }
+
+    showBulkEditPreview();
+    input.value='';
+  };
+  reader.readAsText(file, 'utf-8');
+}
+
+function showBulkEditPreview(){
+  if(!bulkEditChanges.length){
+    showToast('변경된 내용이 없어요');
+    return;
+  }
+  var html = '';
+  bulkEditChanges.forEach(function(item){
+    html += '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px">';
+    html += '<div style="font-size:13px;font-weight:700;color:var(--gold);margin-bottom:7px">'+item.name+'</div>';
+    item.changes.forEach(function(c){
+      html += '<div style="display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:4px">';
+      html += '<span style="color:var(--text3);min-width:44px">'+c.field+'</span>';
+      html += '<span style="color:var(--red);text-decoration:line-through">'+c.before+'</span>';
+      html += '<span style="color:var(--text3)">→</span>';
+      html += '<span style="color:var(--green);font-weight:700">'+c.after+'</span>';
+      html += '</div>';
+    });
+    html += '</div>';
+  });
+  document.getElementById('bulk-edit-summary').innerHTML =
+    '<b>'+bulkEditChanges.length+'개</b> 제품에 변경 사항이 있어요. 확인 후 적용하세요.';
+  document.getElementById('bulk-edit-preview').innerHTML = html;
+  openModal('bulk-edit-modal');
+}
+
+function confirmBulkEdit(){
+  bulkEditChanges.forEach(function(item){
+    D.products = D.products.map(function(p){ return p.id===item.id ? item.newProd : p; });
+  });
+  save();
+  closeModal('bulk-edit-modal');
+  showToast('✅ '+bulkEditChanges.length+'개 제품 수정 완료');
+  bulkEditChanges = [];
+  renderAll();
 }
 
 // ─── UI ───────────────────────────────────────────────────────────────────────
