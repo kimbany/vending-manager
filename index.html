@@ -536,7 +536,7 @@ function renderInv(){
     var q=gq(p.id),lw=q<=5;
     var cols=Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
     var colLabel=cols.length?cols.join(', '):'-';
-    return '<div class="item" style="cursor:pointer;'+(lw?'border-color:rgba(224,88,88,.3)':'')+'" onclick="openInvDetail(\"'+p.id+'\")">'+
+    return '<div class="item" style="cursor:pointer;'+(lw?'border-color:rgba(224,88,88,.3)':'')+'" onclick="openInvDetail(this.dataset.pid)" data-pid="'+p.id+'">'+
       '<div><div class="in">'+p.name+'</div><div class="is">컬럼: '+colLabel+' | 판매가: '+fmt(p.sellPrice)+'원</div></div>'+
       '<span class="badge '+(q===0?'br':lw?'bo':'bg')+'">'+q+'개</span></div>';
   }).join('');
@@ -578,7 +578,8 @@ function submitInventory(){
 var idmDir = 'plus';
 var idmPid = '';
 
-function openInvDetail(pid){
+function openInvDetail(el){
+  var pid = (typeof el === 'string') ? el : el.dataset.pid;
   idmPid = pid;
   idmDir = 'plus';
   document.getElementById('idm-qty').value='';
@@ -607,9 +608,13 @@ function renderIdmDetail(){
     '<span style="font-size:15px;font-weight:400;color:var(--text2);margin-left:6px">개</span></div>'+
     (lw?'<div style="font-size:11px;color:var(--red);margin-top:4px">⚠️ 재고 부족</div>':'');
 
-  // 내역 (최신순)
+  // 내역 (최신순) — delta 또는 qty+dir 방식 모두 처리
   var logs = D.inventoryLogs.filter(function(l){return l.productId===idmPid;})
-    .sort(function(a,b){return b.id.localeCompare(a.id)});
+    .sort(function(a,b){
+      // date 기준 내림차순, 같으면 id 기준
+      var dc = (b.date||'').localeCompare(a.date||'');
+      return dc !== 0 ? dc : b.id.localeCompare(a.id);
+    });
 
   if(!logs.length){
     document.getElementById('idm-logs').innerHTML='<div style="text-align:center;padding:16px;color:var(--text3);font-size:13px">내역이 없어요</div>';
@@ -617,14 +622,21 @@ function renderIdmDetail(){
   }
 
   document.getElementById('idm-logs').innerHTML = logs.map(function(l){
-    var isPlus = l.delta > 0;
-    var absQty = Math.abs(l.delta);
+    // delta 필드(수동) 또는 qty+dir 필드(자동차감) 모두 지원
+    var delta;
+    if(typeof l.delta !== 'undefined'){
+      delta = l.delta;
+    } else {
+      delta = (l.dir==='minus' ? -(l.qty||0) : (l.qty||0));
+    }
+    var isPlus = delta >= 0;
+    var absQty = Math.abs(delta);
     return '<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">'+
-      '<span style="font-size:18px;font-weight:800;color:'+(isPlus?'var(--green)':'var(--red)')+'">'+
-        (isPlus?'+':'-')+absQty+'</span>'+
+      '<span style="font-size:20px;font-weight:800;color:'+(isPlus?'var(--green)':'var(--red)')+'">'+
+        (isPlus?'+':'')+delta+'</span>'+
       '<div style="flex:1;min-width:0">'+
         '<div style="font-size:11px;color:var(--text2)">'+l.date+'</div>'+
-        (l.memo?'<div style="font-size:12px;color:var(--text1);margin-top:1px">'+l.memo+'</div>':'')+
+        (l.memo?'<div style="font-size:12px;color:var(--text1);margin-top:2px">'+l.memo+'</div>':'')+
       '</div>'+
       '<span style="font-size:10px;color:var(--text3);background:var(--bg3);border-radius:4px;padding:2px 6px">'+
         (isPlus?'입고':'출고')+'</span>'+
@@ -958,11 +970,11 @@ function renderMachine(){
       }
 
       var cellH = p ? '52px' : '36px';
-      html+='<div class="vmc'+cl+'" style="min-height:'+cellH+';min-width:0;overflow:hidden;'+spanStyle+(p?'':';opacity:0.3')+'">';
+      var clickAttr = p ? ' onclick="openProdDetail(this.dataset.pid)" data-pid="'+p.id+'" ' : ' ';
+      html+='<div class="vmc'+cl+'"'+clickAttr+'style="min-height:'+cellH+';min-width:0;overflow:hidden;'+(p?'cursor:pointer;':'')+spanStyle+(p?'':';opacity:0.3')+'">';
       html+='<span style="position:absolute;top:1px;left:2px;font-size:6px;color:var(--text3);line-height:1">'+(entry?entry.label:floor+String(s))+'</span>';
       if(p){
         html+='<div style="font-size:11px;line-height:1;margin-bottom:1px">🥤</div>';
-        // 이름: 1칸=4글자, 2칸=8글자
         var maxLen = span>=2 ? 8 : 4;
         var nm = p.name.length>maxLen ? p.name.slice(0,maxLen)+'…' : p.name;
         html+='<div style="font-size:6px;font-weight:700;line-height:1.2;text-align:center;overflow:hidden;width:100%;padding:0 1px">'+nm+'</div>';
@@ -999,7 +1011,7 @@ function renderMachine(){
       var tagHtml=item.labels.map(function(l){
         return '<span style="background:rgba(232,184,109,.15);border:1px solid rgba(232,184,109,.4);border-radius:6px;padding:2px 7px;font-size:11px;font-weight:700;color:var(--gold)">'+l+'</span>';
       }).join(' ');
-      return '<div class="item" style="flex-wrap:wrap;gap:6px;cursor:pointer" onclick="openProdDetail(\"'+item.id+'\")">'+
+      return '<div class="item" style="flex-wrap:wrap;gap:6px;cursor:pointer" onclick="openProdDetail(this.dataset.pid)" data-pid="'+item.id+'">'+
         '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;flex:1">'+tagHtml+
         '<span style="font-size:13px;font-weight:600">'+item.name+'</span></div>'+
         '<span style="color:'+(q<=5?'var(--red)':'var(--green)')+';font-weight:700">'+q+'개</span></div>';
@@ -1519,7 +1531,8 @@ function confirmBulkEdit(){
 
 
 // ─── 제품 상세 팝업 ────────────────────────────────────────────────────────────
-function openProdDetail(id){
+function openProdDetail(el){
+  var id = (typeof el === 'string') ? el : el.dataset.pid;
   var p = D.products.find(function(x){return x.id===id;});
   if(!p) return;
   var q = gq(id);
