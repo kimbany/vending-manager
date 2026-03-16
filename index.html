@@ -1783,20 +1783,38 @@ function fetchTodaySales(isAuto){
       return;
     }
 
-    // 헤더 인덱스 찾기 (크롤러 헤더 기준)
+    // 헤더 인덱스 찾기
     var headers = val.headers || [];
+
+    // 헤더로 찾되, rows 데이터와 실제 매칭해서 검증
     var colDate  = headers.indexOf('거래일시');
     var colItem  = headers.indexOf('판매항목');
     var colNum   = headers.indexOf('컬럼');
-    // 진행상태: "상태" 또는 "진행상태" 둘 다 허용
     var colState = headers.indexOf('상태');
     if(colState<0) colState = headers.indexOf('진행상태');
-    // 거래고유번호: "일련번호" 또는 "거래고유번호" 둘 다 허용
     var colTxId  = headers.indexOf('일련번호');
     if(colTxId<0) colTxId = headers.indexOf('거래고유번호');
-    // 금액: "판매가" 또는 "금액" 둘 다 허용
     var colAmt   = headers.indexOf('판매가');
     if(colAmt<0) colAmt = headers.indexOf('금액');
+
+    // 헤더-rows 불일치 자동 보정:
+    // 첫 번째 row로 컬럼 번호 위치를 실제로 찾기
+    if(val.rows && val.rows.length > 0){
+      var sampleRow = val.rows[0];
+      // 숫자만 있는 짧은 값(컬럼번호)을 찾아서 실제 인덱스 보정
+      for(var ci=0; ci<sampleRow.length; ci++){
+        var v = String(sampleRow[ci]||'').trim();
+        // 1~2자리 숫자면 컬럼번호 후보
+        if(/^\d{1,2}$/.test(v) && parseInt(v) >= 1 && parseInt(v) <= 99){
+          // 해당 위치가 헤더에서 '컬럼' 또는 '판매항목' 근처인지 확인
+          if(Math.abs(ci - colNum) <= 2){
+            console.log('컬럼번호 위치 보정:', colNum, '→', ci);
+            colNum = ci;
+            break;
+          }
+        }
+      }
+    }
 
     console.log('헤더:', headers);
     console.log('컬럼인덱스 - 날짜:'+colDate+' 컬럼:'+colNum+' 상태:'+colState+' txId:'+colTxId);
