@@ -1783,14 +1783,23 @@ function fetchTodaySales(isAuto){
       return;
     }
 
-    // 헤더 인덱스 찾기
+    // 헤더 인덱스 찾기 (크롤러 헤더 기준)
     var headers = val.headers || [];
     var colDate  = headers.indexOf('거래일시');
     var colItem  = headers.indexOf('판매항목');
     var colNum   = headers.indexOf('컬럼');
-    var colState = headers.indexOf('진행상태');
-    var colTxId  = headers.indexOf('거래고유번호');
-    var colAmt   = headers.indexOf('금액');
+    // 진행상태: "상태" 또는 "진행상태" 둘 다 허용
+    var colState = headers.indexOf('상태');
+    if(colState<0) colState = headers.indexOf('진행상태');
+    // 거래고유번호: "일련번호" 또는 "거래고유번호" 둘 다 허용
+    var colTxId  = headers.indexOf('일련번호');
+    if(colTxId<0) colTxId = headers.indexOf('거래고유번호');
+    // 금액: "판매가" 또는 "금액" 둘 다 허용
+    var colAmt   = headers.indexOf('판매가');
+    if(colAmt<0) colAmt = headers.indexOf('금액');
+
+    console.log('헤더:', headers);
+    console.log('컬럼인덱스 - 날짜:'+colDate+' 컬럼:'+colNum+' 상태:'+colState+' txId:'+colTxId);
 
     if(colNum<0){ showToast('❌ 수집 데이터에 컬럼 필드 없음'); return; }
 
@@ -1808,7 +1817,8 @@ function fetchTodaySales(isAuto){
       var amt      = colAmt>=0   ? parseFloat(row[colAmt])||0 : 0;
 
       if(!dateRaw||!colVal) return;
-      if(state && state!=='구매') return;
+      // 상태값: '구매' 또는 '승인' 이외 값(취소 등)은 제외
+      if(state && state!=='구매' && state!=='승인') return;
       if(txId && existingTxIds[txId]){ dup++; return; }
       if(txId) existingTxIds[txId]=true;
 
