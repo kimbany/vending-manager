@@ -88,8 +88,19 @@ async def crawl_today():
             await page.goto("https://vmms.ubcn.co.kr/login", wait_until="domcontentloaded")
             await page.wait_for_timeout(3000)
 
+            # 디버깅용 스크린샷
+            await page.screenshot(path="login_page.png")
+            print(f"  페이지 HTML 일부: {await page.content()[:500]}")
+
             print("  아이디 입력...")
-            await page.locator('xpath=/html/body/div[1]/section/div/div[2]/form/div/ul/li[1]/input').fill(ID)
+            # 여러 방법으로 시도
+            try:
+                await page.locator('xpath=/html/body/div[1]/section/div/div[2]/form/div/ul/li[1]/input').fill(ID, timeout=10000)
+            except Exception:
+                try:
+                    await page.locator('input[name="id"]').fill(ID, timeout=5000)
+                except Exception:
+                    await page.locator('input[type="text"]').first.fill(ID, timeout=5000)
             await page.wait_for_timeout(500)
 
             print("  비밀번호 입력...")
