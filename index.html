@@ -1828,6 +1828,7 @@ function fetchTodaySales(isAuto){
       if(dateRaw.length>=13) hour = parseInt(dateRaw.slice(11,13));
 
       var prod = findProductByColumn(colVal);
+      console.log('컬럼매칭 시도:', colVal, '→', prod ? prod.name : '매칭실패', '등록컬럼수:', D.products.length);
       if(!prod) return;
 
       D.salesData.push({
