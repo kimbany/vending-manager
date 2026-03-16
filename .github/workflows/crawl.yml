@@ -2,11 +2,8 @@ name: VMMS 거래내역 자동 수집
 
 on:
   schedule:
-    # 한국시간 12:00 = UTC 03:00
-    - cron: '0 3 * * *'
-    # 한국시간 19:00 = UTC 10:00
-    - cron: '0 10 * * *'
-  # 수동 실행 버튼 (GitHub Actions 탭에서 직접 실행 가능)
+    - cron: '0 3 * * *'   # 한국시간 12:00
+    - cron: '0 10 * * *'  # 한국시간 19:00
   workflow_dispatch:
 
 jobs:
@@ -34,3 +31,11 @@ jobs:
           VMMS_PW: ${{ secrets.VMMS_PW }}
           FIREBASE_KEY: ${{ secrets.FIREBASE_KEY }}
         run: python vmms_crawler.py
+
+      - name: 스크린샷 업로드 (오류시 확인용)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: "*.png"
+          if-no-files-found: ignore
