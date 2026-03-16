@@ -93,23 +93,15 @@ async def crawl_today():
             print(f"  페이지 HTML 일부: {await page.content()[:500]}")
 
             print("  아이디 입력...")
-            # 여러 방법으로 시도
-            try:
-                await page.locator('xpath=/html/body/div[1]/section/div/div[2]/form/div/ul/li[1]/input').fill(ID, timeout=10000)
-            except Exception:
-                try:
-                    await page.locator('input[name="id"]').fill(ID, timeout=5000)
-                except Exception:
-                    await page.locator('input[type="text"]').first.fill(ID, timeout=5000)
+            await page.locator('#id').fill(ID)
             await page.wait_for_timeout(500)
 
             print("  비밀번호 입력...")
-            await page.locator('xpath=/html/body/div[1]/section/div/div[2]/form/div/ul/li[2]/input').fill(PW)
+            await page.locator('#pass').fill(PW)
             await page.wait_for_timeout(500)
 
             print("  로그인 버튼 클릭...")
-            # XPath만 사용 (텍스트 검색 제거)
-            await page.locator('xpath=/html/body/div[1]/section/div/div[2]/form/div/div[1]/a').click()
+            await page.locator('#loginBtn').click()
 
             # 로그인 완료 대기 (URL 변경 또는 networkidle)
             try:
