@@ -158,16 +158,30 @@ input[type=date]{color-scheme:dark;}
 
     <!-- 판매통계 -->
     <div class="tab" id="tab-sales">
-      <div style="display:flex;gap:8px;margin-bottom:16px">
-        <button class="btn-p btn-b" style="margin-bottom:0;flex:1" onclick="openModal('csv-modal')">📤 거래내역 업로드 (XLSX/CSV)</button>
+      <!-- 데이터 수집 버튼 영역 -->
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <button class="btn-p" style="margin-bottom:0;flex:1;background:var(--bg3);color:var(--text2)" onclick="openModal('csv-modal')">📤 직접 업로드</button>
+        <button class="btn-p btn-b" style="margin-bottom:0;flex:1" id="crawl-btn" onclick="fetchTodaySales()">🔄 오늘 데이터 수집</button>
       </div>
-      <div class="stabs">
-        <button class="stab active" onclick="setSalesSort('date',this)">📅 날짜별</button>
-        <button class="stab" onclick="setSalesSort('product',this)">📦 제품명</button>
-        <button class="stab" onclick="setSalesSort('qty',this)">🔢 판매량</button>
+      <!-- 자동수집 상태 표시 -->
+      <div id="auto-collect-status" style="font-size:11px;color:var(--text3);text-align:right;margin-bottom:12px">
+        자동수집: 매일 12:00 · 19:00
       </div>
-      <div class="fr"><input type="date" id="sales-df" oninput="renderSales()"/></div>
-      <div id="sales-list"></div>
+      <!-- 기간 선택 탭 -->
+      <div class="stabs" style="margin-bottom:8px">
+        <button class="stab active" id="sp-today" onclick="setSalesPeriod('today',this)">오늘</button>
+        <button class="stab" id="sp-week" onclick="setSalesPeriod('week',this)">일주일</button>
+        <button class="stab" id="sp-month" onclick="setSalesPeriod('month',this)">한달</button>
+        <button class="stab" id="sp-custom" onclick="setSalesPeriod('custom',this)">직접입력</button>
+      </div>
+      <!-- 직접입력 날짜 -->
+      <div id="sales-custom-range" style="display:none;display:none;gap:8px;margin-bottom:10px;align-items:center">
+        <input type="date" id="sales-date-from" oninput="renderSalesStats()" style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text1);font-size:13px"/>
+        <span style="color:var(--text3);font-size:12px">~</span>
+        <input type="date" id="sales-date-to" oninput="renderSalesStats()" style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text1);font-size:13px"/>
+      </div>
+      <!-- 통계 패널 -->
+      <div id="sales-stats-panel"></div>
     </div>
 
     <!-- 자판기 -->
@@ -406,6 +420,7 @@ function startApp(){
   document.getElementById('app').style.display='flex';
   document.getElementById('home-date').value=td();
   renderAll();
+  startAutoCollect(); // 자동수집 타이머 시작
 }
 
 function load(){
@@ -666,28 +681,168 @@ function setSalesSort(s,el){
   renderSales();
 }
 
-function renderSales(){
-  var fd=document.getElementById('sales-df').value;
-  var filtered=fd?D.salesData.filter(function(s){return s.date===fd;}):D.salesData;
-  var el=document.getElementById('sales-list');
-  if(salesSort==='date'){
-    var bd={};
-    filtered.forEach(function(s){
-      if(!bd[s.date])bd[s.date]={qty:0,amt:0};
-      var p=gp(s.productId);bd[s.date].qty+=s.qty;bd[s.date].amt+=s.qty*(p?p.sellPrice:0);
-    });
-    var rows=Object.keys(bd).sort(function(a,b){return b.localeCompare(a);});
-    el.innerHTML=rows.length?rows.map(function(d){var v=bd[d];return '<div class="card" style="margin-bottom:8px"><div class="cb" style="padding:12px 14px"><div style="font-weight:700;color:var(--gold);margin-bottom:6px">'+d+'</div><div style="display:flex;gap:16px;font-size:13px"><span style="color:var(--blue)">판매량 <b>'+fmt(v.qty)+'개</b></span><span style="color:var(--green)">금액 <b>'+fmt(v.amt)+'원</b></span></div></div></div>';}).join('')
-      :'<div class="empty"><div class="ei">📊</div><div class="et">판매 데이터 없음</div></div>';
-  } else {
-    var bp={};
-    filtered.forEach(function(s){bp[s.productId]=(bp[s.productId]||0)+s.qty;});
-    var prods=Object.keys(bp).map(function(id){return {p:gp(id),q:bp[id]};}).filter(function(x){return x.p;});
-    if(salesSort==='product')prods.sort(function(a,b){return a.p.name.localeCompare(b.p.name);});
-    else prods.sort(function(a,b){return b.q-a.q;});
-    el.innerHTML=prods.length?prods.map(function(x,i){return '<div class="item"><div style="display:flex;align-items:center;gap:10px"><span style="font-size:12px;color:var(--text3);min-width:22px">#'+(i+1)+'</span><div><div class="in">'+x.p.name+'</div><div class="is">판매가 '+fmt(x.p.sellPrice)+'원</div></div></div><span style="color:var(--blue);font-weight:700;font-size:15px">'+x.q+'개</span></div>';}).join('')
-      :'<div class="empty"><div class="ei">📦</div><div class="et">판매 데이터 없음</div></div>';
+// ─── 판매 통계 ────────────────────────────────────────────────────────────────
+var salesPeriod = 'today';
+
+function setSalesPeriod(period, btn){
+  salesPeriod = period;
+  document.querySelectorAll('.stab').forEach(function(b){
+    if(b.id && b.id.startsWith('sp-')) b.classList.remove('active');
+  });
+  btn.classList.add('active');
+  var customEl = document.getElementById('sales-custom-range');
+  customEl.style.display = period==='custom' ? 'flex' : 'none';
+  renderSalesStats();
+}
+
+function getSalesDateRange(){
+  var today = td();
+  if(salesPeriod==='today') return {from:today, to:today};
+  if(salesPeriod==='week'){
+    var d = new Date(); d.setDate(d.getDate()-6);
+    return {from:d.toISOString().slice(0,10), to:today};
   }
+  if(salesPeriod==='month'){
+    var d2 = new Date(); d2.setDate(d2.getDate()-29);
+    return {from:d2.toISOString().slice(0,10), to:today};
+  }
+  if(salesPeriod==='custom'){
+    return {
+      from: document.getElementById('sales-date-from').value || today,
+      to:   document.getElementById('sales-date-to').value   || today
+    };
+  }
+  return {from:today, to:today};
+}
+
+function getFilteredSales(){
+  var range = getSalesDateRange();
+  return D.salesData.filter(function(s){ return s.date>=range.from && s.date<=range.to; });
+}
+
+function renderSales(){ renderSalesStats(); } // 하위 호환
+
+function renderSalesStats(){
+  var filtered = getFilteredSales();
+  var panel = document.getElementById('sales-stats-panel');
+  if(!panel) return;
+
+  if(!filtered.length){
+    panel.innerHTML='<div class="empty" style="margin-top:20px"><div class="ei">📊</div><div class="et">해당 기간 판매 데이터 없어요</div></div>';
+    return;
+  }
+
+  var range = getSalesDateRange();
+  var totalQty=0, totalAmt=0;
+  var prodMap={}, priceMap={}, hourMap={};
+
+  filtered.forEach(function(s){
+    var p = gp(s.productId); if(!p) return;
+    totalQty += s.qty;
+    totalAmt += s.qty * p.sellPrice;
+
+    // 제품별
+    if(!prodMap[p.id]) prodMap[p.id]={name:p.name, qty:0, amt:0, price:p.sellPrice};
+    prodMap[p.id].qty += s.qty;
+    prodMap[p.id].amt += s.qty * p.sellPrice;
+
+    // 금액대별
+    var tier = s.qty > 0 ? getPriceTier(p.sellPrice) : null;
+    if(tier){ priceMap[tier]=(priceMap[tier]||0)+s.qty; }
+
+    // 시간대별 (txId나 date에서 시간 추출)
+    var hour = s.hour !== undefined ? s.hour : -1;
+    if(hour>=0){ hourMap[hour]=(hourMap[hour]||0)+s.qty; }
+  });
+
+  var prodRank = Object.values(prodMap).sort(function(a,b){return b.qty-a.qty;});
+  var html = '';
+
+  // 기간 요약 카드
+  var periodLabel = range.from===range.to ? range.from : range.from+' ~ '+range.to;
+  html += '<div style="background:var(--bg3);border-radius:12px;padding:14px;margin-bottom:12px">';
+  html += '<div style="font-size:11px;color:var(--text3);margin-bottom:8px">'+periodLabel+'</div>';
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">';
+  html += '<div style="text-align:center"><div style="font-size:11px;color:var(--text2);margin-bottom:3px">총 판매량</div><div style="font-size:22px;font-weight:800;color:var(--blue)">'+fmt(totalQty)+'<span style="font-size:12px;font-weight:400">개</span></div></div>';
+  html += '<div style="text-align:center"><div style="font-size:11px;color:var(--text2);margin-bottom:3px">총 매출</div><div style="font-size:22px;font-weight:800;color:var(--green)">'+fmtK(totalAmt)+'</div></div>';
+  html += '</div></div>';
+
+  // 제품 판매 순위
+  if(prodRank.length){
+    html += '<div class="card" style="margin-bottom:12px">';
+    html += '<div class="ch"><div class="ca" style="background:var(--gold)"></div><div><div class="ct">🏆 제품 판매 순위</div></div></div>';
+    html += '<div class="cb">';
+    var maxQ = prodRank[0].qty;
+    prodRank.slice(0,10).forEach(function(item,i){
+      var pct = Math.round(item.qty/maxQ*100);
+      html += '<div style="margin-bottom:10px">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">';
+      html += '<div style="display:flex;align-items:center;gap:6px">';
+      html += '<span style="font-size:11px;color:var(--text3);min-width:18px;font-weight:700">#'+(i+1)+'</span>';
+      html += '<span style="font-size:13px;font-weight:600">'+item.name+'</span></div>';
+      html += '<span style="font-size:12px;font-weight:700;color:var(--blue)">'+item.qty+'개</span>';
+      html += '</div>';
+      html += '<div style="height:4px;background:var(--bg3);border-radius:2px"><div style="height:4px;width:'+pct+'%;background:var(--gold);border-radius:2px;transition:width .3s"></div></div>';
+      html += '</div>';
+    });
+    html += '</div></div>';
+  }
+
+  // 금액대별
+  if(Object.keys(priceMap).length){
+    html += '<div class="card" style="margin-bottom:12px">';
+    html += '<div class="ch"><div class="ca" style="background:var(--blue)"></div><div><div class="ct">💰 금액대별 판매량</div></div></div>';
+    html += '<div class="cb">';
+    var tiers = ['~500원','501~1000원','1001~1500원','1501~2000원','2000원~'];
+    var maxT = Math.max.apply(null, Object.values(priceMap).concat([1]));
+    tiers.forEach(function(t){
+      var q = priceMap[t]||0; if(!q) return;
+      var pct = Math.round(q/maxT*100);
+      html += '<div style="margin-bottom:8px">';
+      html += '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">';
+      html += '<span style="color:var(--text2)">'+t+'</span><span style="font-weight:700;color:var(--blue)">'+q+'개</span></div>';
+      html += '<div style="height:4px;background:var(--bg3);border-radius:2px"><div style="height:4px;width:'+pct+'%;background:var(--blue);border-radius:2px"></div></div>';
+      html += '</div>';
+    });
+    html += '</div></div>';
+  }
+
+  // 시간대별
+  if(Object.keys(hourMap).length){
+    html += '<div class="card" style="margin-bottom:12px">';
+    html += '<div class="ch"><div class="ca" style="background:var(--green)"></div><div><div class="ct">⏰ 시간대별 판매량</div></div></div>';
+    html += '<div class="cb">';
+    var maxH = Math.max.apply(null, Object.values(hourMap).concat([1]));
+    for(var h=0;h<24;h++){
+      var q2 = hourMap[h]||0; if(!q2) continue;
+      var pct2 = Math.round(q2/maxH*100);
+      html += '<div style="margin-bottom:6px;display:flex;align-items:center;gap:8px">';
+      html += '<span style="font-size:11px;color:var(--text3);min-width:36px;text-align:right">'+(h<10?'0':'')+h+':00</span>';
+      html += '<div style="flex:1;height:14px;background:var(--bg3);border-radius:3px"><div style="height:14px;width:'+pct2+'%;background:var(--green);border-radius:3px;display:flex;align-items:center;justify-content:flex-end;padding-right:3px"><span style="font-size:8px;color:#fff;font-weight:700">'+q2+'</span></div></div>';
+      html += '</div>';
+    }
+    html += '</div></div>';
+  }
+
+  panel.innerHTML = html;
+}
+
+function getPriceTier(price){
+  if(price<=500) return '~500원';
+  if(price<=1000) return '501~1000원';
+  if(price<=1500) return '1001~1500원';
+  if(price<=2000) return '1501~2000원';
+  return '2000원~';
+}
+
+function fmtK(v){
+  if(v>=10000) return Math.round(v/1000)+'K원';
+  return fmt(v)+'원';
+}
+
+function setSalesSort(s,el){
+  // 하위 호환 (기존 코드 호출 대비)
+  renderSalesStats();
 }
 
 // 컬럼 번호로 제품 찾기 (25 → "25" 포함 여부 체크)
@@ -786,7 +941,8 @@ function parseSalesRows(rows){
 
     var dateStr = dateRaw.length>=10 ? dateRaw.slice(0,10) : dateRaw;
     var prod = findProductByColumn(colVal);
-    salesPreviewRows.push({date:dateStr, itemName:itemName, colVal:colVal, prod:prod, qty:1, txId:txId});
+    var hour = dateRaw.length>=13 ? parseInt(dateRaw.slice(11,13)) : -1;
+    salesPreviewRows.push({date:dateStr, hour:hour, itemName:itemName, colVal:colVal, prod:prod, qty:1, txId:txId});
     if(prod) matched++;
     else if(unmatched.indexOf(colVal)<0) unmatched.push(colVal);
   }
@@ -1582,6 +1738,116 @@ function openProdDetail(el){
   document.getElementById('pdm-title').textContent = p.name;
   document.getElementById('pdm-body').innerHTML = html;
   openModal('prod-detail-modal');
+}
+
+
+// ─── 자동/수동 판매 데이터 수집 (Firebase Realtime DB 크롤러 연동) ──────────
+// 크롤러가 vendingApp/crawledSales/{날짜} 에 저장한 데이터를 읽어서 반영
+
+var CRAWL_REF = db.ref('vendingApp/crawledSales');
+var autoCollectTimer = null;
+
+function startAutoCollect(){
+  // 오후 12:00, 19:00 자동 수집
+  checkAndAutoCollect();
+  autoCollectTimer = setInterval(checkAndAutoCollect, 60 * 1000); // 1분마다 체크
+}
+
+function checkAndAutoCollect(){
+  var now = new Date();
+  var h = now.getHours(), m = now.getMinutes();
+  if((h===12||h===19) && m===0){
+    fetchTodaySales(true);
+  }
+  updateAutoCollectStatus();
+}
+
+function updateAutoCollectStatus(){
+  var el = document.getElementById('auto-collect-status');
+  if(!el) return;
+  var last = localStorage.getItem('lastAutoCollect');
+  el.textContent = '자동수집: 매일 12:00 · 19:00' + (last ? ' · 마지막: '+last : '');
+}
+
+function fetchTodaySales(isAuto){
+  var btn = document.getElementById('crawl-btn');
+  if(btn){ btn.textContent='⏳ 수집 중...'; btn.disabled=true; }
+
+  var today = td();
+  CRAWL_REF.child(today).once('value').then(function(snap){
+    var val = snap.val();
+    if(btn){ btn.textContent='🔄 오늘 데이터 수집'; btn.disabled=false; }
+
+    if(!val || !val.rows || !val.rows.length){
+      if(!isAuto) showToast('📭 오늘 수집된 데이터가 없어요');
+      return;
+    }
+
+    // 헤더 인덱스 찾기
+    var headers = val.headers || [];
+    var colDate  = headers.indexOf('거래일시');
+    var colItem  = headers.indexOf('판매항목');
+    var colNum   = headers.indexOf('컬럼');
+    var colState = headers.indexOf('진행상태');
+    var colTxId  = headers.indexOf('거래고유번호');
+    var colAmt   = headers.indexOf('금액');
+
+    if(colNum<0){ showToast('❌ 수집 데이터에 컬럼 필드 없음'); return; }
+
+    // 기존 txId Set
+    var existingTxIds = {};
+    D.salesData.forEach(function(s){ if(s.txId) existingTxIds[s.txId]=true; });
+
+    var added=0, dup=0, qtyMap={};
+    val.rows.forEach(function(row){
+      var dateRaw  = String(row[colDate]||'').trim();
+      var itemName = String(row[colItem]||'').trim();
+      var colVal   = String(row[colNum] ||'').trim();
+      var state    = colState>=0 ? String(row[colState]||'').trim() : '구매';
+      var txId     = colTxId>=0  ? String(row[colTxId] ||'').trim() : '';
+      var amt      = colAmt>=0   ? parseFloat(row[colAmt])||0 : 0;
+
+      if(!dateRaw||!colVal) return;
+      if(state && state!=='구매') return;
+      if(txId && existingTxIds[txId]){ dup++; return; }
+      if(txId) existingTxIds[txId]=true;
+
+      var dateStr = dateRaw.length>=10 ? dateRaw.slice(0,10) : dateRaw;
+      // 시간 추출 (HH:MM:SS)
+      var hour = -1;
+      if(dateRaw.length>=13) hour = parseInt(dateRaw.slice(11,13));
+
+      var prod = findProductByColumn(colVal);
+      if(!prod) return;
+
+      D.salesData.push({
+        id: Date.now().toString()+Math.random(),
+        txId: txId, date: dateStr, hour: hour,
+        productId: prod.id, qty: 1, amt: amt
+      });
+      qtyMap[prod.id] = (qtyMap[prod.id]||0)+1;
+      added++;
+    });
+
+    if(added>0){
+      // 재고 차감
+      Object.keys(qtyMap).forEach(function(pid){
+        applyInventoryChange(pid, -qtyMap[pid], '자동수집 차감 '+today);
+      });
+      save();
+      var msg = (isAuto?'🤖 자동수집':'✅ 수집')+' '+added+'건 반영';
+      if(dup) msg += ' (중복 '+dup+'건 제외)';
+      showToast(msg);
+      localStorage.setItem('lastAutoCollect', today+' '+new Date().toTimeString().slice(0,5));
+      updateAutoCollectStatus();
+      renderAll();
+    } else {
+      if(!isAuto) showToast(dup>0 ? '이미 모두 반영된 데이터예요 ('+dup+'건 중복)' : '📭 새 데이터가 없어요');
+    }
+  }).catch(function(e){
+    if(btn){ btn.textContent='🔄 오늘 데이터 수집'; btn.disabled=false; }
+    if(!isAuto) showToast('❌ 수집 실패: '+e.message);
+  });
 }
 
 // ─── UI ───────────────────────────────────────────────────────────────────────
