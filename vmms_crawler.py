@@ -90,7 +90,8 @@ async def crawl_today():
 
             # 디버깅용 스크린샷
             await page.screenshot(path="login_page.png")
-            print(f"  페이지 HTML 일부: {await page.content()[:500]}")
+            html_preview = await page.content()
+            print(f"  페이지 HTML 일부: {html_preview[:500]}")
 
             print("  아이디 입력...")
             await page.locator('#id').fill(ID)
