@@ -189,12 +189,30 @@ input[type=date]{color-scheme:dark;}
         </div>
         <div id="uid-msg" style="font-size:11px;margin-top:4px"></div>
       </div>
+      <!-- 이메일: 아이디 + 도메인 드롭다운 -->
       <div style="margin-bottom:12px">
         <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">이메일 <span style="color:var(--red)">*</span></label>
-        <input type="email" id="su-email" placeholder="이메일 입력" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;"/>
+        <div style="display:flex;align-items:center;gap:6px">
+          <input type="text" id="su-email-id" placeholder="이메일 아이디" style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;"/>
+          <span style="color:var(--text3);flex-shrink:0">@</span>
+          <select id="su-email-domain" onchange="toggleEmailDomain()" style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 8px;color:var(--text);font-size:13px;font-family:inherit;">
+            <option value="gmail.com">gmail.com</option>
+            <option value="naver.com">naver.com</option>
+            <option value="nate.com">nate.com</option>
+            <option value="daum.net">daum.net</option>
+            <option value="kakao.com">kakao.com</option>
+            <option value="direct">직접 입력</option>
+          </select>
+        </div>
+        <input type="text" id="su-email-domain-input" placeholder="도메인 직접 입력" style="display:none;width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;margin-top:6px;"/>
+      </div>
+      <!-- 연락처 -->
+      <div style="margin-bottom:12px">
+        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">연락처 <span style="color:var(--text3);font-weight:400">(선택)</span></label>
+        <input type="tel" id="su-phone" placeholder="010-1234-5678" oninput="formatPhone(this)" maxlength="13" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;"/>
       </div>
       <div style="margin-bottom:12px">
-        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">비밀번호 <span style="color:var(--red)">*</span> <span style="color:var(--text3);font-weight:400">(영문+숫자 포함 8자 이상)</span></label>
+        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">비밀번호 <span style="color:var(--red)">*</span> <span style="color:var(--text3);font-weight:400">(영문+숫자 8자 이상)</span></label>
         <input type="password" id="su-pw" placeholder="비밀번호 입력" oninput="checkPwStrength()" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;"/>
         <div id="pw-strength" style="font-size:11px;margin-top:4px"></div>
       </div>
@@ -202,9 +220,10 @@ input[type=date]{color-scheme:dark;}
         <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">비밀번호 확인 <span style="color:var(--red)">*</span></label>
         <input type="password" id="su-pw2" placeholder="비밀번호 재입력" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;"/>
       </div>
+      <!-- 생년월일: 년/월/일 드롭다운 -->
       <div style="margin-bottom:20px">
         <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">생년월일 <span style="color:var(--red)">*</span> <span style="color:var(--text3);font-weight:400">(14세 이상)</span></label>
-        <input type="date" id="su-birth" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;"/>
+        <div style="display:flex;gap:6px" id="birth-selects"></div>
       </div>
       <button onclick="doSignup()" style="width:100%;background:linear-gradient(135deg,var(--gold),var(--gold2));border:none;border-radius:10px;padding:14px;font-size:15px;font-weight:700;color:#1a1208;cursor:pointer;font-family:inherit;margin-bottom:8px">회원가입</button>
       <div id="signup-msg" style="margin-top:10px;text-align:center;font-size:13px"></div>
@@ -381,6 +400,51 @@ input[type=date]{color-scheme:dark;}
         <div class="cb" id="prod-list"></div>
       </div>
     </div>
+
+    <!-- 설정 -->
+    <div class="tab" id="tab-settings">
+      <!-- 서브탭 -->
+      <div style="display:flex;background:var(--bg3);border-radius:10px;padding:3px;margin-bottom:16px;gap:3px">
+        <button id="set-sub-profile" onclick="switchSettingsSub('profile')" style="flex:1;border:none;border-radius:8px;padding:8px 4px;font-size:11px;font-weight:700;cursor:pointer;background:var(--gold);color:#1a1208;font-family:inherit">👤 회원정보</button>
+        <button id="set-sub-machines" onclick="switchSettingsSub('machines')" style="flex:1;border:none;border-radius:8px;padding:8px 4px;font-size:11px;font-weight:600;cursor:pointer;background:transparent;color:var(--text2);font-family:inherit">🏪 자판기</button>
+        <button id="set-sub-vmms" onclick="switchSettingsSub('vmms')" style="flex:1;border:none;border-radius:8px;padding:8px 4px;font-size:11px;font-weight:600;cursor:pointer;background:transparent;color:var(--text2);font-family:inherit">🔗 VMMS</button>
+      </div>
+
+      <!-- 회원정보 패널 -->
+      <div id="set-panel-profile">
+        <div class="card" style="margin-bottom:12px">
+          <div class="ch"><div class="ca" style="background:var(--gold)"></div><div><div class="ct">내 정보</div></div></div>
+          <div class="cb" id="profile-info"></div>
+        </div>
+        <button class="btn-p" style="margin-bottom:8px" onclick="openModal('edit-profile-modal')">✏️ 회원정보 수정</button>
+        <button class="btn-p" style="margin-bottom:0;background:var(--bg3);color:var(--text2)" onclick="openModal('change-pw-modal')">🔑 비밀번호 변경</button>
+      </div>
+
+      <!-- 자판기 관리 패널 -->
+      <div id="set-panel-machines" style="display:none">
+        <button class="btn-p" style="margin-bottom:14px" onclick="openModal('add-machine-modal')">➕ 자판기 추가</button>
+        <div id="machines-list"></div>
+      </div>
+
+      <!-- VMMS 관리 패널 -->
+      <div id="set-panel-vmms" style="display:none">
+        <div id="vmms-locked" style="text-align:center;padding:30px 20px">
+          <div style="font-size:40px;margin-bottom:12px">🔒</div>
+          <div style="font-size:14px;font-weight:700;margin-bottom:8px">보안 확인 필요</div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:20px">VMMS 계정은 민감 정보예요.<br/>비밀번호를 입력해주세요.</div>
+          <input type="password" id="vmms-lock-pw" placeholder="로그인 비밀번호" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;margin-bottom:10px"/>
+          <button onclick="unlockVmms()" style="width:100%;background:var(--gold);border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;color:#1a1208;cursor:pointer;font-family:inherit">확인</button>
+          <div id="vmms-lock-msg" style="font-size:12px;color:var(--red);margin-top:8px"></div>
+        </div>
+        <div id="vmms-panel" style="display:none">
+          <div class="card" style="margin-bottom:12px">
+            <div class="ch"><div class="ca" style="background:var(--blue)"></div><div><div class="ct">VMMS 계정</div></div></div>
+            <div class="cb" id="vmms-info"></div>
+          </div>
+          <button class="btn-p" onclick="openModal('edit-vmms-modal')">✏️ VMMS 계정 수정</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <nav id="nav">
@@ -399,7 +463,85 @@ input[type=date]{color-scheme:dark;}
     <button class="nav-btn" onclick="switchTab('products',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r=".5" fill="currentColor"/></svg><span>제품등록</span>
     </button>
+    <button class="nav-btn" onclick="switchTab('settings',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>설정</span>
+    </button>
   </nav>
+</div>
+
+<!-- 회원정보 수정 모달 -->
+<div class="modal-bg" id="edit-profile-modal">
+  <div class="modal">
+    <div class="mh"><div class="mt">✏️ 회원정보 수정</div><button class="mc" onclick="closeModal('edit-profile-modal')">✕</button></div>
+    <div id="edit-profile-lock">
+      <div style="font-size:13px;color:var(--text2);margin-bottom:14px">보안을 위해 비밀번호를 먼저 입력해주세요.</div>
+      <div class="fr"><label class="lbl">현재 비밀번호</label><input type="password" id="ep-lock-pw" placeholder="로그인 비밀번호"/></div>
+      <button class="btn-p" style="margin-bottom:0" onclick="unlockEditProfile()">확인</button>
+      <div id="ep-lock-msg" style="font-size:12px;color:var(--red);margin-top:8px;text-align:center"></div>
+    </div>
+    <div id="edit-profile-form" style="display:none">
+      <div class="fr"><label class="lbl">이메일</label><input type="email" id="ep-email" placeholder="이메일"/></div>
+      <div class="fr">
+        <label class="lbl">연락처</label>
+        <input type="tel" id="ep-phone" placeholder="010-1234-5678" oninput="formatPhone(this)" maxlength="13"/>
+      </div>
+      <button class="btn-p" style="margin-bottom:0" onclick="saveProfile()">저장</button>
+      <div id="ep-msg" style="font-size:12px;margin-top:8px;text-align:center"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 비밀번호 변경 모달 -->
+<div class="modal-bg" id="change-pw-modal">
+  <div class="modal">
+    <div class="mh"><div class="mt">🔑 비밀번호 변경</div><button class="mc" onclick="closeModal('change-pw-modal')">✕</button></div>
+    <div class="fr"><label class="lbl">현재 비밀번호</label><input type="password" id="cp-old"/></div>
+    <div class="fr"><label class="lbl">새 비밀번호 <span style="color:var(--text3);font-weight:400;font-size:11px">(영문+숫자 8자 이상)</span></label><input type="password" id="cp-new" oninput="checkNewPw()"/></div>
+    <div id="cp-strength" style="font-size:11px;margin:-8px 0 10px;padding:0 2px"></div>
+    <div class="fr"><label class="lbl">새 비밀번호 확인</label><input type="password" id="cp-new2"/></div>
+    <button class="btn-p" style="margin-bottom:0" onclick="doChangePw()">변경</button>
+    <div id="cp-msg" style="font-size:12px;margin-top:8px;text-align:center"></div>
+  </div>
+</div>
+
+<!-- 자판기 추가 모달 -->
+<div class="modal-bg" id="add-machine-modal">
+  <div class="modal">
+    <div class="mh"><div class="mt">🏪 자판기 추가</div><button class="mc" onclick="closeModal('add-machine-modal')">✕</button></div>
+    <div class="fr"><label class="lbl">단말기명 (VMMS 기준)</label><input type="text" id="am-name" placeholder="예: 민원동쉼터"/></div>
+    <div class="fr"><label class="lbl">단말기 번호</label><input type="text" id="am-devno" placeholder="예: 2000107965"/></div>
+    <div class="f2">
+      <div><label class="lbl">계약 시작일</label><input type="date" id="am-start"/></div>
+      <div><label class="lbl">계약 종료일</label><input type="date" id="am-end"/></div>
+    </div>
+    <button class="btn-p" style="margin-bottom:0" onclick="addMachine()">추가</button>
+  </div>
+</div>
+
+<!-- 자판기 삭제 확인 모달 -->
+<div class="modal-bg" id="del-machine-modal">
+  <div class="modal">
+    <div class="mh"><div class="mt">🗑️ 자판기 삭제</div><button class="mc" onclick="closeModal('del-machine-modal')">✕</button></div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:14px">삭제하려면 비밀번호를 입력해주세요.<br/>삭제된 자판기 데이터는 복구할 수 없어요.</div>
+    <input type="hidden" id="del-machine-id"/>
+    <div class="fr"><label class="lbl">비밀번호</label><input type="password" id="dm-pw" placeholder="로그인 비밀번호"/></div>
+    <button class="btn-p" style="margin-bottom:0;background:#3a1a1a;color:var(--red)" onclick="confirmDelMachine()">삭제</button>
+    <div id="dm-msg" style="font-size:12px;color:var(--red);margin-top:8px;text-align:center"></div>
+  </div>
+</div>
+
+<!-- VMMS 계정 수정 모달 -->
+<div class="modal-bg" id="edit-vmms-modal">
+  <div class="modal">
+    <div class="mh"><div class="mt">🔗 VMMS 계정 설정</div><button class="mc" onclick="closeModal('edit-vmms-modal')">✕</button></div>
+    <div style="background:rgba(232,184,109,.1);border:1px solid rgba(232,184,109,.3);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:12px;color:var(--text2)">
+      💡 VMMS 계정 정보는 암호화되어 저장돼요.
+    </div>
+    <div class="fr"><label class="lbl">VMMS 아이디</label><input type="text" id="ev-id" placeholder="VMMS 로그인 아이디"/></div>
+    <div class="fr"><label class="lbl">VMMS 비밀번호</label><input type="password" id="ev-pw" placeholder="VMMS 로그인 비밀번호"/></div>
+    <button class="btn-p" style="margin-bottom:0" onclick="saveVmms()">저장</button>
+    <div id="ev-msg" style="font-size:12px;margin-top:8px;text-align:center"></div>
+  </div>
 </div>
 
 <!-- 재고 상세 팝업 -->
@@ -642,12 +784,6 @@ function showVerifyScreen(email){
 }
 
 function switchAuthTab(tab){
-  // 모든 폼 숨기기
-  ['login','signup','find-id','find-pw'].forEach(function(t){
-    var el = document.getElementById('auth-' + t.replace('-','') + '-form') ||
-             document.getElementById('auth-find-id-form') ||
-             document.getElementById('auth-find-pw-form');
-  });
   document.getElementById('auth-login-form').style.display   = 'none';
   document.getElementById('auth-signup-form').style.display  = 'none';
   document.getElementById('auth-find-id-form').style.display = 'none';
@@ -655,7 +791,10 @@ function switchAuthTab(tab){
 
   // 선택한 폼 보이기
   if(tab==='login')   document.getElementById('auth-login-form').style.display   = 'block';
-  if(tab==='signup')  document.getElementById('auth-signup-form').style.display  = 'block';
+  if(tab==='signup'){
+    document.getElementById('auth-signup-form').style.display  = 'block';
+    initBirthSelects(); // 생년월일 드롭다운 초기화
+  }
   if(tab==='find-id') document.getElementById('auth-find-id-form').style.display = 'block';
   if(tab==='find-pw') document.getElementById('auth-find-pw-form').style.display = 'block';
 
@@ -790,13 +929,13 @@ function checkUid(){
 function doSignup(){
   var name  = document.getElementById('su-name').value.trim();
   var uid   = document.getElementById('su-uid').value.trim();
-  var email = document.getElementById('su-email').value.trim();
+  var email = getSignupEmail();
+  var phone = document.getElementById('su-phone').value.trim();
   var pw    = document.getElementById('su-pw').value;
   var pw2   = document.getElementById('su-pw2').value;
-  var birth = document.getElementById('su-birth').value;
+  var birth = getSignupBirth();
   var msg   = document.getElementById('signup-msg');
 
-  // 유효성 검사
   if(!name){ msg.style.color='var(--red)'; msg.textContent='이름을 입력하세요'; return; }
   if(!uid){ msg.style.color='var(--red)'; msg.textContent='아이디를 입력하세요'; return; }
   if(!uidChecked){ msg.style.color='var(--red)'; msg.textContent='아이디 중복확인을 해주세요'; return; }
@@ -805,25 +944,23 @@ function doSignup(){
     msg.style.color='var(--red)'; msg.textContent='비밀번호는 영문+숫자 포함 8자 이상이어야 해요'; return;
   }
   if(pw !== pw2){ msg.style.color='var(--red)'; msg.textContent='비밀번호가 일치하지 않아요'; return; }
-  if(!birth){ msg.style.color='var(--red)'; msg.textContent='생년월일을 입력하세요'; return; }
+  if(!birth){ msg.style.color='var(--red)'; msg.textContent='생년월일을 선택해주세요'; return; }
 
-  // 14세 이상 체크
   var today = new Date();
   var birthDate = new Date(birth);
   var age = today.getFullYear() - birthDate.getFullYear();
-  var m = today.getMonth() - birthDate.getMonth();
-  if(m < 0 || (m===0 && today.getDate() < birthDate.getDate())) age--;
+  var mo = today.getMonth() - birthDate.getMonth();
+  if(mo < 0 || (mo===0 && today.getDate() < birthDate.getDate())) age--;
   if(age < 14){ msg.style.color='var(--red)'; msg.textContent='14세 이상만 가입할 수 있어요'; return; }
 
   msg.style.color='var(--text2)'; msg.textContent='가입 처리 중...';
 
   auth.createUserWithEmailAndPassword(email, pw).then(function(cred){
     var user = cred.user;
-    // 유저 정보 저장
-    var userInfo = {name:name, username:uid, email:email, birth:birth, createdAt:new Date().toISOString()};
+    var userInfo = {name:name, username:uid, email:email, phone:phone, birth:birth, createdAt:new Date().toISOString()};
     return Promise.all([
       db.ref('users/' + user.uid + '/profile').set(userInfo),
-      db.ref('usernames/' + uid).set(user.uid), // 아이디 중복확인용
+      db.ref('usernames/' + uid).set(user.uid),
       user.updateProfile({displayName: name}),
       user.sendEmailVerification()
     ]);
@@ -966,6 +1103,273 @@ function renderHome(){
 // ─── 재고 ─────────────────────────────────────────────────────────────────────
 
 
+
+// ─── 설정 탭 ──────────────────────────────────────────────────────────────────
+function switchSettingsSub(sub){
+  ['profile','machines','vmms'].forEach(function(s){
+    document.getElementById('set-panel-'+s).style.display = s===sub ? 'block' : 'none';
+    var btn = document.getElementById('set-sub-'+s);
+    btn.style.background = s===sub ? 'var(--gold)' : 'transparent';
+    btn.style.color      = s===sub ? '#1a1208' : 'var(--text2)';
+    btn.style.fontWeight = s===sub ? '700' : '600';
+  });
+  if(sub==='profile') renderProfileInfo();
+  if(sub==='machines') renderMachinesList();
+  if(sub==='vmms'){ document.getElementById('vmms-locked').style.display='block'; document.getElementById('vmms-panel').style.display='none'; }
+}
+
+// ─── 회원 정보 ────────────────────────────────────────────────────────────────
+function renderProfileInfo(){
+  if(!currentUser) return;
+  db.ref('users/'+currentUser.uid+'/profile').once('value').then(function(snap){
+    var p = snap.val() || {};
+    var el = document.getElementById('profile-info');
+    if(!el) return;
+    el.innerHTML = [
+      ['이름', p.name||'-'],
+      ['아이디', p.username||'-'],
+      ['이메일', p.email||currentUser.email||'-'],
+      ['연락처', p.phone||'-'],
+      ['생년월일', p.birth||'-'],
+      ['가입일', p.createdAt ? p.createdAt.slice(0,10) : '-']
+    ].map(function(row){
+      return '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">'+
+        '<span style="color:var(--text2)">'+row[0]+'</span>'+
+        '<span style="font-weight:600">'+row[1]+'</span></div>';
+    }).join('');
+  });
+}
+
+function unlockEditProfile(){
+  var pw = document.getElementById('ep-lock-pw').value;
+  var msg = document.getElementById('ep-lock-msg');
+  if(!pw){ msg.textContent='비밀번호를 입력하세요'; return; }
+  var email = currentUser.email;
+  var cred = firebase.auth.EmailAuthProvider.credential(email, pw);
+  currentUser.reauthenticateWithCredential(cred).then(function(){
+    document.getElementById('edit-profile-lock').style.display='none';
+    document.getElementById('edit-profile-form').style.display='block';
+    // 현재 값 채우기
+    db.ref('users/'+currentUser.uid+'/profile').once('value').then(function(snap){
+      var p = snap.val()||{};
+      document.getElementById('ep-email').value = p.email||currentUser.email||'';
+      document.getElementById('ep-phone').value = p.phone||'';
+    });
+  }).catch(function(e){
+    msg.textContent = '비밀번호가 올바르지 않아요';
+  });
+}
+
+function saveProfile(){
+  var email = document.getElementById('ep-email').value.trim();
+  var phone = document.getElementById('ep-phone').value.trim();
+  var msg   = document.getElementById('ep-msg');
+  if(!email){ msg.style.color='var(--red)'; msg.textContent='이메일을 입력하세요'; return; }
+  msg.style.color='var(--text2)'; msg.textContent='저장 중...';
+  var updates = {email:email, phone:phone};
+  var promises = [db.ref('users/'+currentUser.uid+'/profile').update(updates)];
+  if(email !== currentUser.email) promises.push(currentUser.updateEmail(email));
+  Promise.all(promises).then(function(){
+    msg.style.color='var(--green)'; msg.textContent='✅ 저장 완료';
+    closeModal('edit-profile-modal');
+    renderProfileInfo();
+  }).catch(function(e){
+    msg.style.color='var(--red)'; msg.textContent=e.message;
+  });
+}
+
+// ─── 비밀번호 변경 ────────────────────────────────────────────────────────────
+function checkNewPw(){
+  var pw = document.getElementById('cp-new').value;
+  var el = document.getElementById('cp-strength');
+  var ok = /[a-zA-Z]/.test(pw) && /[0-9]/.test(pw) && pw.length>=8;
+  el.style.color = ok ? 'var(--green)' : 'var(--red)';
+  el.textContent = pw ? (ok ? '✅ 사용 가능' : '❌ 영문+숫자 8자 이상') : '';
+}
+
+function doChangePw(){
+  var old  = document.getElementById('cp-old').value;
+  var nw   = document.getElementById('cp-new').value;
+  var nw2  = document.getElementById('cp-new2').value;
+  var msg  = document.getElementById('cp-msg');
+  if(!old||!nw||!nw2){ msg.style.color='var(--red)'; msg.textContent='모두 입력해주세요'; return; }
+  if(nw!==nw2){ msg.style.color='var(--red)'; msg.textContent='새 비밀번호가 일치하지 않아요'; return; }
+  if(!/[a-zA-Z]/.test(nw)||!/[0-9]/.test(nw)||nw.length<8){ msg.style.color='var(--red)'; msg.textContent='영문+숫자 8자 이상이어야 해요'; return; }
+  msg.style.color='var(--text2)'; msg.textContent='변경 중...';
+  var cred = firebase.auth.EmailAuthProvider.credential(currentUser.email, old);
+  currentUser.reauthenticateWithCredential(cred).then(function(){
+    return currentUser.updatePassword(nw);
+  }).then(function(){
+    msg.style.color='var(--green)'; msg.textContent='✅ 비밀번호 변경 완료';
+    setTimeout(function(){ closeModal('change-pw-modal'); }, 1500);
+  }).catch(function(e){
+    msg.style.color='var(--red)';
+    if(e.code==='auth/wrong-password') msg.textContent='현재 비밀번호가 올바르지 않아요';
+    else msg.textContent=e.message;
+  });
+}
+
+// ─── 자판기 관리 ──────────────────────────────────────────────────────────────
+function renderMachinesList(){
+  if(!currentUser) return;
+  db.ref('users/'+currentUser.uid+'/machines').once('value').then(function(snap){
+    var el = document.getElementById('machines-list');
+    if(!snap.exists()||!snap.val()){
+      el.innerHTML='<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">등록된 자판기가 없어요</div>';
+      return;
+    }
+    var html='';
+    snap.forEach(function(child){
+      var m = child.val(); var id = child.key;
+      var now = new Date().toISOString().slice(0,10);
+      var expired = m.contractEnd && m.contractEnd < now;
+      html += '<div style="background:var(--bg2);border:1px solid '+(expired?'rgba(224,88,88,.3)':'var(--border)')+';border-radius:12px;padding:14px;margin-bottom:10px">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">';
+      html += '<div><div style="font-size:14px;font-weight:700">'+m.name+'</div>';
+      html += '<div style="font-size:11px;color:var(--text3);margin-top:2px">단말기: '+m.deviceNo+'</div></div>';
+      html += '<span style="font-size:11px;background:'+(expired?'rgba(224,88,88,.2)':'rgba(122,218,154,.15)')+';color:'+(expired?'var(--red)':'var(--green)')+';border-radius:6px;padding:3px 8px;font-weight:700">'+(expired?'계약종료':'운영중')+'</span>';
+      html += '</div>';
+      html += '<div style="font-size:12px;color:var(--text2)">계약기간: '+(m.contractStart||'-')+' ~ '+(m.contractEnd||'-')+'</div>';
+      html += '<button onclick="openDelMachine(''+id+'')" style="margin-top:10px;background:rgba(224,88,88,.15);border:1px solid rgba(224,88,88,.3);border-radius:8px;padding:5px 12px;font-size:12px;color:var(--red);cursor:pointer;font-family:inherit">🗑️ 삭제</button>';
+      html += '</div>';
+    });
+    el.innerHTML = html;
+  });
+}
+
+function addMachine(){
+  var name  = document.getElementById('am-name').value.trim();
+  var devno = document.getElementById('am-devno').value.trim();
+  var start = document.getElementById('am-start').value;
+  var end   = document.getElementById('am-end').value;
+  if(!name||!devno){ showToast('❌ 단말기명과 번호를 입력하세요'); return; }
+  var id = 'machine_' + Date.now();
+  db.ref('users/'+currentUser.uid+'/machines/'+id).set({
+    name:name, deviceNo:devno, contractStart:start, contractEnd:end, createdAt:td()
+  }).then(function(){
+    closeModal('add-machine-modal');
+    ['am-name','am-devno','am-start','am-end'].forEach(function(i){ document.getElementById(i).value=''; });
+    showToast('✅ 자판기 추가 완료');
+    renderMachinesList();
+  });
+}
+
+function openDelMachine(id){
+  document.getElementById('del-machine-id').value = id;
+  document.getElementById('dm-pw').value='';
+  document.getElementById('dm-msg').textContent='';
+  openModal('del-machine-modal');
+}
+
+function confirmDelMachine(){
+  var id  = document.getElementById('del-machine-id').value;
+  var pw  = document.getElementById('dm-pw').value;
+  var msg = document.getElementById('dm-msg');
+  if(!pw){ msg.textContent='비밀번호를 입력하세요'; return; }
+  var cred = firebase.auth.EmailAuthProvider.credential(currentUser.email, pw);
+  currentUser.reauthenticateWithCredential(cred).then(function(){
+    return db.ref('users/'+currentUser.uid+'/machines/'+id).remove();
+  }).then(function(){
+    closeModal('del-machine-modal');
+    showToast('✅ 자판기 삭제 완료');
+    renderMachinesList();
+  }).catch(function(e){
+    if(e.code==='auth/wrong-password') msg.textContent='비밀번호가 올바르지 않아요';
+    else msg.textContent=e.message;
+  });
+}
+
+// ─── VMMS 관리 ────────────────────────────────────────────────────────────────
+function unlockVmms(){
+  var pw  = document.getElementById('vmms-lock-pw').value;
+  var msg = document.getElementById('vmms-lock-msg');
+  if(!pw){ msg.textContent='비밀번호를 입력하세요'; return; }
+  var cred = firebase.auth.EmailAuthProvider.credential(currentUser.email, pw);
+  currentUser.reauthenticateWithCredential(cred).then(function(){
+    document.getElementById('vmms-locked').style.display='none';
+    document.getElementById('vmms-panel').style.display='block';
+    renderVmmsInfo();
+  }).catch(function(){
+    msg.textContent='비밀번호가 올바르지 않아요';
+  });
+}
+
+function renderVmmsInfo(){
+  db.ref('users/'+currentUser.uid+'/vmms').once('value').then(function(snap){
+    var v = snap.val()||{};
+    var el = document.getElementById('vmms-info');
+    var hasData = v.id;
+    el.innerHTML = hasData
+      ? '<div style="padding:10px 0"><div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px"><span style="color:var(--text2)">아이디</span><span style="font-weight:600">'+atob(v.id||'')+'</span></div>'+
+        '<div style="display:flex;justify-content:space-between;padding:8px 0;font-size:13px"><span style="color:var(--text2)">비밀번호</span><span style="font-weight:600">••••••••</span></div></div>'
+      : '<div style="text-align:center;padding:16px;color:var(--text3);font-size:13px">VMMS 계정을 등록해주세요</div>';
+  });
+}
+
+function saveVmms(){
+  var id  = document.getElementById('ev-id').value.trim();
+  var pw  = document.getElementById('ev-pw').value;
+  var msg = document.getElementById('ev-msg');
+  if(!id||!pw){ msg.style.color='var(--red)'; msg.textContent='아이디와 비밀번호를 입력하세요'; return; }
+  // Base64 인코딩으로 저장
+  db.ref('users/'+currentUser.uid+'/vmms').set({
+    id: btoa(id), pw: btoa(pw), updatedAt: new Date().toISOString()
+  }).then(function(){
+    msg.style.color='var(--green)'; msg.textContent='✅ 저장 완료';
+    setTimeout(function(){ closeModal('edit-vmms-modal'); renderVmmsInfo(); }, 1000);
+  }).catch(function(e){
+    msg.style.color='var(--red)'; msg.textContent=e.message;
+  });
+}
+
+// ─── 회원가입 폼 유틸 ─────────────────────────────────────────────────────────
+function initBirthSelects(){
+  var el = document.getElementById('birth-selects');
+  if(!el||el.children.length>0) return;
+  var ss = 'style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 6px;color:var(--text);font-size:13px;font-family:inherit;"';
+  // 년도
+  var yOpts = '<option value="">년</option>';
+  var thisYear = new Date().getFullYear();
+  for(var y=thisYear-80;y<=thisYear-14;y++) yOpts += '<option value="'+y+'">'+y+'</option>';
+  // 월
+  var mOpts = '<option value="">월</option>';
+  for(var m=1;m<=12;m++) mOpts += '<option value="'+(m<10?'0'+m:m)+'">'+(m<10?'0'+m:m)+'</option>';
+  // 일
+  var dOpts = '<option value="">일</option>';
+  for(var d=1;d<=31;d++) dOpts += '<option value="'+(d<10?'0'+d:d)+'">'+(d<10?'0'+d:d)+'</option>';
+  el.innerHTML = '<select id="su-birth-y" '+ss+'>'+yOpts+'</select>'+
+                 '<select id="su-birth-m" '+ss+'>'+mOpts+'</select>'+
+                 '<select id="su-birth-d" '+ss+'>'+dOpts+'</select>';
+}
+
+function getSignupBirth(){
+  var y = document.getElementById('su-birth-y').value;
+  var m = document.getElementById('su-birth-m').value;
+  var d = document.getElementById('su-birth-d').value;
+  if(!y||!m||!d) return '';
+  return y+'-'+m+'-'+d;
+}
+
+function getSignupEmail(){
+  var id     = document.getElementById('su-email-id').value.trim();
+  var domain = document.getElementById('su-email-domain').value;
+  if(domain==='direct') domain = document.getElementById('su-email-domain-input').value.trim();
+  if(!id||!domain) return '';
+  return id+'@'+domain;
+}
+
+function toggleEmailDomain(){
+  var v = document.getElementById('su-email-domain').value;
+  document.getElementById('su-email-domain-input').style.display = v==='direct' ? 'block' : 'none';
+}
+
+function formatPhone(input){
+  var v = input.value.replace(/[^0-9]/g,'');
+  if(v.length<=3) input.value = v;
+  else if(v.length<=7) input.value = v.slice(0,3)+'-'+v.slice(3);
+  else input.value = v.slice(0,3)+'-'+v.slice(3,7)+'-'+v.slice(7,11);
+}
+
 // ─── 기존 데이터 이전 ──────────────────────────────────────────────────────────
 function checkMigration(){
   if(!currentUser) return;
@@ -1042,7 +1446,7 @@ function renderPurchase(){
         '<div style="font-size:11px;color:var(--text3);margin-top:2px">컬럼: '+( cols.join(', ')||'-')+'</div>'+
       '</div>'+
       '<span style="font-size:14px;font-weight:800;color:'+(q===0?'var(--red)':'var(--gold)')+'">'+q+'개</span>'+
-      '<span style="font-size:11px;background:rgba(232,184,109,.2);color:var(--gold);border:1px solid rgba(232,184,109,.4);border-radius:6px;padding:3px 8px;white-space:nowrap">쿠팡 검색 →</span>'+
+      '<span style="font-size:11px;background:rgba(232,184,109,.2);color:var(--gold);border:1px solid rgba(232,184,109,.4);border-radius:6px;padding:3px 8px;white-space:nowrap">쿠팡 검색 &#8594;</span>'+
     '</div>';
   }).join('');
 }
@@ -2680,6 +3084,7 @@ function switchTab(name,btn){
   document.querySelectorAll('.nav-btn').forEach(function(b){b.classList.remove('active');});
   document.getElementById('tab-'+name).classList.add('active');
   btn.classList.add('active');
+  if(name==='settings') renderProfileInfo();
 }
 function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
