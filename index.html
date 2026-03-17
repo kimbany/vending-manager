@@ -265,7 +265,13 @@ input[type=date]{color-scheme:dark;}
       <!-- 기존 데이터 이전 안내 (한번만 표시) -->
       <div id="migrate-banner" style="display:none;background:rgba(232,184,109,.1);border:1px solid rgba(232,184,109,.3);border-radius:12px;padding:14px;margin-bottom:14px">
         <div style="font-size:13px;font-weight:700;color:var(--gold);margin-bottom:6px">📦 기존 데이터가 있어요!</div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:12px">이전에 사용하던 제품·재고·판매 데이터를 이 계정으로 가져올 수 있어요.</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:10px">이전에 사용하던 제품·재고·판매 데이터를 이 계정으로 가져올 수 있어요.</div>
+        <div style="margin-bottom:10px">
+          <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:5px">어느 자판기 데이터인가요?</label>
+          <select id="migrate-target" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:9px 10px;color:var(--text);font-size:13px;font-family:inherit;">
+            <option value="global">공통 데이터로 가져오기 (자판기 미구분)</option>
+          </select>
+        </div>
         <div style="display:flex;gap:8px">
           <button onclick="migrateOldData()" style="flex:1;background:var(--gold);border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;color:#1a1208;cursor:pointer;font-family:inherit">✅ 데이터 가져오기</button>
           <button onclick="dismissMigrate()" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:12px;color:var(--text2);cursor:pointer;font-family:inherit">건너뛰기</button>
@@ -543,8 +549,8 @@ input[type=date]{color-scheme:dark;}
 <div class="modal-bg" id="add-machine-modal">
   <div class="modal">
     <div class="mh"><div class="mt">🏪 자판기 추가</div><button class="mc" onclick="closeModal('add-machine-modal')">✕</button></div>
-    <div class="fr"><label class="lbl">단말기명 (VMMS 기준)</label><input type="text" id="am-name" placeholder="예: 민원동쉼터"/></div>
-    <div class="fr"><label class="lbl">단말기 번호</label><input type="text" id="am-devno" placeholder="예: 2000107965"/></div>
+    <div class="fr"><label class="lbl">단말기명 (VMMS 기준)</label><input type="text" id="am-name" placeholder="예: 자판기학교"/></div>
+    <div class="fr"><label class="lbl">단말기 번호</label><input type="text" id="am-devno" placeholder="예: 2026001234"/></div>
     <div class="f2">
       <div><label class="lbl">계약 시작일</label><input type="date" id="am-start"/></div>
       <div><label class="lbl">계약 종료일</label><input type="date" id="am-end"/></div>
@@ -1483,34 +1489,67 @@ function formatPhone(input){
 // ─── 기존 데이터 이전 ──────────────────────────────────────────────────────────
 function checkMigration(){
   if(!currentUser) return;
-  // 이미 이전했거나 건너뛴 경우 표시 안 함
   var dismissed = localStorage.getItem('migrateDismissed_' + currentUser.uid);
   if(dismissed) return;
-  // 현재 계정에 데이터가 없고, 기존 vendingApp에 데이터 있으면 배너 표시
-  if(D.products.length > 0) return; // 이미 데이터 있으면 필요 없음
+  if(D.products.length > 0) return;
+  // 기존 데이터 확인
   db.ref('vendingApp').once('value').then(function(snap){
     var val = snap.val();
-    if(val && val.products && val.products.length > 0){
+    if(!val || !val.products || !val.products.length) return;
+    // 자판기 목록 로드해서 드롭다운에 추가
+    db.ref('users/'+currentUser.uid+'/machines').once('value').then(function(msnap){
+      var sel = document.getElementById('migrate-target');
+      if(sel && msnap.exists()){
+        msnap.forEach(function(child){
+          var m = child.val();
+          var opt = document.createElement('option');
+          opt.value = child.key;
+          opt.textContent = m.name + ' 자판기 데이터로 가져오기';
+          sel.appendChild(opt);
+        });
+      }
       document.getElementById('migrate-banner').style.display = 'block';
-    }
+    });
   });
 }
 
 function migrateOldData(){
-  if(!confirm('기존 데이터를 이 계정으로 가져올까요?\n(제품, 재고, 판매 데이터 전체)')) return;
+  var targetId = document.getElementById('migrate-target') ? document.getElementById('migrate-target').value : 'global';
+  var targetLabel = targetId === 'global' ? '공통 데이터' : document.getElementById('migrate-target').options[document.getElementById('migrate-target').selectedIndex].text;
+  if(!confirm('기존 데이터를 '+targetLabel+'로 가져올까요?\n(제품, 재고, 판매 데이터 전체)')) return;
   showToast('⏳ 데이터 가져오는 중...');
   db.ref('vendingApp').once('value').then(function(snap){
     var val = snap.val();
     if(!val){ showToast('❌ 가져올 데이터가 없어요'); return; }
-    D.products      = val.products      || [];
-    D.inventory     = val.inventory     || [];
-    D.inventoryLogs = val.inventoryLogs || [];
-    D.salesData     = val.salesData     || [];
-    save();
-    document.getElementById('migrate-banner').style.display = 'none';
-    localStorage.setItem('migrateDismissed_' + currentUser.uid, '1');
-    showToast('✅ 데이터 가져오기 완료!');
-    renderAll();
+    var data = {
+      products:      val.products      || [],
+      inventory:     val.inventory     || [],
+      inventoryLogs: val.inventoryLogs || [],
+      salesData:     val.salesData     || []
+    };
+    var savePath;
+    if(targetId === 'global'){
+      // 공통 appData로 저장
+      savePath = db.ref('users/'+currentUser.uid+'/appData');
+      D.products = data.products; D.inventory = data.inventory;
+      D.inventoryLogs = data.inventoryLogs; D.salesData = data.salesData;
+      REF = savePath;
+    } else {
+      // 특정 자판기 appData로 저장
+      savePath = db.ref('users/'+currentUser.uid+'/machines/'+targetId+'/appData');
+    }
+    savePath.set(data).then(function(){
+      document.getElementById('migrate-banner').style.display = 'none';
+      localStorage.setItem('migrateDismissed_' + currentUser.uid, '1');
+      showToast('✅ '+targetLabel+'로 데이터 가져오기 완료!');
+      if(targetId !== 'global'){
+        // 드롭다운에서 해당 자판기 선택
+        var sel = document.getElementById('machine-select');
+        if(sel){ sel.value = targetId; onMachineSelect(); }
+      } else {
+        renderAll();
+      }
+    });
   }).catch(function(e){
     showToast('❌ 가져오기 실패: ' + e.message);
   });
@@ -2148,6 +2187,17 @@ function handleSalesFile(input){
   }
 }
 
+function getCurrentMachineFilter(){
+  // 현재 선택된 자판기의 단말기명/머신기코드 반환
+  if(!currentMachineId) return null;
+  return new Promise(function(resolve){
+    db.ref('users/'+currentUser.uid+'/machines/'+currentMachineId).once('value').then(function(snap){
+      var m = snap.val();
+      resolve(m ? {name: m.name, deviceNo: m.deviceNo} : null);
+    });
+  });
+}
+
 function parseSalesRows(rows){
   var headerIdx = -1;
   for(var i=0;i<Math.min(10,rows.length);i++){
@@ -2157,11 +2207,43 @@ function parseSalesRows(rows){
   if(headerIdx<0){ showToast('❌ 헤더를 찾을 수 없어요 (거래일시/컬럼 컬럼 필요)'); return; }
 
   var headers = rows[headerIdx].map(function(v){return String(v||'').trim();});
-  var colDate  = headers.indexOf('거래일시');
-  var colItem  = headers.indexOf('판매항목');
-  var colNum   = headers.indexOf('컬럼');
-  var colState = headers.indexOf('진행상태');
-  var colTxId  = headers.indexOf('거래고유번호'); // 중복 체크용
+  var colDate    = headers.indexOf('거래일시');
+  var colItem    = headers.indexOf('판매항목');
+  var colNum     = headers.indexOf('컬럼');
+  var colState   = headers.indexOf('진행상태');
+  var colTxId    = headers.indexOf('거래고유번호');
+  var colMachine = headers.indexOf('단말기명');   // 자판기 필터용
+  var colMachineCode = headers.indexOf('머신기코드'); // 자판기 필터용
+
+  if(colNum<0){ showToast('❌ 컬럼 필드가 없어요'); return; }
+
+  // 현재 선택된 자판기로 필터링
+  var machineFilter = null;
+  if(currentMachineId){
+    // 동기적으로 처리하기 위해 이미 로드된 드롭다운 데이터 활용
+    var sel = document.getElementById('machine-select');
+    if(sel && sel.value){
+      // 자판기 정보는 DB에서 가져와야 하므로 Promise 처리
+      getCurrentMachineFilter().then(function(filter){
+        _doParseSalesRows(rows, headers, colDate, colItem, colNum, colState, colTxId, colMachine, colMachineCode, filter);
+      });
+      return;
+    }
+  }
+  _doParseSalesRows(rows, headers, colDate, colItem, colNum, colState, colTxId, colMachine, colMachineCode, null);
+}
+
+function _doParseSalesRows(rows, headers, colDate, colItem, colNum, colState, colTxId, colMachine, colMachineCode, machineFilter){
+  var headerIdx = 0;
+  // headers 배열로 다시 headerIdx 찾기
+  for(var i=0;i<Math.min(10,rows.length);i++){
+    var r = rows[i].map(function(v){return String(v||'').trim();});
+    if(r.indexOf('거래일시')>=0){ headerIdx=i; break; }
+  }
+
+  var filterName = machineFilter ? machineFilter.name : null;
+  var filterCode = machineFilter ? machineFilter.deviceNo : null;
+  var filteredCount = 0;
 
   if(colNum<0){ showToast('❌ 컬럼 필드가 없어요'); return; }
 
@@ -2184,22 +2266,26 @@ function parseSalesRows(rows){
 
   for(var i=headerIdx+1;i<rows.length;i++){
     var row = rows[i];
-    var dateRaw  = String(row[colDate]||'').trim();
-    var itemName = String(row[colItem]||'').trim();
-    var colVal   = String(row[colNum] ||'').trim();
-    var state    = colState>=0 ? String(row[colState]||'').trim() : '';
-    var txId     = colTxId>=0  ? String(row[colTxId] ||'').trim() : '';
+    var dateRaw   = String(row[colDate]||'').trim();
+    var itemName  = String(row[colItem]||'').trim();
+    var colVal    = String(row[colNum] ||'').trim();
+    var state     = colState>=0 ? String(row[colState]||'').trim() : '';
+    var txId      = colTxId>=0  ? String(row[colTxId] ||'').trim() : '';
+    var rowMachine= colMachine>=0 ? String(row[colMachine]||'').trim() : '';
+    var rowCode   = colMachineCode>=0 ? String(row[colMachineCode]||'').trim() : '';
 
     if(!dateRaw||!colVal) continue;
-    // 취소된 건만 제외
     if(state && (state==='취소' || state==='취소완료' || state==='환불')) continue;
 
-    // 날짜+시간초+상품명 기준 중복 체크
-    var dupKey = makeDupKey(dateRaw, itemName);
-    if(existingKeys[dupKey] || seenKeys[dupKey]){
-      dupCount++;
-      continue;
+    // 자판기 필터: 선택된 자판기의 단말기명 또는 머신기코드로 매칭
+    if(filterName || filterCode){
+      var nameMatch = filterName && rowMachine && rowMachine === filterName;
+      var codeMatch = filterCode && rowCode    && rowCode    === filterCode;
+      if(!nameMatch && !codeMatch){ filteredCount++; continue; }
     }
+
+    var dupKey = makeDupKey(dateRaw, itemName);
+    if(existingKeys[dupKey] || seenKeys[dupKey]){ dupCount++; continue; }
     seenKeys[dupKey] = true;
 
     var dateStr = dateRaw.length>=10 ? dateRaw.slice(0,10) : dateRaw;
@@ -2210,6 +2296,10 @@ function parseSalesRows(rows){
     else if(unmatched.indexOf(colVal)<0) unmatched.push(colVal);
   }
 
+  // 필터 안내
+  if(filteredCount > 0){
+    showToast('📋 다른 자판기 데이터 '+filteredCount+'건 제외됨');
+  }
   showSalesPreview(matched, unmatched, dupCount);
 }
 
@@ -3168,16 +3258,17 @@ function fetchTodaySales(isAuto){
     // 헤더 인덱스 찾기
     var headers = val.headers || [];
 
-    // 헤더로 찾되, rows 데이터와 실제 매칭해서 검증
-    var colDate  = headers.indexOf('거래일시');
-    var colItem  = headers.indexOf('판매항목');
-    var colNum   = headers.indexOf('컬럼');
-    var colState = headers.indexOf('상태');
+    var colDate    = headers.indexOf('거래일시');
+    var colItem    = headers.indexOf('판매항목');
+    var colNum     = headers.indexOf('컬럼');
+    var colState   = headers.indexOf('상태');
     if(colState<0) colState = headers.indexOf('진행상태');
-    var colTxId  = headers.indexOf('일련번호');
-    if(colTxId<0) colTxId = headers.indexOf('거래고유번호');
-    var colAmt   = headers.indexOf('판매가');
-    if(colAmt<0) colAmt = headers.indexOf('금액');
+    var colTxId    = headers.indexOf('일련번호');
+    if(colTxId<0)  colTxId  = headers.indexOf('거래고유번호');
+    var colAmt     = headers.indexOf('판매가');
+    if(colAmt<0)   colAmt   = headers.indexOf('금액');
+    var colMachine = headers.indexOf('단말기명');
+    var colMachineCode = headers.indexOf('머신기코드');
 
     // 헤더-rows 불일치 자동 보정:
     // 첫 번째 row로 컬럼 번호 위치를 실제로 찾기
@@ -3207,18 +3298,34 @@ function fetchTodaySales(isAuto){
     var existingKeys = {};
     D.salesData.forEach(function(s){ if(s.dupKey) existingKeys[s.dupKey]=true; });
 
-    var added=0, dup=0, qtyMap={};
-    val.rows.forEach(function(row){
-      var dateRaw  = String(row[colDate]||'').trim();
-      var itemName = String(row[colItem]||'').trim();
-      var colVal   = String(row[colNum] ||'').trim();
-      var state    = colState>=0 ? String(row[colState]||'').trim() : '';
-      var txId     = colTxId>=0  ? String(row[colTxId] ||'').trim() : '';
-      var amt      = colAmt>=0   ? parseFloat(row[colAmt])||0 : 0;
+    var added=0, dup=0, filtered=0, qtyMap={};
+    // 현재 선택 자판기 필터 정보 (동기처리)
+    var fetchMachineRef = currentMachineId ?
+      db.ref('users/'+currentUser.uid+'/machines/'+currentMachineId) : null;
 
-      if(!dateRaw||!colVal) return;
-      // 취소된 건만 제외
-      if(state && (state==='취소' || state==='취소완료' || state==='환불')) return;
+    function doFetchProcess(machineInfo){
+      var filterName = machineInfo ? machineInfo.name : null;
+      var filterCode = machineInfo ? machineInfo.deviceNo : null;
+
+      val.rows.forEach(function(row){
+        var dateRaw   = String(row[colDate]||'').trim();
+        var itemName  = String(row[colItem]||'').trim();
+        var colVal    = String(row[colNum] ||'').trim();
+        var state     = colState>=0 ? String(row[colState]||'').trim() : '';
+        var txId      = colTxId>=0  ? String(row[colTxId] ||'').trim() : '';
+        var amt       = colAmt>=0   ? parseFloat(row[colAmt])||0 : 0;
+        var rowMach   = colMachine>=0 ? String(row[colMachine]||'').trim() : '';
+        var rowCode   = colMachineCode>=0 ? String(row[colMachineCode]||'').trim() : '';
+
+        if(!dateRaw||!colVal) return;
+        if(state && (state==='취소' || state==='취소완료' || state==='환불')) return;
+
+        // 자판기 필터 (단말기명 또는 머신기코드 매칭)
+        if(filterName || filterCode){
+          var nameMatch = filterName && rowMach && rowMach === filterName;
+          var codeMatch = filterCode && rowCode && rowCode === filterCode;
+          if(!nameMatch && !codeMatch){ filtered++; return; }
+        }
 
       // 날짜+시간초+상품명 중복 체크
       var dt = dateRaw.length>=19 ? dateRaw.slice(0,19) : dateRaw;
@@ -3241,20 +3348,27 @@ function fetchTodaySales(isAuto){
       added++;
     });
 
-    if(added>0){
-      // 재고 차감
-      Object.keys(qtyMap).forEach(function(pid){
-        applyInventoryChange(pid, -qtyMap[pid], '자동수집 차감 '+today);
-      });
-      save();
-      var msg = (isAuto?'🤖 자동수집':'✅ 수집')+' '+added+'건 반영';
-      if(dup) msg += ' (중복 '+dup+'건 제외)';
-      showToast(msg);
-      localStorage.setItem('lastAutoCollect', today+' '+new Date().toTimeString().slice(0,5));
-      updateAutoCollectStatus();
-      renderAll();
+      if(added>0){
+        Object.keys(qtyMap).forEach(function(pid){
+          applyInventoryChange(pid, -qtyMap[pid], '자동수집 차감 '+today);
+        });
+        save();
+        var msg = (isAuto?'🤖 자동수집':'✅ 수집')+' '+added+'건 반영';
+        if(dup>0) msg += ' · 중복 '+dup+'건 제외';
+        if(filtered>0) msg += ' · 타자판기 '+filtered+'건 제외';
+        showToast(msg);
+        localStorage.setItem('lastAutoCollect', today+' '+new Date().toTimeString().slice(0,5));
+        updateAutoCollectStatus();
+        renderAll();
+      } else {
+        if(!isAuto) showToast(dup>0 ? '이미 모두 반영된 데이터예요 ('+dup+'건 중복)' : '📭 새 데이터가 없어요');
+      }
+    } // end doFetchProcess
+
+    if(fetchMachineRef){
+      fetchMachineRef.once('value').then(function(ms){ doFetchProcess(ms.val()); });
     } else {
-      if(!isAuto) showToast(dup>0 ? '이미 모두 반영된 데이터예요 ('+dup+'건 중복)' : '📭 새 데이터가 없어요');
+      doFetchProcess(null);
     }
   }).catch(function(e){
     if(btn){ btn.textContent='🔄 오늘 데이터 수집'; btn.disabled=false; }
