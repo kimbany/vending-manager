@@ -1917,7 +1917,13 @@ function renderInv(){
   var prods = getSortedProducts();
   document.getElementById('inv-title').textContent='전체 재고 현황 ('+prods.length+'개)';
   var el=document.getElementById('inv-list');
-  if(!prods.length){el.innerHTML='<div class="empty"><div class="ei">📦</div><div class="et">등록된 제품이 없습니다</div></div>';return;}
+  // 제품 없으면 재고부족 카드도 반드시 숨김
+  if(!prods.length){
+    document.getElementById('inv-low-card').style.display='none';
+    document.getElementById('inv-low-list').innerHTML='';
+    el.innerHTML='<div class="empty"><div class="ei">📦</div><div class="et">등록된 제품이 없습니다</div></div>';
+    return;
+  }
 
   // 재고 부족 카드
   var lowProds = prods.filter(function(p){return gq(p.id)<=5;});
