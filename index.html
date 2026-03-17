@@ -1230,7 +1230,7 @@ function renderMachinesList(){
       html += '<span style="font-size:11px;background:'+(expired?'rgba(224,88,88,.2)':'rgba(122,218,154,.15)')+';color:'+(expired?'var(--red)':'var(--green)')+';border-radius:6px;padding:3px 8px;font-weight:700">'+(expired?'계약종료':'운영중')+'</span>';
       html += '</div>';
       html += '<div style="font-size:12px;color:var(--text2)">계약기간: '+(m.contractStart||'-')+' ~ '+(m.contractEnd||'-')+'</div>';
-      html += '<button onclick="openDelMachine(''+id+'')" style="margin-top:10px;background:rgba(224,88,88,.15);border:1px solid rgba(224,88,88,.3);border-radius:8px;padding:5px 12px;font-size:12px;color:var(--red);cursor:pointer;font-family:inherit">🗑️ 삭제</button>';
+      html += '<button onclick="openDelMachine(this.dataset.id)" data-id="'+id+'" style="margin-top:10px;background:rgba(224,88,88,.15);border:1px solid rgba(224,88,88,.3);border-radius:8px;padding:5px 12px;font-size:12px;color:var(--red);cursor:pointer;font-family:inherit">🗑️ 삭제</button>';
       html += '</div>';
     });
     el.innerHTML = html;
