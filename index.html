@@ -8,6 +8,7 @@
 <!-- Firebase Compat SDK -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root{--bg:#0d0d12;--bg2:#13131a;--bg3:#1a1a24;--border:#2a2a3a;--text:#e8ddd0;--text2:#a0a0b8;--text3:#5a5a7a;--gold:#e8b86d;--gold2:#d49a50;--blue:#7ec8e3;--green:#7ada9a;--red:#e05858;--radius:12px;}
@@ -103,10 +104,93 @@ input[type=date]{color-scheme:dark;}
 </div>
 <div id="toast"></div>
 
+<!-- 로그인 화면 -->
+<div id="auth-screen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:998;overflow-y:auto;">
+  <div style="max-width:480px;margin:0 auto;padding:40px 20px 40px;">
+    <!-- 로고 -->
+    <div style="text-align:center;margin-bottom:36px">
+      <div style="font-size:56px;margin-bottom:12px">🥤</div>
+      <div style="font-size:22px;font-weight:800;color:var(--text)">자판기 관리</div>
+      <div style="font-size:13px;color:var(--text3);margin-top:4px">Vending Manager</div>
+    </div>
+
+    <!-- 탭 -->
+    <div style="display:flex;background:var(--bg3);border-radius:10px;padding:3px;margin-bottom:24px;gap:3px">
+      <button id="auth-tab-login" onclick="switchAuthTab('login')" style="flex:1;border:none;border-radius:8px;padding:10px;font-size:14px;font-weight:700;cursor:pointer;background:var(--gold);color:#1a1208;font-family:inherit">로그인</button>
+      <button id="auth-tab-signup" onclick="switchAuthTab('signup')" style="flex:1;border:none;border-radius:8px;padding:10px;font-size:14px;font-weight:600;cursor:pointer;background:transparent;color:var(--text2);font-family:inherit">회원가입</button>
+    </div>
+
+    <!-- 로그인 폼 -->
+    <div id="auth-login-form">
+      <div style="margin-bottom:14px">
+        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">이메일</label>
+        <input type="email" id="login-email" placeholder="이메일 입력" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;"/>
+      </div>
+      <div style="margin-bottom:20px">
+        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">비밀번호</label>
+        <input type="password" id="login-pw" placeholder="비밀번호 입력" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;" onkeydown="if(event.key==='Enter')doLogin()"/>
+      </div>
+      <button onclick="doLogin()" style="width:100%;background:linear-gradient(135deg,var(--gold),var(--gold2));border:none;border-radius:10px;padding:14px;font-size:15px;font-weight:700;color:#1a1208;cursor:pointer;font-family:inherit;margin-bottom:12px">로그인</button>
+      <button onclick="doResetPw()" style="width:100%;background:transparent;border:none;color:var(--text3);font-size:13px;cursor:pointer;font-family:inherit;padding:6px">비밀번호를 잊으셨나요?</button>
+      <div id="login-msg" style="margin-top:10px;text-align:center;font-size:13px"></div>
+    </div>
+
+    <!-- 회원가입 폼 -->
+    <div id="auth-signup-form" style="display:none">
+      <div style="margin-bottom:12px">
+        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">이름 <span style="color:var(--red)">*</span></label>
+        <input type="text" id="su-name" placeholder="실명 입력" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;"/>
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">아이디 <span style="color:var(--red)">*</span></label>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="su-uid" placeholder="영문+숫자 4~16자" style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;"/>
+          <button onclick="checkUid()" style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:0 14px;color:var(--text2);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit">중복확인</button>
+        </div>
+        <div id="uid-msg" style="font-size:11px;margin-top:4px"></div>
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">이메일 <span style="color:var(--red)">*</span></label>
+        <input type="email" id="su-email" placeholder="이메일 입력" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;"/>
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">비밀번호 <span style="color:var(--red)">*</span> <span style="color:var(--text3);font-weight:400">(영문+숫자 포함 8자 이상)</span></label>
+        <input type="password" id="su-pw" placeholder="비밀번호 입력" oninput="checkPwStrength()" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;"/>
+        <div id="pw-strength" style="font-size:11px;margin-top:4px"></div>
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">비밀번호 확인 <span style="color:var(--red)">*</span></label>
+        <input type="password" id="su-pw2" placeholder="비밀번호 재입력" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;"/>
+      </div>
+      <div style="margin-bottom:20px">
+        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">생년월일 <span style="color:var(--red)">*</span> <span style="color:var(--text3);font-weight:400">(14세 이상)</span></label>
+        <input type="date" id="su-birth" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;"/>
+      </div>
+      <button onclick="doSignup()" style="width:100%;background:linear-gradient(135deg,var(--gold),var(--gold2));border:none;border-radius:10px;padding:14px;font-size:15px;font-weight:700;color:#1a1208;cursor:pointer;font-family:inherit;margin-bottom:8px">회원가입</button>
+      <div id="signup-msg" style="margin-top:10px;text-align:center;font-size:13px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 이메일 인증 안내 화면 -->
+<div id="verify-screen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:997;display:none;align-items:center;justify-content:center;">
+  <div style="max-width:380px;padding:32px 24px;text-align:center">
+    <div style="font-size:52px;margin-bottom:16px">📧</div>
+    <div style="font-size:18px;font-weight:700;margin-bottom:10px">이메일 인증이 필요해요</div>
+    <div style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:24px" id="verify-email-msg">가입하신 이메일로 인증 링크를 보냈어요.<br/>이메일을 확인하고 링크를 클릭해주세요.</div>
+    <button onclick="checkVerified()" style="width:100%;background:linear-gradient(135deg,var(--gold),var(--gold2));border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:700;color:#1a1208;cursor:pointer;font-family:inherit;margin-bottom:10px">✅ 인증 완료했어요</button>
+    <button onclick="resendVerify()" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;font-size:13px;color:var(--text2);cursor:pointer;font-family:inherit;margin-bottom:10px">📨 인증 메일 재발송</button>
+    <button onclick="doLogout()" style="background:transparent;border:none;color:var(--text3);font-size:12px;cursor:pointer;font-family:inherit">로그아웃</button>
+  </div>
+</div>
+
+
+
 <div id="app" style="display:none">
   <div id="header">
     <span style="font-size:22px">🥤</span>
-    <div><div class="h-title">자판기 관리</div><div class="h-sub">Vending Manager</div></div>
+    <div style="flex:1"><div class="h-title">자판기 관리</div><div class="h-sub" id="header-user">Vending Manager</div></div>
+    <button onclick="doLogout()" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:5px 10px;color:var(--text2);font-size:11px;cursor:pointer;font-family:inherit">로그아웃</button>
   </div>
 
   <div id="content">
@@ -453,7 +537,7 @@ input[type=date]{color-scheme:dark;}
 </div>
 
 <script>
-// ─── Firebase 초기화 (Realtime Database) ──────────────────────────────────────
+// ─── Firebase 초기화 ──────────────────────────────────────────────────────────
 firebase.initializeApp({
   apiKey:"AIzaSyDKgGwpAwmeZLiIHRyTIz87JvRaGM_G240",
   authDomain:"vending-manager-2d64e.firebaseapp.com",
@@ -463,21 +547,221 @@ firebase.initializeApp({
   messagingSenderId:"840768320205",
   appId:"1:840768320205:web:9cf171935ef01de8852f84"
 });
-var db = firebase.database();
-var REF = db.ref('vendingApp');
+var db   = firebase.database();
+var auth = firebase.auth();
+var currentUser = null; // 현재 로그인 유저
+var REF = null;         // 유저별 DB 경로 (로그인 후 설정)
+var CRAWL_REF = null;
 
 // ─── 전역 상태 ────────────────────────────────────────────────────────────────
 var D = {products:[],inventory:[],inventoryLogs:[],salesData:[]};
 var salesSort='date', csvH=[], csvR=[], invDir='plus';
 
-// ─── 로드 / 저장 ──────────────────────────────────────────────────────────────
+// ─── Auth 상태 감지 ───────────────────────────────────────────────────────────
+auth.onAuthStateChanged(function(user){
+  document.getElementById('loading').style.display='none';
+  if(!user){
+    // 로그아웃 상태 → 로그인 화면
+    showAuthScreen();
+    return;
+  }
+  currentUser = user;
+  if(!user.emailVerified){
+    // 이메일 미인증 → 인증 안내 화면
+    showVerifyScreen(user.email);
+    return;
+  }
+  // 로그인 + 인증 완료 → 앱 시작
+  REF = db.ref('users/' + user.uid + '/appData');
+  CRAWL_REF = db.ref('vendingApp/crawledSales');
+  loadUserData();
+});
+
+// ─── Auth 화면 제어 ───────────────────────────────────────────────────────────
+function showAuthScreen(){
+  document.getElementById('auth-screen').style.display='block';
+  document.getElementById('verify-screen').style.display='none';
+  document.getElementById('app').style.display='none';
+}
+
+function showVerifyScreen(email){
+  document.getElementById('auth-screen').style.display='none';
+  document.getElementById('verify-screen').style.display='flex';
+  document.getElementById('app').style.display='none';
+  document.getElementById('verify-email-msg').innerHTML =
+    '<b>' + email + '</b> 으로 인증 링크를 보냈어요.<br/>이메일을 확인하고 링크를 클릭해주세요.';
+}
+
+function switchAuthTab(tab){
+  var isLogin = tab === 'login';
+  document.getElementById('auth-login-form').style.display  = isLogin ? 'block' : 'none';
+  document.getElementById('auth-signup-form').style.display = isLogin ? 'none'  : 'block';
+  document.getElementById('auth-tab-login').style.background  = isLogin ? 'var(--gold)' : 'transparent';
+  document.getElementById('auth-tab-login').style.color       = isLogin ? '#1a1208' : 'var(--text2)';
+  document.getElementById('auth-tab-signup').style.background = isLogin ? 'transparent' : 'var(--gold)';
+  document.getElementById('auth-tab-signup').style.color      = isLogin ? 'var(--text2)' : '#1a1208';
+}
+
+// ─── 로그인 ───────────────────────────────────────────────────────────────────
+function doLogin(){
+  var email = document.getElementById('login-email').value.trim();
+  var pw    = document.getElementById('login-pw').value;
+  var msg   = document.getElementById('login-msg');
+  if(!email||!pw){ msg.style.color='var(--red)'; msg.textContent='이메일과 비밀번호를 입력하세요'; return; }
+  msg.style.color='var(--text2)'; msg.textContent='로그인 중...';
+  auth.signInWithEmailAndPassword(email, pw).catch(function(e){
+    msg.style.color='var(--red)';
+    if(e.code==='auth/user-not-found'||e.code==='auth/wrong-password'||e.code==='auth/invalid-credential')
+      msg.textContent='이메일 또는 비밀번호가 올바르지 않아요';
+    else msg.textContent = e.message;
+  });
+}
+
+// ─── 비밀번호 재설정 ──────────────────────────────────────────────────────────
+function doResetPw(){
+  var email = document.getElementById('login-email').value.trim();
+  if(!email){ document.getElementById('login-msg').style.color='var(--red)'; document.getElementById('login-msg').textContent='이메일을 먼저 입력하세요'; return; }
+  auth.sendPasswordResetEmail(email).then(function(){
+    document.getElementById('login-msg').style.color='var(--green)';
+    document.getElementById('login-msg').textContent='비밀번호 재설정 메일을 보냈어요';
+  }).catch(function(e){
+    document.getElementById('login-msg').style.color='var(--red)';
+    document.getElementById('login-msg').textContent=e.message;
+  });
+}
+
+// ─── 회원가입 ─────────────────────────────────────────────────────────────────
+var uidChecked = false;
+
+function checkPwStrength(){
+  var pw = document.getElementById('su-pw').value;
+  var el = document.getElementById('pw-strength');
+  var hasLetter = /[a-zA-Z]/.test(pw);
+  var hasNum    = /[0-9]/.test(pw);
+  var long      = pw.length >= 8;
+  if(!pw){ el.textContent=''; return; }
+  if(long && hasLetter && hasNum){
+    el.style.color='var(--green)'; el.textContent='✅ 사용 가능한 비밀번호예요';
+  } else {
+    el.style.color='var(--red)';
+    var hints=[];
+    if(!long) hints.push('8자 이상');
+    if(!hasLetter) hints.push('영문 포함');
+    if(!hasNum) hints.push('숫자 포함');
+    el.textContent='❌ ' + hints.join(', ') + ' 필요';
+  }
+}
+
+function checkUid(){
+  var uid = document.getElementById('su-uid').value.trim();
+  var el  = document.getElementById('uid-msg');
+  if(!uid){ el.style.color='var(--red)'; el.textContent='아이디를 입력하세요'; return; }
+  if(!/^[a-zA-Z0-9]{4,16}$/.test(uid)){
+    el.style.color='var(--red)'; el.textContent='영문+숫자 4~16자만 가능해요'; uidChecked=false; return;
+  }
+  el.style.color='var(--text2)'; el.textContent='확인 중...';
+  db.ref('usernames/' + uid).once('value').then(function(snap){
+    if(snap.exists()){
+      el.style.color='var(--red)'; el.textContent='❌ 이미 사용 중인 아이디예요'; uidChecked=false;
+    } else {
+      el.style.color='var(--green)'; el.textContent='✅ 사용 가능한 아이디예요'; uidChecked=true;
+    }
+  });
+}
+
+function doSignup(){
+  var name  = document.getElementById('su-name').value.trim();
+  var uid   = document.getElementById('su-uid').value.trim();
+  var email = document.getElementById('su-email').value.trim();
+  var pw    = document.getElementById('su-pw').value;
+  var pw2   = document.getElementById('su-pw2').value;
+  var birth = document.getElementById('su-birth').value;
+  var msg   = document.getElementById('signup-msg');
+
+  // 유효성 검사
+  if(!name){ msg.style.color='var(--red)'; msg.textContent='이름을 입력하세요'; return; }
+  if(!uid){ msg.style.color='var(--red)'; msg.textContent='아이디를 입력하세요'; return; }
+  if(!uidChecked){ msg.style.color='var(--red)'; msg.textContent='아이디 중복확인을 해주세요'; return; }
+  if(!email){ msg.style.color='var(--red)'; msg.textContent='이메일을 입력하세요'; return; }
+  if(!/[a-zA-Z]/.test(pw)||!/[0-9]/.test(pw)||pw.length<8){
+    msg.style.color='var(--red)'; msg.textContent='비밀번호는 영문+숫자 포함 8자 이상이어야 해요'; return;
+  }
+  if(pw !== pw2){ msg.style.color='var(--red)'; msg.textContent='비밀번호가 일치하지 않아요'; return; }
+  if(!birth){ msg.style.color='var(--red)'; msg.textContent='생년월일을 입력하세요'; return; }
+
+  // 14세 이상 체크
+  var today = new Date();
+  var birthDate = new Date(birth);
+  var age = today.getFullYear() - birthDate.getFullYear();
+  var m = today.getMonth() - birthDate.getMonth();
+  if(m < 0 || (m===0 && today.getDate() < birthDate.getDate())) age--;
+  if(age < 14){ msg.style.color='var(--red)'; msg.textContent='14세 이상만 가입할 수 있어요'; return; }
+
+  msg.style.color='var(--text2)'; msg.textContent='가입 처리 중...';
+
+  auth.createUserWithEmailAndPassword(email, pw).then(function(cred){
+    var user = cred.user;
+    // 유저 정보 저장
+    var userInfo = {name:name, username:uid, email:email, birth:birth, createdAt:new Date().toISOString()};
+    return Promise.all([
+      db.ref('users/' + user.uid + '/profile').set(userInfo),
+      db.ref('usernames/' + uid).set(user.uid), // 아이디 중복확인용
+      user.updateProfile({displayName: name}),
+      user.sendEmailVerification()
+    ]);
+  }).then(function(){
+    msg.style.color='var(--green)';
+    msg.textContent='✅ 가입 완료! 이메일 인증을 해주세요';
+  }).catch(function(e){
+    msg.style.color='var(--red)';
+    if(e.code==='auth/email-already-in-use') msg.textContent='이미 사용 중인 이메일이에요';
+    else msg.textContent = e.message;
+  });
+}
+
+// ─── 이메일 인증 ──────────────────────────────────────────────────────────────
+function checkVerified(){
+  var user = auth.currentUser;
+  if(!user){ return; }
+  user.reload().then(function(){
+    if(auth.currentUser.emailVerified){
+      REF = db.ref('users/' + auth.currentUser.uid + '/appData');
+      CRAWL_REF = db.ref('vendingApp/crawledSales');
+      loadUserData();
+    } else {
+      showToast('❌ 아직 인증이 완료되지 않았어요');
+    }
+  });
+}
+
+function resendVerify(){
+  var user = auth.currentUser;
+  if(!user) return;
+  user.sendEmailVerification().then(function(){
+    showToast('✅ 인증 메일을 다시 보냈어요');
+  });
+}
+
+// ─── 로그아웃 ─────────────────────────────────────────────────────────────────
+function doLogout(){
+  if(!confirm('로그아웃 할까요?')) return;
+  auth.signOut();
+}
+
+// ─── 데이터 로드 / 저장 ───────────────────────────────────────────────────────
 function startApp(){
+  document.getElementById('auth-screen').style.display='none';
+  document.getElementById('verify-screen').style.display='none';
   document.getElementById('loading').style.display='none';
   document.getElementById('app').style.display='flex';
   document.getElementById('home-date').value=td();
+  // 헤더에 유저명 표시
+  if(currentUser){
+    var name = currentUser.displayName || currentUser.email;
+    document.getElementById('header-user').textContent = name + ' 님';
+  }
   renderAll();
   startAutoCollect();
-  // 알림 권한 요청 + 저재고 체크
   setTimeout(function(){
     if('Notification' in window && Notification.permission === 'default'){
       Notification.requestPermission();
@@ -486,15 +770,15 @@ function startApp(){
   }, 2000);
 }
 
-function load(){
-  // 5초 타임아웃 - 연결 안되면 로컬 모드로 시작
+function loadUserData(){
+  if(!REF){ startApp(); return; }
   var done = false;
   var timer = setTimeout(function(){
     if(done) return;
     done = true;
     startApp();
-    showToast('⚠️ Firebase 연결 실패 - 로컬 모드');
-  }, 5000);
+    showToast('⚠️ 데이터 로드 실패 - 빈 상태로 시작');
+  }, 8000);
 
   REF.once('value').then(function(snap){
     if(done) return;
@@ -512,16 +796,17 @@ function load(){
     if(done) return;
     done = true;
     clearTimeout(timer);
-    console.error(e);
     startApp();
-    showToast('⚠️ Firebase 연결 실패 - 로컬 모드');
   });
 }
 
+function load(){ loadUserData(); } // 하위 호환
+
 function save(){
+  if(!REF){ return; } // 로그인 안된 상태면 저장 안 함
   REF.set(JSON.parse(JSON.stringify(D))).catch(function(e){
     console.error(e);
-    showToast('⚠️ 저장 실패 - Firebase 규칙 확인 필요');
+    showToast('⚠️ 저장 실패');
   });
 }
 
