@@ -1616,23 +1616,18 @@ function loadMachineDropdown(){
     if(!sel) return;
     var keys = Object.keys(machines);
     if(!keys.length){ sel.style.display='none'; return; }
+    // '공통 데이터' 옵션 포함 (기존 appData)
     sel.style.display='block';
-    sel.innerHTML = keys.map(function(id){
-      var m = machines[id];
-      return '<option value="'+id+'">'+(id===mainId?'⭐ ':'')+m.name+'</option>';
-    }).join('');
-    // 현재 선택 복원 or 메인 자판기 자동 선택
+    sel.innerHTML = '<option value="">📦 공통 데이터</option>' +
+      keys.map(function(id){
+        var m = machines[id];
+        return '<option value="'+id+'">'+(id===mainId?'⭐ ':'')+m.name+'</option>';
+      }).join('');
+    // 현재 선택 복원 (자동 변경 X - 사용자가 직접 선택할 때만 로드)
     if(currentMachineId && machines[currentMachineId]){
       sel.value = currentMachineId;
-    } else if(mainId && machines[mainId]){
-      sel.value = mainId;
-      currentMachineId = mainId;
-      loadMachineData(mainId);
     } else {
-      // 첫 번째 자판기 자동 선택
-      sel.value = keys[0];
-      currentMachineId = keys[0];
-      loadMachineData(keys[0]);
+      sel.value = ''; // 공통 데이터 유지
     }
   });
 }
