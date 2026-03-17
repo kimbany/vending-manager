@@ -123,16 +123,56 @@ input[type=date]{color-scheme:dark;}
     <!-- 로그인 폼 -->
     <div id="auth-login-form">
       <div style="margin-bottom:14px">
-        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">이메일</label>
-        <input type="email" id="login-email" placeholder="이메일 입력" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;"/>
+        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">아이디</label>
+        <input type="text" id="login-uid" placeholder="아이디 입력" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;"/>
       </div>
       <div style="margin-bottom:20px">
         <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">비밀번호</label>
         <input type="password" id="login-pw" placeholder="비밀번호 입력" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;" onkeydown="if(event.key==='Enter')doLogin()"/>
       </div>
       <button onclick="doLogin()" style="width:100%;background:linear-gradient(135deg,var(--gold),var(--gold2));border:none;border-radius:10px;padding:14px;font-size:15px;font-weight:700;color:#1a1208;cursor:pointer;font-family:inherit;margin-bottom:12px">로그인</button>
-      <button onclick="doResetPw()" style="width:100%;background:transparent;border:none;color:var(--text3);font-size:13px;cursor:pointer;font-family:inherit;padding:6px">비밀번호를 잊으셨나요?</button>
+      <div style="display:flex;justify-content:center;gap:16px;margin-top:4px">
+        <button onclick="switchAuthTab('find-id')" style="background:transparent;border:none;color:var(--text3);font-size:12px;cursor:pointer;font-family:inherit;padding:6px">아이디 찾기</button>
+        <span style="color:var(--border);font-size:12px;line-height:2">|</span>
+        <button onclick="switchAuthTab('find-pw')" style="background:transparent;border:none;color:var(--text3);font-size:12px;cursor:pointer;font-family:inherit;padding:6px">비밀번호 찾기</button>
+      </div>
       <div id="login-msg" style="margin-top:10px;text-align:center;font-size:13px"></div>
+    </div>
+
+    <!-- 아이디 찾기 폼 -->
+    <div id="auth-find-id-form" style="display:none">
+      <div style="font-size:14px;font-weight:700;margin-bottom:16px;color:var(--text)">🔍 아이디 찾기</div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">이름</label>
+        <input type="text" id="fi-name" placeholder="가입 시 입력한 이름" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;"/>
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">이메일</label>
+        <input type="email" id="fi-email" placeholder="가입 시 입력한 이메일" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;"/>
+      </div>
+      <div style="margin-bottom:20px">
+        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">생년월일</label>
+        <input type="date" id="fi-birth" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;"/>
+      </div>
+      <button onclick="doFindId()" style="width:100%;background:linear-gradient(135deg,var(--gold),var(--gold2));border:none;border-radius:10px;padding:14px;font-size:15px;font-weight:700;color:#1a1208;cursor:pointer;font-family:inherit;margin-bottom:12px">아이디 찾기</button>
+      <button onclick="switchAuthTab('login')" style="width:100%;background:transparent;border:none;color:var(--text3);font-size:13px;cursor:pointer;font-family:inherit;padding:6px">← 로그인으로</button>
+      <div id="find-id-msg" style="margin-top:12px;text-align:center;font-size:13px"></div>
+    </div>
+
+    <!-- 비밀번호 찾기 폼 -->
+    <div id="auth-find-pw-form" style="display:none">
+      <div style="font-size:14px;font-weight:700;margin-bottom:16px;color:var(--text)">🔑 비밀번호 찾기</div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">아이디</label>
+        <input type="text" id="fp-uid" placeholder="가입 시 입력한 아이디" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;"/>
+      </div>
+      <div style="margin-bottom:20px">
+        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">이메일</label>
+        <input type="email" id="fp-email" placeholder="가입 시 입력한 이메일" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;"/>
+      </div>
+      <button onclick="doFindPw()" style="width:100%;background:linear-gradient(135deg,var(--gold),var(--gold2));border:none;border-radius:10px;padding:14px;font-size:15px;font-weight:700;color:#1a1208;cursor:pointer;font-family:inherit;margin-bottom:12px">비밀번호 재설정 메일 발송</button>
+      <button onclick="switchAuthTab('login')" style="width:100%;background:transparent;border:none;color:var(--text3);font-size:13px;cursor:pointer;font-family:inherit;padding:6px">← 로그인으로</button>
+      <div id="find-pw-msg" style="margin-top:12px;text-align:center;font-size:13px"></div>
     </div>
 
     <!-- 회원가입 폼 -->
@@ -602,40 +642,109 @@ function showVerifyScreen(email){
 }
 
 function switchAuthTab(tab){
-  var isLogin = tab === 'login';
-  document.getElementById('auth-login-form').style.display  = isLogin ? 'block' : 'none';
-  document.getElementById('auth-signup-form').style.display = isLogin ? 'none'  : 'block';
-  document.getElementById('auth-tab-login').style.background  = isLogin ? 'var(--gold)' : 'transparent';
-  document.getElementById('auth-tab-login').style.color       = isLogin ? '#1a1208' : 'var(--text2)';
-  document.getElementById('auth-tab-signup').style.background = isLogin ? 'transparent' : 'var(--gold)';
-  document.getElementById('auth-tab-signup').style.color      = isLogin ? 'var(--text2)' : '#1a1208';
+  // 모든 폼 숨기기
+  ['login','signup','find-id','find-pw'].forEach(function(t){
+    var el = document.getElementById('auth-' + t.replace('-','') + '-form') ||
+             document.getElementById('auth-find-id-form') ||
+             document.getElementById('auth-find-pw-form');
+  });
+  document.getElementById('auth-login-form').style.display   = 'none';
+  document.getElementById('auth-signup-form').style.display  = 'none';
+  document.getElementById('auth-find-id-form').style.display = 'none';
+  document.getElementById('auth-find-pw-form').style.display = 'none';
+
+  // 선택한 폼 보이기
+  if(tab==='login')   document.getElementById('auth-login-form').style.display   = 'block';
+  if(tab==='signup')  document.getElementById('auth-signup-form').style.display  = 'block';
+  if(tab==='find-id') document.getElementById('auth-find-id-form').style.display = 'block';
+  if(tab==='find-pw') document.getElementById('auth-find-pw-form').style.display = 'block';
+
+  // 탭 버튼 스타일
+  var isLogin  = tab === 'login';
+  var isSignup = tab === 'signup';
+  document.getElementById('auth-tab-login').style.background  = isLogin  ? 'var(--gold)' : 'transparent';
+  document.getElementById('auth-tab-login').style.color       = isLogin  ? '#1a1208' : 'var(--text2)';
+  document.getElementById('auth-tab-signup').style.background = isSignup ? 'var(--gold)' : 'transparent';
+  document.getElementById('auth-tab-signup').style.color      = isSignup ? '#1a1208' : 'var(--text2)';
 }
 
-// ─── 로그인 ───────────────────────────────────────────────────────────────────
+// ─── 로그인 (아이디 → 이메일 조회 → Firebase 로그인) ─────────────────────────
 function doLogin(){
-  var email = document.getElementById('login-email').value.trim();
-  var pw    = document.getElementById('login-pw').value;
-  var msg   = document.getElementById('login-msg');
-  if(!email||!pw){ msg.style.color='var(--red)'; msg.textContent='이메일과 비밀번호를 입력하세요'; return; }
+  var uid = document.getElementById('login-uid').value.trim();
+  var pw  = document.getElementById('login-pw').value;
+  var msg = document.getElementById('login-msg');
+  if(!uid||!pw){ msg.style.color='var(--red)'; msg.textContent='아이디와 비밀번호를 입력하세요'; return; }
   msg.style.color='var(--text2)'; msg.textContent='로그인 중...';
-  auth.signInWithEmailAndPassword(email, pw).catch(function(e){
+  // 아이디로 UID 조회 → UID로 이메일 조회 → 로그인
+  db.ref('usernames/' + uid).once('value').then(function(snap){
+    if(!snap.exists()){ msg.style.color='var(--red)'; msg.textContent='존재하지 않는 아이디예요'; return; }
+    var firebaseUid = snap.val();
+    return db.ref('users/' + firebaseUid + '/profile/email').once('value');
+  }).then(function(snap){
+    if(!snap || !snap.exists()){ msg.style.color='var(--red)'; msg.textContent='계정 정보를 찾을 수 없어요'; return; }
+    var email = snap.val();
+    return auth.signInWithEmailAndPassword(email, pw);
+  }).catch(function(e){
     msg.style.color='var(--red)';
-    if(e.code==='auth/user-not-found'||e.code==='auth/wrong-password'||e.code==='auth/invalid-credential')
-      msg.textContent='이메일 또는 비밀번호가 올바르지 않아요';
-    else msg.textContent = e.message;
+    if(e.code==='auth/wrong-password'||e.code==='auth/invalid-credential')
+      msg.textContent='비밀번호가 올바르지 않아요';
+    else if(e.code==='auth/too-many-requests')
+      msg.textContent='로그인 시도가 너무 많아요. 잠시 후 다시 시도해주세요';
+    else msg.textContent = e.message || '로그인 실패';
   });
 }
 
-// ─── 비밀번호 재설정 ──────────────────────────────────────────────────────────
-function doResetPw(){
-  var email = document.getElementById('login-email').value.trim();
-  if(!email){ document.getElementById('login-msg').style.color='var(--red)'; document.getElementById('login-msg').textContent='이메일을 먼저 입력하세요'; return; }
-  auth.sendPasswordResetEmail(email).then(function(){
-    document.getElementById('login-msg').style.color='var(--green)';
-    document.getElementById('login-msg').textContent='비밀번호 재설정 메일을 보냈어요';
+// ─── 아이디 찾기 ──────────────────────────────────────────────────────────────
+function doFindId(){
+  var name  = document.getElementById('fi-name').value.trim();
+  var email = document.getElementById('fi-email').value.trim();
+  var birth = document.getElementById('fi-birth').value;
+  var msg   = document.getElementById('find-id-msg');
+  if(!name||!email||!birth){ msg.style.color='var(--red)'; msg.textContent='모든 항목을 입력하세요'; return; }
+  msg.style.color='var(--text2)'; msg.textContent='찾는 중...';
+
+  // users 전체에서 이름+이메일+생년월일 일치하는 유저 찾기
+  db.ref('users').once('value').then(function(snap){
+    var found = null;
+    snap.forEach(function(child){
+      var p = child.val().profile;
+      if(p && p.name===name && p.email===email && p.birth===birth){
+        found = p.username;
+      }
+    });
+    if(found){
+      msg.style.color='var(--green)';
+      msg.innerHTML = '✅ 아이디: <b style="font-size:16px;color:var(--gold)">' + found + '</b>';
+    } else {
+      msg.style.color='var(--red)'; msg.textContent='일치하는 계정을 찾을 수 없어요';
+    }
   }).catch(function(e){
-    document.getElementById('login-msg').style.color='var(--red)';
-    document.getElementById('login-msg').textContent=e.message;
+    msg.style.color='var(--red)'; msg.textContent='조회 실패: ' + e.message;
+  });
+}
+
+// ─── 비밀번호 찾기 (아이디 + 이메일 확인 후 재설정 메일) ──────────────────────
+function doFindPw(){
+  var uid   = document.getElementById('fp-uid').value.trim();
+  var email = document.getElementById('fp-email').value.trim();
+  var msg   = document.getElementById('find-pw-msg');
+  if(!uid||!email){ msg.style.color='var(--red)'; msg.textContent='아이디와 이메일을 입력하세요'; return; }
+  msg.style.color='var(--text2)'; msg.textContent='확인 중...';
+
+  // 아이디로 UID 조회 후 이메일 일치 확인
+  db.ref('usernames/' + uid).once('value').then(function(snap){
+    if(!snap.exists()){ msg.style.color='var(--red)'; msg.textContent='존재하지 않는 아이디예요'; return Promise.reject('no-user'); }
+    return db.ref('users/' + snap.val() + '/profile/email').once('value');
+  }).then(function(snap){
+    if(!snap||!snap.exists()){ return Promise.reject('no-email'); }
+    if(snap.val() !== email){ msg.style.color='var(--red)'; msg.textContent='아이디와 이메일이 일치하지 않아요'; return Promise.reject('mismatch'); }
+    return auth.sendPasswordResetEmail(email);
+  }).then(function(){
+    msg.style.color='var(--green)';
+    msg.textContent='✅ 비밀번호 재설정 메일을 보냈어요. 이메일을 확인해주세요!';
+  }).catch(function(e){
+    if(e==='no-user'||e==='no-email'||e==='mismatch') return;
+    msg.style.color='var(--red)'; msg.textContent='전송 실패: ' + e.message;
   });
 }
 
