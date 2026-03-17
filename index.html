@@ -1072,15 +1072,14 @@ function startApp(){
     var name = currentUser.displayName || currentUser.email;
     document.getElementById('header-user').textContent = name + ' 님';
   }
-  renderAll();
   startAutoCollect();
   setTimeout(function(){
     if('Notification' in window && Notification.permission === 'default'){
       Notification.requestPermission();
     }
-    checkLowStockNotify();
     checkMigration();
-    loadMachineDropdown(); // 자판기 드롭다운 로드
+    // 자판기 드롭다운 로드 후 메인/첫번째 자판기 데이터 자동 로드
+    loadMachineDropdownAndAutoSelect();
   }, 1500);
 }
 
@@ -1732,7 +1731,11 @@ function switchVmSub(sub){
 // ─── 자판기 드롭다운 + 다중 관리 ──────────────────────────────────────────────
 var currentMachineId = null; // null = 전체 (기존 단일 데이터)
 
-function loadMachineDropdown(){
+function loadMachineDropdown(){ loadMachineDropdownAndAutoSelect(false); }
+
+function loadMachineDropdownAndAutoSelect(autoLoad){
+  // autoLoad 기본값 true
+  if(autoLoad === undefined) autoLoad = true;
   if(!currentUser) return;
   db.ref('users/'+currentUser.uid).once('value').then(function(snap){
     var userData = snap.val()||{};
@@ -1741,20 +1744,32 @@ function loadMachineDropdown(){
     var sel = document.getElementById('machine-select');
     if(!sel) return;
     var keys = Object.keys(machines);
-    if(!keys.length){ sel.style.display='none'; return; }
-    // 자판기 목록만 (공통 데이터 없음)
+    if(!keys.length){
+      // 자판기 없으면 드롭다운 숨기고 공통 appData로 renderAll
+      sel.style.display='none';
+      renderAll();
+      checkLowStockNotify();
+      return;
+    }
     sel.style.display='block';
     sel.innerHTML = keys.map(function(id){
       var m = machines[id];
       return '<option value="'+id+'">'+(id===mainId?'⭐ ':'')+m.name+'</option>';
     }).join('');
-    // 현재 선택 복원 or 메인 자판기 선택 (데이터 자동 로드 X)
+    // 선택할 자판기 결정
+    var targetId = null;
     if(currentMachineId && machines[currentMachineId]){
-      sel.value = currentMachineId;
+      targetId = currentMachineId;
     } else if(mainId && machines[mainId]){
-      sel.value = mainId;
+      targetId = mainId;
     } else {
-      sel.value = keys[0];
+      targetId = keys[0];
+    }
+    sel.value = targetId;
+    currentMachineId = targetId;
+    if(autoLoad){
+      // 자동으로 해당 자판기 데이터 로드
+      loadMachineData(targetId);
     }
   });
 }
