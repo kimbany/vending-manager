@@ -1800,7 +1800,6 @@ function loadMachineData(machineId){
     D.inventory     = (val && val.inventory)     || [];
     D.inventoryLogs = (val && val.inventoryLogs) || [];
     D.salesData     = (val && val.salesData)     || [];
-    // 저장 경로 변경
     REF = machineREF;
     renderAll();
     showToast('🏪 '+document.getElementById('machine-select').options[document.getElementById('machine-select').selectedIndex].text+' 데이터 로드');
@@ -3568,7 +3567,7 @@ document.querySelectorAll('.modal-bg').forEach(function(bg){
   bg.addEventListener('click',function(e){if(e.target===bg)bg.classList.remove('open');});
 });
 
-load();
+// load()는 onAuthStateChanged에서 자동 호출됨
 </script>
 </body>
 </html>
