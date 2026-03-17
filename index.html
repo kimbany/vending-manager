@@ -1518,22 +1518,25 @@ function checkMigration(){
   if(!currentUser) return;
   var dismissed = localStorage.getItem('migrateDismissed_' + currentUser.uid);
   if(dismissed) return;
-  if(D.products.length > 0) return;
-  // 기존 데이터 확인
-  db.ref('vendingApp').once('value').then(function(snap){
+  // appData에 데이터 있으면 이전 배너 표시
+  db.ref('users/'+currentUser.uid+'/appData').once('value').then(function(snap){
     var val = snap.val();
     if(!val || !val.products || !val.products.length) return;
-    // 자판기 목록 로드해서 드롭다운에 추가
+    // 자판기 목록 로드
     db.ref('users/'+currentUser.uid+'/machines').once('value').then(function(msnap){
       var sel = document.getElementById('migrate-target');
-      if(sel && msnap.exists()){
-        msnap.forEach(function(child){
-          var m = child.val();
-          var opt = document.createElement('option');
-          opt.value = child.key;
-          opt.textContent = m.name + ' 자판기 데이터로 가져오기';
-          sel.appendChild(opt);
-        });
+      if(sel){
+        // 기존 옵션 초기화
+        sel.innerHTML = '<option value="global">공통 데이터로 유지</option>';
+        if(msnap.exists()){
+          msnap.forEach(function(child){
+            var m = child.val();
+            var opt = document.createElement('option');
+            opt.value = child.key;
+            opt.textContent = '🏪 ' + m.name + ' 자판기로 이전';
+            sel.appendChild(opt);
+          });
+        }
       }
       document.getElementById('migrate-banner').style.display = 'block';
     });
@@ -1541,44 +1544,47 @@ function checkMigration(){
 }
 
 function migrateOldData(){
-  var targetId = document.getElementById('migrate-target') ? document.getElementById('migrate-target').value : 'global';
-  var targetLabel = targetId === 'global' ? '공통 데이터' : document.getElementById('migrate-target').options[document.getElementById('migrate-target').selectedIndex].text;
-  if(!confirm('기존 데이터를 '+targetLabel+'로 가져올까요?\n(제품, 재고, 판매 데이터 전체)')) return;
-  showToast('⏳ 데이터 가져오는 중...');
-  db.ref('vendingApp').once('value').then(function(snap){
+  var sel = document.getElementById('migrate-target');
+  var targetId = sel ? sel.value : 'global';
+  var targetLabel = sel ? sel.options[sel.selectedIndex].text : '공통 데이터';
+  if(!confirm(targetLabel+'로 이전할까요?\n(제품, 재고, 판매 데이터 전체)')) return;
+  showToast('⏳ 이전 중...');
+  // 원본: users/{uid}/appData
+  db.ref('users/'+currentUser.uid+'/appData').once('value').then(function(snap){
     var val = snap.val();
-    if(!val){ showToast('❌ 가져올 데이터가 없어요'); return; }
+    if(!val || !val.products){ showToast('❌ 이전할 데이터가 없어요'); return; }
     var data = {
       products:      val.products      || [],
       inventory:     val.inventory     || [],
       inventoryLogs: val.inventoryLogs || [],
       salesData:     val.salesData     || []
     };
-    var savePath;
     if(targetId === 'global'){
-      // 공통 appData로 저장
-      savePath = db.ref('users/'+currentUser.uid+'/appData');
-      D.products = data.products; D.inventory = data.inventory;
-      D.inventoryLogs = data.inventoryLogs; D.salesData = data.salesData;
-      REF = savePath;
-    } else {
-      // 특정 자판기 appData로 저장
-      savePath = db.ref('users/'+currentUser.uid+'/machines/'+targetId+'/appData');
-    }
-    savePath.set(data).then(function(){
+      // 공통 그대로 유지
       document.getElementById('migrate-banner').style.display = 'none';
       localStorage.setItem('migrateDismissed_' + currentUser.uid, '1');
-      showToast('✅ '+targetLabel+'로 데이터 가져오기 완료!');
-      if(targetId !== 'global'){
-        // 드롭다운에서 해당 자판기 선택
-        var sel = document.getElementById('machine-select');
-        if(sel){ sel.value = targetId; onMachineSelect(); }
-      } else {
-        renderAll();
-      }
+      showToast('✅ 공통 데이터로 유지됩니다');
+      return;
+    }
+    // 특정 자판기 appData로 복사
+    var destPath = db.ref('users/'+currentUser.uid+'/machines/'+targetId+'/appData');
+    destPath.set(data).then(function(){
+      document.getElementById('migrate-banner').style.display = 'none';
+      localStorage.setItem('migrateDismissed_' + currentUser.uid, '1');
+      // 드롭다운에서 해당 자판기 선택 후 로드
+      currentMachineId = targetId;
+      REF = destPath;
+      D.products      = data.products;
+      D.inventory     = data.inventory;
+      D.inventoryLogs = data.inventoryLogs;
+      D.salesData     = data.salesData;
+      var msel = document.getElementById('machine-select');
+      if(msel) msel.value = targetId;
+      showToast('✅ ' + targetLabel + ' 이전 완료!');
+      renderAll();
     });
   }).catch(function(e){
-    showToast('❌ 가져오기 실패: ' + e.message);
+    showToast('❌ 이전 실패: ' + e.message);
   });
 }
 
@@ -1635,7 +1641,20 @@ function loadMachineDropdown(){
 function onMachineSelect(){
   var sel = document.getElementById('machine-select');
   currentMachineId = sel.value || null;
-  if(currentMachineId) loadMachineData(currentMachineId);
+  if(currentMachineId){
+    loadMachineData(currentMachineId);
+  } else {
+    // 공통 데이터(appData) 다시 로드
+    REF = db.ref('users/'+currentUser.uid+'/appData');
+    REF.once('value').then(function(snap){
+      var val = snap.val();
+      D.products      = (val && val.products)      || [];
+      D.inventory     = (val && val.inventory)     || [];
+      D.inventoryLogs = (val && val.inventoryLogs) || [];
+      D.salesData     = (val && val.salesData)     || [];
+      renderAll();
+    });
+  }
 }
 
 function loadMachineData(machineId){
