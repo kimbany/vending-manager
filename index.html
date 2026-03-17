@@ -1067,21 +1067,19 @@ function startApp(){
   document.getElementById('loading').style.display='none';
   document.getElementById('app').style.display='flex';
   document.getElementById('home-date').value=td();
-  // 헤더에 유저명 표시
   if(currentUser){
     var name = currentUser.displayName || currentUser.email;
     document.getElementById('header-user').textContent = name + ' 님';
   }
-  renderAll();
+  // D를 먼저 비우고 → loadMachineDropdown이 메인 자판기 데이터 로드 후 renderAll 호출
+  D = {products:[], inventory:[], inventoryLogs:[], salesData:[]};
   startAutoCollect();
-  setTimeout(function(){
-    if('Notification' in window && Notification.permission === 'default'){
-      Notification.requestPermission();
-    }
-    checkLowStockNotify();
-    checkMigration();
-    loadMachineDropdown();
-  }, 1500);
+  // 즉시 드롭다운 로드 (setTimeout 없이)
+  if('Notification' in window && Notification.permission === 'default'){
+    Notification.requestPermission();
+  }
+  checkMigration();
+  loadMachineDropdown();
 }
 
 function loadUserData(){
@@ -1767,21 +1765,24 @@ function loadMachineDropdown(){
     var sel = document.getElementById('machine-select');
     if(!sel) return;
     var keys = Object.keys(machines);
-    if(!keys.length){ sel.style.display='none'; return; }
+    if(!keys.length){
+      sel.style.display='none';
+      renderAll(); // 자판기 없을 때만 여기서 renderAll
+      checkLowStockNotify();
+      return;
+    }
     sel.style.display='block';
     sel.innerHTML = keys.map(function(id){
       var m = machines[id];
       return '<option value="'+id+'">'+(id===mainId?'⭐ ':'')+m.name+'</option>';
     }).join('');
-    // 이미 선택된 자판기 있으면 복원, 없으면 메인 자판기로 자동 로드
-    if(currentMachineId && machines[currentMachineId]){
-      sel.value = currentMachineId;
-    } else {
-      var autoId = mainId && machines[mainId] ? mainId : keys[0];
-      sel.value = autoId;
-      currentMachineId = autoId;
-      loadMachineData(autoId);
-    }
+    // 항상 자판기 데이터 로드 (이미 선택된 자판기 있으면 그걸로, 없으면 메인으로)
+    var autoId = (currentMachineId && machines[currentMachineId])
+      ? currentMachineId
+      : (mainId && machines[mainId] ? mainId : keys[0]);
+    sel.value = autoId;
+    currentMachineId = autoId;
+    loadMachineData(autoId); // 항상 호출해서 D 교체 보장
   });
 }
 
