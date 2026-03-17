@@ -930,7 +930,8 @@ function parseSalesRows(rows){
     var txId     = colTxId>=0  ? String(row[colTxId] ||'').trim() : '';
 
     if(!dateRaw||!colVal) continue;
-    if(state && state!=='구매') continue;
+    // 취소된 건만 제외 (매입/입금 등 정상 거래 모두 허용)
+    if(state && (state==='취소' || state==='취소완료' || state==='환불')) continue;
 
     // 중복 체크: DB에 이미 있거나 이번 파일 내 중복
     if(txId && (existingTxIds[txId] || seenTxIds[txId])){
@@ -1016,8 +1017,14 @@ function importSalesData(){
 
   save();
   closeModal('csv-modal');
+  // 완료 메시지 (중복 건수 포함)
+  var dupTotal = salesPreviewRows.length - added - salesPreviewRows.filter(function(r){return !r.prod;}).length;
+  var noMatch = salesPreviewRows.filter(function(r){return !r.prod;}).length;
+  var msg = '✅ '+added+'건 등록 완료';
+  if(noMatch>0) msg += ' · 미매칭 '+noMatch+'건';
+  msg += ' · 재고 '+invAdded+'개 제품 차감';
+  showToast(msg);
   resetCsvModal();
-  showToast('✅ '+added+'건 등록 · '+invAdded+'개 제품 재고 차감 완료');
   renderAll();
 }
 
@@ -1835,8 +1842,8 @@ function fetchTodaySales(isAuto){
       var amt      = colAmt>=0   ? parseFloat(row[colAmt])||0 : 0;
 
       if(!dateRaw||!colVal) return;
-      // 상태값: '구매' 또는 '승인' 이외 값(취소 등)은 제외
-      if(state && state!=='구매' && state!=='승인') return;
+      // 취소된 건만 제외
+      if(state && (state==='취소' || state==='취소완료' || state==='환불')) return;
       if(txId && existingTxIds[txId]){ dup++; return; }
       if(txId) existingTxIds[txId]=true;
 
