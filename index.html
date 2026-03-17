@@ -764,7 +764,7 @@ auth.onAuthStateChanged(function(user){
   }
   // 로그인 + 인증 완료 → 앱 시작
   REF = db.ref('users/' + user.uid + '/appData');
-  CRAWL_REF = db.ref('vendingApp/crawledSales');
+  CRAWL_REF = db.ref('users/' + (currentUser ? currentUser.uid : 'anonymous') + '/crawledSales');
   loadUserData();
 });
 
@@ -981,7 +981,7 @@ function checkVerified(){
   user.reload().then(function(){
     if(auth.currentUser.emailVerified){
       REF = db.ref('users/' + auth.currentUser.uid + '/appData');
-      CRAWL_REF = db.ref('vendingApp/crawledSales');
+      CRAWL_REF = db.ref('users/' + (currentUser ? currentUser.uid : 'anonymous') + '/crawledSales');
       loadUserData();
     } else {
       showToast('❌ 아직 인증이 완료되지 않았어요');
@@ -1115,7 +1115,9 @@ function switchSettingsSub(sub){
   });
   if(sub==='profile') renderProfileInfo();
   if(sub==='machines') renderMachinesList();
-  if(sub==='vmms'){ document.getElementById('vmms-locked').style.display='block'; document.getElementById('vmms-panel').style.display='none'; }
+  if(sub==='vmms') resetVmmsLock();
+  // 다른 탭으로 이동 시 VMMS 잠금 초기화
+  if(sub!=='vmms') resetVmmsLock();
 }
 
 // ─── 회원 정보 ────────────────────────────────────────────────────────────────
@@ -1280,6 +1282,17 @@ function confirmDelMachine(){
 }
 
 // ─── VMMS 관리 ────────────────────────────────────────────────────────────────
+function resetVmmsLock(){
+  var el = document.getElementById('vmms-lock-pw');
+  if(el) el.value = '';
+  var msg = document.getElementById('vmms-lock-msg');
+  if(msg) msg.textContent = '';
+  var locked = document.getElementById('vmms-locked');
+  var panel  = document.getElementById('vmms-panel');
+  if(locked) locked.style.display = 'block';
+  if(panel)  panel.style.display  = 'none';
+}
+
 function unlockVmms(){
   var pw  = document.getElementById('vmms-lock-pw').value;
   var msg = document.getElementById('vmms-lock-msg');
@@ -2942,7 +2955,7 @@ function openProdDetail(el){
 // ─── 자동/수동 판매 데이터 수집 (Firebase Realtime DB 크롤러 연동) ──────────
 // 크롤러가 vendingApp/crawledSales/{날짜} 에 저장한 데이터를 읽어서 반영
 
-var CRAWL_REF = db.ref('vendingApp/crawledSales');
+// CRAWL_REF는 Auth 상태에서 설정됨
 var autoCollectTimer = null;
 
 function startAutoCollect(){
@@ -2972,12 +2985,15 @@ function fetchTodaySales(isAuto){
   if(btn){ btn.textContent='⏳ 수집 중...'; btn.disabled=true; }
 
   var today = td();
+  // 개인 경로 먼저, 없으면 공용 경로 fallback
   CRAWL_REF.child(today).once('value').then(function(snap){
+    if(snap.val() && snap.val().rows && snap.val().rows.length) return snap;
+    return db.ref('vendingApp/crawledSales/'+today).once('value');
+  }).then(function(snap){
     var val = snap.val();
     if(btn){ btn.textContent='🔄 오늘 데이터 수집'; btn.disabled=false; }
-
     if(!val || !val.rows || !val.rows.length){
-      if(!isAuto) showToast('📭 오늘 수집된 데이터가 없어요');
+      if(!isAuto) showToast('📭 오늘 수집된 데이터가 없어요\n설정 > VMMS에서 계정을 등록해주세요');
       return;
     }
 
@@ -3085,6 +3101,7 @@ function switchTab(name,btn){
   document.getElementById('tab-'+name).classList.add('active');
   btn.classList.add('active');
   if(name==='settings') renderProfileInfo();
+  else resetVmmsLock(); // 설정 탭 벗어날 때 VMMS 잠금
 }
 function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
