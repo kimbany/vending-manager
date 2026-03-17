@@ -555,6 +555,11 @@ input[type=date]{color-scheme:dark;}
       <div><label class="lbl">계약 시작일</label><input type="date" id="am-start"/></div>
       <div><label class="lbl">계약 종료일</label><input type="date" id="am-end"/></div>
     </div>
+    <label style="display:flex;align-items:center;gap:10px;padding:10px 0;cursor:pointer;margin-bottom:12px">
+      <input type="checkbox" id="am-main" style="width:18px;height:18px;accent-color:var(--gold)"/>
+      <span style="font-size:13px;font-weight:600">⭐ 메인 자판기로 설정</span>
+      <span style="font-size:11px;color:var(--text3)">(앱 시작 시 기본 선택)</span>
+    </label>
     <button class="btn-p" style="margin-bottom:0" onclick="addMachine()">추가</button>
   </div>
 </div>
@@ -1316,44 +1321,66 @@ function doChangePw(){
 // ─── 자판기 관리 ──────────────────────────────────────────────────────────────
 function renderMachinesList(){
   if(!currentUser) return;
-  db.ref('users/'+currentUser.uid+'/machines').once('value').then(function(snap){
+  db.ref('users/'+currentUser.uid).once('value').then(function(snap){
+    var userData = snap.val()||{};
+    var machines = userData.machines||{};
+    var mainId   = userData.mainMachineId||'';
     var el = document.getElementById('machines-list');
-    if(!snap.exists()||!snap.val()){
+    if(!Object.keys(machines).length){
       el.innerHTML='<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">등록된 자판기가 없어요</div>';
       return;
     }
     var html='';
-    snap.forEach(function(child){
-      var m = child.val(); var id = child.key;
+    Object.keys(machines).forEach(function(id){
+      var m = machines[id];
       var now = new Date().toISOString().slice(0,10);
       var expired = m.contractEnd && m.contractEnd < now;
-      html += '<div style="background:var(--bg2);border:1px solid '+(expired?'rgba(224,88,88,.3)':'var(--border)')+';border-radius:12px;padding:14px;margin-bottom:10px">';
+      var isMain  = id === mainId;
+      html += '<div style="background:var(--bg2);border:1px solid '+(isMain?'rgba(232,184,109,.4)':expired?'rgba(224,88,88,.3)':'var(--border)')+';border-radius:12px;padding:14px;margin-bottom:10px">';
       html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">';
-      html += '<div><div style="font-size:14px;font-weight:700">'+m.name+'</div>';
+      html += '<div><div style="display:flex;align-items:center;gap:6px"><div style="font-size:14px;font-weight:700">'+m.name+'</div>';
+      if(isMain) html += '<span style="font-size:10px;background:rgba(232,184,109,.2);color:var(--gold);border:1px solid rgba(232,184,109,.4);border-radius:4px;padding:2px 6px;font-weight:700">⭐ 메인</span>';
+      html += '</div>';
       html += '<div style="font-size:11px;color:var(--text3);margin-top:2px">단말기: '+m.deviceNo+'</div></div>';
       html += '<span style="font-size:11px;background:'+(expired?'rgba(224,88,88,.2)':'rgba(122,218,154,.15)')+';color:'+(expired?'var(--red)':'var(--green)')+';border-radius:6px;padding:3px 8px;font-weight:700">'+(expired?'계약종료':'운영중')+'</span>';
       html += '</div>';
-      html += '<div style="font-size:12px;color:var(--text2)">계약기간: '+(m.contractStart||'-')+' ~ '+(m.contractEnd||'-')+'</div>';
-      html += '<button onclick="openDelMachine(this.dataset.id)" data-id="'+id+'" style="margin-top:10px;background:rgba(224,88,88,.15);border:1px solid rgba(224,88,88,.3);border-radius:8px;padding:5px 12px;font-size:12px;color:var(--red);cursor:pointer;font-family:inherit">🗑️ 삭제</button>';
-      html += '</div>';
+      html += '<div style="font-size:12px;color:var(--text2);margin-bottom:10px">계약기간: '+(m.contractStart||'-')+' ~ '+(m.contractEnd||'-')+'</div>';
+      html += '<div style="display:flex;gap:8px">';
+      if(!isMain) html += '<button onclick="setMainMachine(this.dataset.id)" data-id="'+id+'" style="flex:1;background:rgba(232,184,109,.15);border:1px solid rgba(232,184,109,.3);border-radius:8px;padding:6px;font-size:12px;color:var(--gold);cursor:pointer;font-family:inherit;font-weight:600">⭐ 메인 설정</button>';
+      html += '<button onclick="openDelMachine(this.dataset.id)" data-id="'+id+'" style="'+(isMain?'flex:1;':'')+'background:rgba(224,88,88,.15);border:1px solid rgba(224,88,88,.3);border-radius:8px;padding:6px;font-size:12px;color:var(--red);cursor:pointer;font-family:inherit">🗑️ 삭제</button>';
+      html += '</div></div>';
     });
     el.innerHTML = html;
   });
 }
 
+function setMainMachine(id){
+  db.ref('users/'+currentUser.uid+'/mainMachineId').set(id).then(function(){
+    showToast('⭐ 메인 자판기 설정 완료');
+    renderMachinesList();
+    loadMachineDropdown();
+  });
+}
+
 function addMachine(){
-  var name  = document.getElementById('am-name').value.trim();
-  var devno = document.getElementById('am-devno').value.trim();
-  var start = document.getElementById('am-start').value;
-  var end   = document.getElementById('am-end').value;
+  var name   = document.getElementById('am-name').value.trim();
+  var devno  = document.getElementById('am-devno').value.trim();
+  var start  = document.getElementById('am-start').value;
+  var end    = document.getElementById('am-end').value;
+  var isMain = document.getElementById('am-main').checked;
   if(!name||!devno){ showToast('❌ 단말기명과 번호를 입력하세요'); return; }
   var id = 'machine_' + Date.now();
-  db.ref('users/'+currentUser.uid+'/machines/'+id).set({
-    name:name, deviceNo:devno, contractStart:start, contractEnd:end, createdAt:td()
-  }).then(function(){
+  var promises = [
+    db.ref('users/'+currentUser.uid+'/machines/'+id).set({
+      name:name, deviceNo:devno, contractStart:start, contractEnd:end, createdAt:td()
+    })
+  ];
+  if(isMain) promises.push(db.ref('users/'+currentUser.uid+'/mainMachineId').set(id));
+  Promise.all(promises).then(function(){
     closeModal('add-machine-modal');
     ['am-name','am-devno','am-start','am-end'].forEach(function(i){ document.getElementById(i).value=''; });
-    showToast('✅ 자판기 추가 완료');
+    document.getElementById('am-main').checked = false;
+    showToast('✅ 자판기 추가 완료'+(isMain?' (메인 설정됨)':''));
     renderMachinesList();
     loadMachineDropdown();
   });
@@ -1581,39 +1608,39 @@ var currentMachineId = null; // null = 전체 (기존 단일 데이터)
 
 function loadMachineDropdown(){
   if(!currentUser) return;
-  db.ref('users/'+currentUser.uid+'/machines').once('value').then(function(snap){
+  db.ref('users/'+currentUser.uid).once('value').then(function(snap){
+    var userData = snap.val()||{};
+    var machines = userData.machines||{};
+    var mainId   = userData.mainMachineId||'';
     var sel = document.getElementById('machine-select');
     if(!sel) return;
-    if(!snap.exists()||!snap.val()){
-      sel.style.display='none';
-      return;
-    }
-    var machines = [];
-    snap.forEach(function(child){
-      machines.push({id:child.key, name:child.val().name});
-    });
-    if(machines.length === 0){ sel.style.display='none'; return; }
+    var keys = Object.keys(machines);
+    if(!keys.length){ sel.style.display='none'; return; }
     sel.style.display='block';
-    sel.innerHTML = '<option value="">전체</option>' +
-      machines.map(function(m){
-        return '<option value="'+m.id+'">'+m.name+'</option>';
-      }).join('');
-    // 이전 선택 복원
-    if(currentMachineId) sel.value = currentMachineId;
+    sel.innerHTML = keys.map(function(id){
+      var m = machines[id];
+      return '<option value="'+id+'">'+(id===mainId?'⭐ ':'')+m.name+'</option>';
+    }).join('');
+    // 현재 선택 복원 or 메인 자판기 자동 선택
+    if(currentMachineId && machines[currentMachineId]){
+      sel.value = currentMachineId;
+    } else if(mainId && machines[mainId]){
+      sel.value = mainId;
+      currentMachineId = mainId;
+      loadMachineData(mainId);
+    } else {
+      // 첫 번째 자판기 자동 선택
+      sel.value = keys[0];
+      currentMachineId = keys[0];
+      loadMachineData(keys[0]);
+    }
   });
 }
 
 function onMachineSelect(){
   var sel = document.getElementById('machine-select');
   currentMachineId = sel.value || null;
-  // 선택한 자판기에 맞는 데이터 로드
-  if(currentMachineId){
-    loadMachineData(currentMachineId);
-  } else {
-    // 전체(기존 appData) 로드
-    REF = db.ref('users/'+currentUser.uid+'/appData');
-    loadUserData();
-  }
+  if(currentMachineId) loadMachineData(currentMachineId);
 }
 
 function loadMachineData(machineId){
