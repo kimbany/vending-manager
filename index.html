@@ -1072,44 +1072,52 @@ function startApp(){
     var name = currentUser.displayName || currentUser.email;
     document.getElementById('header-user').textContent = name + ' 님';
   }
+  renderAll();
   startAutoCollect();
   setTimeout(function(){
     if('Notification' in window && Notification.permission === 'default'){
       Notification.requestPermission();
     }
+    checkLowStockNotify();
     checkMigration();
-    // 자판기 드롭다운 로드 후 메인/첫번째 자판기 데이터 자동 로드
-    loadMachineDropdownAndAutoSelect();
+    loadMachineDropdown();
   }, 1500);
 }
 
 function loadUserData(){
-  if(!REF){ startApp(); return; }
-  var done = false;
-  var timer = setTimeout(function(){
-    if(done) return;
-    done = true;
-    startApp();
-    showToast('⚠️ 데이터 로드 실패 - 빈 상태로 시작');
-  }, 8000);
-
-  REF.once('value').then(function(snap){
-    if(done) return;
-    done = true;
-    clearTimeout(timer);
-    var val = snap.val();
-    if(val){
-      D.products      = val.products      || [];
-      D.inventory     = val.inventory     || [];
-      D.inventoryLogs = val.inventoryLogs || [];
-      D.salesData     = val.salesData     || [];
+  // 자판기가 등록돼 있으면 appData 로드하지 않음
+  // → loadMachineDropdown 에서 메인 자판기 데이터 로드
+  db.ref('users/'+currentUser.uid+'/machines').once('value').then(function(snap){
+    if(snap.exists() && snap.val() && Object.keys(snap.val()).length > 0){
+      // 자판기 있음 → 빈 D로 startApp (드롭다운에서 메인자판기 로드)
+      D = {products:[], inventory:[], inventoryLogs:[], salesData:[]};
+      startApp();
+      return;
     }
-    startApp();
-  }).catch(function(e){
-    if(done) return;
-    done = true;
-    clearTimeout(timer);
-    startApp();
+    // 자판기 없음 → 기존 appData 로드
+    if(!REF){ startApp(); return; }
+    var done = false;
+    var timer = setTimeout(function(){
+      if(done) return; done = true;
+      startApp();
+      showToast('⚠️ 데이터 로드 실패 - 빈 상태로 시작');
+    }, 8000);
+    REF.once('value').then(function(snap){
+      if(done) return; done = true;
+      clearTimeout(timer);
+      var val = snap.val();
+      if(val){
+        D.products      = val.products      || [];
+        D.inventory     = val.inventory     || [];
+        D.inventoryLogs = val.inventoryLogs || [];
+        D.salesData     = val.salesData     || [];
+      }
+      startApp();
+    }).catch(function(e){
+      if(done) return; done = true;
+      clearTimeout(timer);
+      startApp();
+    });
   });
 }
 
@@ -1501,7 +1509,26 @@ function addMachine(){
     document.getElementById('am-main').checked = false;
     showToast('✅ 자판기 추가 완료'+(isMain?' (메인 설정됨)':''));
     renderMachinesList();
-    loadMachineDropdown();
+    // 새 자판기로 전환 - 빈 데이터로 시작
+    currentMachineId = id;
+    REF = db.ref('users/'+currentUser.uid+'/machines/'+id+'/appData');
+    D = {products:[], inventory:[], inventoryLogs:[], salesData:[]};
+    var sel = document.getElementById('machine-select');
+    // 드롭다운 재로드 후 새 자판기 선택
+    db.ref('users/'+currentUser.uid).once('value').then(function(snap){
+      var userData = snap.val()||{};
+      var machines = userData.machines||{};
+      var mainId   = userData.mainMachineId||'';
+      if(sel){
+        sel.style.display='block';
+        sel.innerHTML = Object.keys(machines).map(function(mid){
+          var m = machines[mid];
+          return '<option value="'+mid+'">'+(mid===mainId?'⭐ ':'')+m.name+'</option>';
+        }).join('');
+        sel.value = id;
+      }
+      renderAll();
+    });
   });
 }
 
@@ -1731,11 +1758,7 @@ function switchVmSub(sub){
 // ─── 자판기 드롭다운 + 다중 관리 ──────────────────────────────────────────────
 var currentMachineId = null; // null = 전체 (기존 단일 데이터)
 
-function loadMachineDropdown(){ loadMachineDropdownAndAutoSelect(false); }
-
-function loadMachineDropdownAndAutoSelect(autoLoad){
-  // autoLoad 기본값 true
-  if(autoLoad === undefined) autoLoad = true;
+function loadMachineDropdown(){
   if(!currentUser) return;
   db.ref('users/'+currentUser.uid).once('value').then(function(snap){
     var userData = snap.val()||{};
@@ -1744,32 +1767,20 @@ function loadMachineDropdownAndAutoSelect(autoLoad){
     var sel = document.getElementById('machine-select');
     if(!sel) return;
     var keys = Object.keys(machines);
-    if(!keys.length){
-      // 자판기 없으면 드롭다운 숨기고 공통 appData로 renderAll
-      sel.style.display='none';
-      renderAll();
-      checkLowStockNotify();
-      return;
-    }
+    if(!keys.length){ sel.style.display='none'; return; }
     sel.style.display='block';
     sel.innerHTML = keys.map(function(id){
       var m = machines[id];
       return '<option value="'+id+'">'+(id===mainId?'⭐ ':'')+m.name+'</option>';
     }).join('');
-    // 선택할 자판기 결정
-    var targetId = null;
+    // 이미 선택된 자판기 있으면 복원, 없으면 메인 자판기로 자동 로드
     if(currentMachineId && machines[currentMachineId]){
-      targetId = currentMachineId;
-    } else if(mainId && machines[mainId]){
-      targetId = mainId;
+      sel.value = currentMachineId;
     } else {
-      targetId = keys[0];
-    }
-    sel.value = targetId;
-    currentMachineId = targetId;
-    if(autoLoad){
-      // 자동으로 해당 자판기 데이터 로드
-      loadMachineData(targetId);
+      var autoId = mainId && machines[mainId] ? mainId : keys[0];
+      sel.value = autoId;
+      currentMachineId = autoId;
+      loadMachineData(autoId);
     }
   });
 }
