@@ -350,7 +350,7 @@ input[type=date]{color-scheme:dark;}
     <div class="tab" id="tab-sales">
       <!-- 데이터 수집 버튼 영역 -->
       <div style="display:flex;gap:8px;margin-bottom:8px">
-        <button class="btn-p" style="margin-bottom:0;flex:1;background:var(--bg3);color:var(--text2)" onclick="openModal('csv-modal')">📤 직접 업로드</button>
+        <button class="btn-p" style="margin-bottom:0;flex:1;background:var(--bg3);color:var(--text2)" onclick="openCsvModal()">📤 직접 업로드</button>
         <button class="btn-p btn-b" style="margin-bottom:0;flex:1" id="crawl-btn" onclick="fetchTodaySales()">🔄 오늘 데이터 수집</button>
       </div>
       <div style="margin-bottom:8px">
@@ -587,6 +587,29 @@ input[type=date]{color-scheme:dark;}
   </div>
 </div>
 
+
+<!-- 자판기 수정 모달 -->
+<div class="modal-bg" id="edit-machine-modal">
+  <div class="modal">
+    <div class="mh"><div class="mt">✏️ 자판기 수정</div><button class="mc" onclick="closeModal('edit-machine-modal')">✕</button></div>
+    <input type="hidden" id="edit-machine-id"/>
+    <div class="fr"><label class="lbl">단말기명 (VMMS 기준)</label><input type="text" id="em-name" placeholder="예: 자판기학교"/></div>
+    <div class="fr"><label class="lbl">단말기 번호</label><input type="text" id="em-devno" placeholder="예: 2026001234"/></div>
+    <div class="f2">
+      <div><label class="lbl">계약 시작일</label><input type="date" id="em-start"/></div>
+      <div><label class="lbl">계약 종료일</label><input type="date" id="em-end"/></div>
+    </div>
+    <div style="margin-bottom:14px">
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+        <input type="checkbox" id="em-main" style="width:18px;height:18px;accent-color:var(--gold)"/>
+        <span style="font-size:13px;font-weight:600">⭐ 메인 자판기로 설정</span>
+      </label>
+    </div>
+    <button class="btn-p" style="margin-bottom:0" onclick="saveMachineEdit()">저장</button>
+    <div id="em-msg" style="font-size:12px;margin-top:8px;text-align:center"></div>
+  </div>
+</div>
+
 <!-- VMMS 계정 수정 모달 -->
 <div class="modal-bg" id="edit-vmms-modal">
   <div class="modal">
@@ -738,11 +761,12 @@ input[type=date]{color-scheme:dark;}
   <div class="modal">
     <div class="mh"><div class="mt">📤 거래내역 업로드</div><button class="mc" onclick="closeModal('csv-modal')">✕</button></div>
     <div id="csv-s1">
-      <div style="background:var(--bg3);border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--text2);line-height:1.8">
+      <div style="background:var(--bg3);border-radius:10px;padding:12px 14px;margin-bottom:12px;font-size:12px;color:var(--text2);line-height:1.8">
         📌 자판기 거래내역 파일을 업로드하세요.<br/>
         <b style="color:var(--gold)">거래일시, 판매항목, 컬럼</b> 컬럼이 필요해요.<br/>
         컬럼 번호로 제품을 자동 매칭하고 재고도 차감해요.
       </div>
+      <div id="csv-machine-filter-info" style="background:rgba(232,184,109,.1);border:1px solid rgba(232,184,109,.3);border-radius:8px;padding:10px 12px;margin-bottom:16px;font-size:12px"></div>
       <input type="file" id="csv-file" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleSalesFile(this)"/>
       <button class="btn-p" style="margin-bottom:0" onclick="document.getElementById('csv-file').click()">📁 파일 선택 (XLSX / CSV)</button>
     </div>
@@ -1416,9 +1440,10 @@ function renderMachinesList(){
       html += '<span style="font-size:11px;background:'+(expired?'rgba(224,88,88,.2)':'rgba(122,218,154,.15)')+';color:'+(expired?'var(--red)':'var(--green)')+';border-radius:6px;padding:3px 8px;font-weight:700">'+(expired?'계약종료':'운영중')+'</span>';
       html += '</div>';
       html += '<div style="font-size:12px;color:var(--text2);margin-bottom:10px">계약기간: '+(m.contractStart||'-')+' ~ '+(m.contractEnd||'-')+'</div>';
-      html += '<div style="display:flex;gap:8px">';
-      if(!isMain) html += '<button onclick="setMainMachine(this.dataset.id)" data-id="'+id+'" style="flex:1;background:rgba(232,184,109,.15);border:1px solid rgba(232,184,109,.3);border-radius:8px;padding:6px;font-size:12px;color:var(--gold);cursor:pointer;font-family:inherit;font-weight:600">⭐ 메인 설정</button>';
-      html += '<button onclick="openDelMachine(this.dataset.id)" data-id="'+id+'" style="'+(isMain?'flex:1;':'')+'background:rgba(224,88,88,.15);border:1px solid rgba(224,88,88,.3);border-radius:8px;padding:6px;font-size:12px;color:var(--red);cursor:pointer;font-family:inherit">🗑️ 삭제</button>';
+      html += '<div style="display:flex;gap:6px">';
+      html += '<button onclick="openEditMachine(this.dataset.id)" data-id="'+id+'" style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px;font-size:12px;color:var(--text2);cursor:pointer;font-family:inherit">✏️ 수정</button>';
+      if(!isMain) html += '<button onclick="setMainMachine(this.dataset.id)" data-id="'+id+'" style="flex:1;background:rgba(232,184,109,.15);border:1px solid rgba(232,184,109,.3);border-radius:8px;padding:6px;font-size:12px;color:var(--gold);cursor:pointer;font-family:inherit;font-weight:600">⭐ 메인</button>';
+      html += '<button onclick="openDelMachine(this.dataset.id)" data-id="'+id+'" style="background:rgba(224,88,88,.15);border:1px solid rgba(224,88,88,.3);border-radius:8px;padding:6px;font-size:12px;color:var(--red);cursor:pointer;font-family:inherit">🗑️</button>';
       html += '</div></div>';
     });
     el.innerHTML = html;
@@ -1476,6 +1501,52 @@ function doMigrateInline(){
     });
   }).catch(function(e){
     msg.style.color='var(--red)'; msg.textContent='실패: '+e.message;
+  });
+}
+
+
+function openEditMachine(id){
+  db.ref('users/'+currentUser.uid+'/machines/'+id).once('value').then(function(snap){
+    var m = snap.val(); if(!m) return;
+    db.ref('users/'+currentUser.uid+'/mainMachineId').once('value').then(function(ms){
+      var mainId = ms.val()||'';
+      document.getElementById('edit-machine-id').value = id;
+      document.getElementById('em-name').value   = m.name||'';
+      document.getElementById('em-devno').value  = m.deviceNo||'';
+      document.getElementById('em-start').value  = m.contractStart||'';
+      document.getElementById('em-end').value    = m.contractEnd||'';
+      document.getElementById('em-main').checked = (id === mainId);
+      document.getElementById('em-msg').textContent = '';
+      openModal('edit-machine-modal');
+    });
+  });
+}
+
+function saveMachineEdit(){
+  var id    = document.getElementById('edit-machine-id').value;
+  var name  = document.getElementById('em-name').value.trim();
+  var devno = document.getElementById('em-devno').value.trim();
+  var start = document.getElementById('em-start').value;
+  var end   = document.getElementById('em-end').value;
+  var isMain = document.getElementById('em-main').checked;
+  var msg   = document.getElementById('em-msg');
+  if(!name||!devno){ msg.style.color='var(--red)'; msg.textContent='단말기명과 번호를 입력하세요'; return; }
+  msg.style.color='var(--text2)'; msg.textContent='저장 중...';
+  var promises = [
+    db.ref('users/'+currentUser.uid+'/machines/'+id).update({
+      name:name, deviceNo:devno, contractStart:start, contractEnd:end
+    })
+  ];
+  if(isMain) promises.push(db.ref('users/'+currentUser.uid+'/mainMachineId').set(id));
+  Promise.all(promises).then(function(){
+    msg.style.color='var(--green)'; msg.textContent='✅ 저장 완료';
+    setTimeout(function(){
+      closeModal('edit-machine-modal');
+      renderMachinesList();
+      loadMachineDropdown();
+    }, 800);
+  }).catch(function(e){
+    msg.style.color='var(--red)'; msg.textContent='저장 실패: '+e.message;
   });
 }
 
@@ -2366,6 +2437,26 @@ function handleSalesFile(input){
     };
     reader2.readAsText(file,'utf-8');
   }
+}
+
+
+function openCsvModal(){
+  // 현재 선택 자판기 필터 안내 표시
+  var el = document.getElementById('csv-machine-filter-info');
+  if(el){
+    if(currentMachineId){
+      db.ref('users/'+currentUser.uid+'/machines/'+currentMachineId).once('value').then(function(snap){
+        var m = snap.val();
+        if(m){
+          el.innerHTML = '🏪 <b style="color:var(--gold)">'+m.name+'</b> 데이터만 가져와요<br/>'+
+            '<span style="color:var(--text3)">단말기명: '+m.name+' · 단말기번호: '+m.deviceNo+'</span>';
+        }
+      });
+    } else {
+      el.innerHTML = '⚠️ <span style="color:var(--text3)">자판기가 선택되지 않았어요. 전체 데이터를 가져와요.</span>';
+    }
+  }
+  openModal('csv-modal');
 }
 
 function getCurrentMachineFilter(){
