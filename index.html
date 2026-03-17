@@ -277,13 +277,15 @@ input[type=date]{color-scheme:dark;}
           <button onclick="dismissMigrate()" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:12px;color:var(--text2);cursor:pointer;font-family:inherit">건너뛰기</button>
         </div>
       </div>
+      <!-- 전체 자판기 재고 부족 통합 표시 -->
+      <div class="card" style="margin-bottom:12px">
+        <div class="ch"><div class="ca" style="background:var(--red)"></div><div><div class="ct">⚠️ 전체 자판기 재고 부족</div><div class="cs">모든 자판기 재고 5개 이하</div></div></div>
+        <div class="cb" id="home-all-low-list"></div>
+      </div>
+      <!-- 날짜 선택 + 현재 자판기 판매현황 -->
       <div class="fr"><label class="lbl">📅 날짜 선택</label><input type="date" id="home-date" oninput="renderHome()"/></div>
       <div class="card">
-        <div class="ch"><div class="ca" style="background:var(--red)"></div><div><div class="ct">⚠️ 재고 부족 제품</div><div class="cs">재고 5개 이하</div></div></div>
-        <div class="cb" id="low-list"></div>
-      </div>
-      <div class="card">
-        <div class="ch"><div class="ca" style="background:var(--gold)"></div><div><div class="ct" id="home-dt">오늘 판매 현황</div></div></div>
+        <div class="ch"><div class="ca" style="background:var(--gold)"></div><div><div class="ct" id="home-dt">오늘 판매 현황</div><div class="cs" id="home-machine-name" style="color:var(--text3)"></div></div></div>
         <div class="cb">
           <div class="sg">
             <div class="sb"><div class="sl">판매 수량</div><div class="sv" id="home-qty" style="color:var(--blue)">0개</div></div>
@@ -1136,24 +1138,76 @@ function renderAll(){ renderHome(); renderInv(); renderSales(); renderMachine();
 
 // ─── 홈 ───────────────────────────────────────────────────────────────────────
 function renderHome(){
-  var date=document.getElementById('home-date').value||td();
-  document.getElementById('home-dt').textContent=date+' 판매 현황';
-  var low=D.inventory.filter(function(i){return i.qty<=5;}).map(function(i){return {i:i,p:gp(i.productId)};}).filter(function(x){return x.p;});
-  document.getElementById('low-list').innerHTML=low.length
-    ?low.map(function(x){var cl=Array.isArray(x.p.column)?x.p.column.join(', '):(x.p.column||'-');return '<div class="li"><div><div class="in">'+x.p.name+'</div><div class="is">컬럼: '+cl+'</div></div><span class="badge '+(x.i.qty===0?'br':'bo')+'">'+x.i.qty+'개</span></div>';}).join('')
-    :'<div class="empty"><div class="ei">✅</div><div class="et">재고 부족 제품 없음</div></div>';
-  var ds=D.salesData.filter(function(s){return s.date===date;});
-  var qty=ds.reduce(function(s,x){return s+(x.qty||0);},0);
-  var amt=ds.reduce(function(s,x){var p=gp(x.productId);return s+(x.qty||0)*(p?p.sellPrice:0);},0);
-  document.getElementById('home-qty').textContent=fmt(qty)+'개';
-  document.getElementById('home-amt').textContent=fmt(amt)+'원';
-  var byP={};
-  ds.forEach(function(s){byP[s.productId]=(byP[s.productId]||0)+s.qty;});
-  var top3=Object.keys(byP).map(function(id){return {p:gp(id),q:byP[id]};}).filter(function(x){return x.p;}).sort(function(a,b){return b.q-a.q;}).slice(0,3);
-  var em=['🥇','🥈','🥉'],co=['var(--gold)','#b0b0c0','#c87941'];
-  document.getElementById('home-top3').innerHTML=top3.length
-    ?top3.map(function(x,i){return '<div class="ti" style="border:1px solid '+co[i]+'33"><span style="font-size:20px">'+em[i]+'</span><div style="flex:1"><div class="in">'+x.p.name+'</div></div><span style="color:'+co[i]+';font-weight:800;font-size:15px">'+x.q+'개</span></div>';}).join('')
-    :'<div class="empty"><div class="ei">📦</div><div class="et">판매 데이터 없음</div></div>';
+  var date = document.getElementById('home-date').value || td();
+  document.getElementById('home-dt').textContent = date + ' 판매 현황';
+
+  // 현재 자판기 이름 표시
+  var sel = document.getElementById('machine-select');
+  var machineName = sel && sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
+  var mnEl = document.getElementById('home-machine-name');
+  if(mnEl) mnEl.textContent = machineName || '';
+
+  // ── 판매 현황 (현재 선택된 자판기 기준) ──
+  var ds = D.salesData.filter(function(s){ return s.date===date && !s.cancelled; });
+  var qty = ds.reduce(function(s,x){ return s+(x.qty||0); }, 0);
+  var amt = ds.reduce(function(s,x){ var p=gp(x.productId); return s+(x.qty||0)*(p?p.sellPrice:0); }, 0);
+  document.getElementById('home-qty').textContent = fmt(qty)+'개';
+  document.getElementById('home-amt').textContent = fmt(amt)+'원';
+  var byP = {};
+  ds.forEach(function(s){ byP[s.productId]=(byP[s.productId]||0)+s.qty; });
+  var top3 = Object.keys(byP).map(function(id){ return {p:gp(id),q:byP[id]}; }).filter(function(x){return x.p;}).sort(function(a,b){return b.q-a.q;}).slice(0,3);
+  var em=['🥇','🥈','🥉'], co=['var(--gold)','#b0b0c0','#c87941'];
+  document.getElementById('home-top3').innerHTML = top3.length
+    ? top3.map(function(x,i){ return '<div class="ti" style="border:1px solid '+co[i]+'33"><span style="font-size:20px">'+em[i]+'</span><div style="flex:1"><div class="in">'+x.p.name+'</div></div><span style="color:'+co[i]+';font-weight:800;font-size:15px">'+x.q+'개</span></div>'; }).join('')
+    : '<div class="empty"><div class="ei">📦</div><div class="et">판매 데이터 없음</div></div>';
+
+  // ── 전체 자판기 재고 부족 통합 (Firebase에서 모든 자판기 데이터 조회) ──
+  renderAllMachineLowStock();
+}
+
+function renderAllMachineLowStock(){
+  var el = document.getElementById('home-all-low-list');
+  if(!el || !currentUser) return;
+  el.innerHTML = '<div style="text-align:center;padding:10px;color:var(--text3);font-size:12px">로딩 중...</div>';
+
+  db.ref('users/'+currentUser.uid+'/machines').once('value').then(function(snap){
+    if(!snap.exists() || !snap.val()){
+      // 자판기 미등록 - 현재 appData 기준으로 표시
+      renderLowStockSection(el, [{machineName:'', data:D}]);
+      return;
+    }
+    var machines = snap.val();
+    var ids = Object.keys(machines);
+    var promises = ids.map(function(id){
+      return db.ref('users/'+currentUser.uid+'/machines/'+id+'/appData').once('value').then(function(ds){
+        return {machineId:id, machineName:machines[id].name, data:ds.val()||{}};
+      });
+    });
+    Promise.all(promises).then(function(results){
+      renderLowStockSection(el, results);
+    });
+  });
+}
+
+function renderLowStockSection(el, machineDataList){
+  var html = '';
+  var totalLow = 0;
+  machineDataList.forEach(function(md){
+    var inv  = md.data.inventory  || [];
+    var prods = md.data.products  || [];
+    function getP(pid){ return prods.find(function(p){return p.id===pid;}); }
+    var low = inv.filter(function(i){ return i.qty<=5; }).map(function(i){ return {i:i, p:getP(i.productId)}; }).filter(function(x){ return x.p; });
+    if(!low.length) return;
+    totalLow += low.length;
+    if(md.machineName){
+      html += '<div style="font-size:11px;font-weight:700;color:var(--text2);padding:6px 0 4px">🏪 '+md.machineName+'</div>';
+    }
+    low.forEach(function(x){
+      var cl = Array.isArray(x.p.column)?x.p.column.join(', '):(x.p.column||'-');
+      html += '<div class="li"><div><div class="in">'+x.p.name+'</div><div class="is">컬럼: '+cl+'</div></div><span class="badge '+(x.i.qty===0?'br':'bo')+'">'+x.i.qty+'개</span></div>';
+    });
+  });
+  el.innerHTML = totalLow > 0 ? html : '<div class="empty"><div class="ei">✅</div><div class="et">모든 자판기 재고 부족 없음</div></div>';
 }
 
 // ─── 재고 ─────────────────────────────────────────────────────────────────────
@@ -1685,18 +1739,19 @@ function loadMachineDropdown(){
     if(!sel) return;
     var keys = Object.keys(machines);
     if(!keys.length){ sel.style.display='none'; return; }
-    // '공통 데이터' 옵션 포함 (기존 appData)
+    // 자판기 목록만 (공통 데이터 없음)
     sel.style.display='block';
-    sel.innerHTML = '<option value="">📦 공통 데이터</option>' +
-      keys.map(function(id){
-        var m = machines[id];
-        return '<option value="'+id+'">'+(id===mainId?'⭐ ':'')+m.name+'</option>';
-      }).join('');
-    // 현재 선택 복원 (자동 변경 X - 사용자가 직접 선택할 때만 로드)
+    sel.innerHTML = keys.map(function(id){
+      var m = machines[id];
+      return '<option value="'+id+'">'+(id===mainId?'⭐ ':'')+m.name+'</option>';
+    }).join('');
+    // 현재 선택 복원 or 메인 자판기 선택 (데이터 자동 로드 X)
     if(currentMachineId && machines[currentMachineId]){
       sel.value = currentMachineId;
+    } else if(mainId && machines[mainId]){
+      sel.value = mainId;
     } else {
-      sel.value = ''; // 공통 데이터 유지
+      sel.value = keys[0];
     }
   });
 }
@@ -1704,20 +1759,7 @@ function loadMachineDropdown(){
 function onMachineSelect(){
   var sel = document.getElementById('machine-select');
   currentMachineId = sel.value || null;
-  if(currentMachineId){
-    loadMachineData(currentMachineId);
-  } else {
-    // 공통 데이터(appData) 다시 로드
-    REF = db.ref('users/'+currentUser.uid+'/appData');
-    REF.once('value').then(function(snap){
-      var val = snap.val();
-      D.products      = (val && val.products)      || [];
-      D.inventory     = (val && val.inventory)     || [];
-      D.inventoryLogs = (val && val.inventoryLogs) || [];
-      D.salesData     = (val && val.salesData)     || [];
-      renderAll();
-    });
-  }
+  if(currentMachineId) loadMachineData(currentMachineId);
 }
 
 function loadMachineData(machineId){
