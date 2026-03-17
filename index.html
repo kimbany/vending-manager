@@ -196,6 +196,15 @@ input[type=date]{color-scheme:dark;}
   <div id="content">
     <!-- 홈 -->
     <div class="tab active" id="tab-home">
+      <!-- 기존 데이터 이전 안내 (한번만 표시) -->
+      <div id="migrate-banner" style="display:none;background:rgba(232,184,109,.1);border:1px solid rgba(232,184,109,.3);border-radius:12px;padding:14px;margin-bottom:14px">
+        <div style="font-size:13px;font-weight:700;color:var(--gold);margin-bottom:6px">📦 기존 데이터가 있어요!</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:12px">이전에 사용하던 제품·재고·판매 데이터를 이 계정으로 가져올 수 있어요.</div>
+        <div style="display:flex;gap:8px">
+          <button onclick="migrateOldData()" style="flex:1;background:var(--gold);border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;color:#1a1208;cursor:pointer;font-family:inherit">✅ 데이터 가져오기</button>
+          <button onclick="dismissMigrate()" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:12px;color:var(--text2);cursor:pointer;font-family:inherit">건너뛰기</button>
+        </div>
+      </div>
       <div class="fr"><label class="lbl">📅 날짜 선택</label><input type="date" id="home-date" oninput="renderHome()"/></div>
       <div class="card">
         <div class="ch"><div class="ca" style="background:var(--red)"></div><div><div class="ct">⚠️ 재고 부족 제품</div><div class="cs">재고 5개 이하</div></div></div>
@@ -767,7 +776,8 @@ function startApp(){
       Notification.requestPermission();
     }
     checkLowStockNotify();
-  }, 2000);
+    checkMigration(); // 기존 데이터 이전 체크
+  }, 1500);
 }
 
 function loadUserData(){
@@ -845,6 +855,48 @@ function renderHome(){
 }
 
 // ─── 재고 ─────────────────────────────────────────────────────────────────────
+
+
+// ─── 기존 데이터 이전 ──────────────────────────────────────────────────────────
+function checkMigration(){
+  if(!currentUser) return;
+  // 이미 이전했거나 건너뛴 경우 표시 안 함
+  var dismissed = localStorage.getItem('migrateDismissed_' + currentUser.uid);
+  if(dismissed) return;
+  // 현재 계정에 데이터가 없고, 기존 vendingApp에 데이터 있으면 배너 표시
+  if(D.products.length > 0) return; // 이미 데이터 있으면 필요 없음
+  db.ref('vendingApp').once('value').then(function(snap){
+    var val = snap.val();
+    if(val && val.products && val.products.length > 0){
+      document.getElementById('migrate-banner').style.display = 'block';
+    }
+  });
+}
+
+function migrateOldData(){
+  if(!confirm('기존 데이터를 이 계정으로 가져올까요?\n(제품, 재고, 판매 데이터 전체)')) return;
+  showToast('⏳ 데이터 가져오는 중...');
+  db.ref('vendingApp').once('value').then(function(snap){
+    var val = snap.val();
+    if(!val){ showToast('❌ 가져올 데이터가 없어요'); return; }
+    D.products      = val.products      || [];
+    D.inventory     = val.inventory     || [];
+    D.inventoryLogs = val.inventoryLogs || [];
+    D.salesData     = val.salesData     || [];
+    save();
+    document.getElementById('migrate-banner').style.display = 'none';
+    localStorage.setItem('migrateDismissed_' + currentUser.uid, '1');
+    showToast('✅ 데이터 가져오기 완료!');
+    renderAll();
+  }).catch(function(e){
+    showToast('❌ 가져오기 실패: ' + e.message);
+  });
+}
+
+function dismissMigrate(){
+  document.getElementById('migrate-banner').style.display = 'none';
+  if(currentUser) localStorage.setItem('migrateDismissed_' + currentUser.uid, '1');
+}
 
 // ─── 재고 서브탭 ──────────────────────────────────────────────────────────────
 var invSubCurrent = 'stock';
