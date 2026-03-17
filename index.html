@@ -352,10 +352,13 @@ input[type=date]{color-scheme:dark;}
 <div class="modal-bg" id="sales-edit-modal">
   <div class="modal">
     <div class="mh"><div class="mt">✏️ 판매 편집</div><button class="mc" onclick="closeModal('sales-edit-modal')">✕</button></div>
-    <!-- 날짜 선택 삭제 -->
     <div style="background:var(--bg3);border-radius:10px;padding:12px 14px;margin-bottom:14px">
-      <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:10px">📅 날짜별 전체 삭제</div>
-      <input type="date" id="sales-del-date" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text1);font-size:13px;box-sizing:border-box;margin-bottom:10px"/>
+      <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:10px">📅 기간 선택 삭제</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <input type="date" id="sales-del-from" style="flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text1);font-size:13px"/>
+        <span style="color:var(--text3);font-size:13px;flex-shrink:0">~</span>
+        <input type="date" id="sales-del-to" style="flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text1);font-size:13px"/>
+      </div>
       <div id="sales-del-preview" style="margin-bottom:10px"></div>
       <div style="display:flex;gap:8px">
         <button class="btn-p" style="margin-bottom:0;flex:1;background:var(--bg3);color:var(--text2)" onclick="previewSalesDel()">🔍 미리보기</button>
@@ -1012,38 +1015,47 @@ function parseSalesRows(rows){
 
   if(colNum<0){ showToast('❌ 컬럼 필드가 없어요'); return; }
 
-  // 기존 저장된 거래고유번호 Set
-  var existingTxIds = {};
-  D.salesData.forEach(function(s){ if(s.txId) existingTxIds[s.txId]=true; });
+  // 중복 체크 키 생성: 날짜시간초 + 상품명 (거래고유번호보다 신뢰성 높음)
+  function makeDupKey(dateRaw, itemName){
+    // "2026-03-16 16:31:28" + "콜라" → "2026-03-1616:31:28콜라"
+    var dt = dateRaw.length>=19 ? dateRaw.slice(0,19) : dateRaw;
+    return dt + '|' + (itemName||'').trim();
+  }
+
+  // 기존 DB에 저장된 중복키 Set
+  var existingKeys = {};
+  D.salesData.forEach(function(s){
+    if(s.dupKey) existingKeys[s.dupKey] = true;
+  });
 
   salesPreviewRows = [];
   var matched=0, unmatched=[], dupCount=0;
-  // 이번 파일 내 중복 방지용
-  var seenTxIds = {};
+  var seenKeys = {}; // 이번 파일 내 중복 방지
 
   for(var i=headerIdx+1;i<rows.length;i++){
     var row = rows[i];
     var dateRaw  = String(row[colDate]||'').trim();
     var itemName = String(row[colItem]||'').trim();
     var colVal   = String(row[colNum] ||'').trim();
-    var state    = colState>=0 ? String(row[colState]||'').trim() : '구매';
+    var state    = colState>=0 ? String(row[colState]||'').trim() : '';
     var txId     = colTxId>=0  ? String(row[colTxId] ||'').trim() : '';
 
     if(!dateRaw||!colVal) continue;
-    // 취소된 건만 제외 (매입/입금 등 정상 거래 모두 허용)
+    // 취소된 건만 제외
     if(state && (state==='취소' || state==='취소완료' || state==='환불')) continue;
 
-    // 중복 체크: DB에 이미 있거나 이번 파일 내 중복
-    if(txId && (existingTxIds[txId] || seenTxIds[txId])){
+    // 날짜+시간초+상품명 기준 중복 체크
+    var dupKey = makeDupKey(dateRaw, itemName);
+    if(existingKeys[dupKey] || seenKeys[dupKey]){
       dupCount++;
       continue;
     }
-    if(txId) seenTxIds[txId]=true;
+    seenKeys[dupKey] = true;
 
     var dateStr = dateRaw.length>=10 ? dateRaw.slice(0,10) : dateRaw;
     var prod = findProductByColumn(colVal);
     var hour = dateRaw.length>=13 ? parseInt(dateRaw.slice(11,13)) : -1;
-    salesPreviewRows.push({date:dateStr, hour:hour, itemName:itemName, colVal:colVal, prod:prod, qty:1, txId:txId});
+    salesPreviewRows.push({date:dateStr, hour:hour, itemName:itemName, colVal:colVal, prod:prod, qty:1, txId:txId, dupKey:dupKey});
     if(prod) matched++;
     else if(unmatched.indexOf(colVal)<0) unmatched.push(colVal);
   }
@@ -1105,7 +1117,7 @@ function importSalesData(){
   var qtyMapByDate = {}; // {pid: {date: qty}}
   salesPreviewRows.forEach(function(r){
     if(!r.prod) return;
-    D.salesData.push({id:Date.now().toString()+Math.random(), txId:r.txId, date:r.date, hour:r.hour||-1, productId:r.prod.id, qty:r.qty});
+    D.salesData.push({id:Date.now().toString()+Math.random(), txId:r.txId, dupKey:r.dupKey||'', date:r.date, hour:r.hour||-1, productId:r.prod.id, qty:r.qty});
     if(!qtyMapByDate[r.prod.id]) qtyMapByDate[r.prod.id] = {};
     qtyMapByDate[r.prod.id][r.date] = (qtyMapByDate[r.prod.id][r.date]||0) + r.qty;
     qtyMap[r.prod.id] = (qtyMap[r.prod.id]||0) + r.qty;
@@ -1819,25 +1831,34 @@ function confirmBulkEdit(){
 // ─── 판매 편집 ────────────────────────────────────────────────────────────────
 
 // 날짜별 삭제 미리보기
+function getDelRange(){
+  var from = document.getElementById('sales-del-from').value;
+  var to   = document.getElementById('sales-del-to').value;
+  if(!from){ showToast('❌ 시작 날짜를 선택하세요'); return null; }
+  if(!to) to = from; // to 없으면 하루만
+  if(from > to){ showToast('❌ 시작 날짜가 종료 날짜보다 늦어요'); return null; }
+  return {from:from, to:to};
+}
+
 function previewSalesDel(){
-  var date = document.getElementById('sales-del-date').value;
-  if(!date){ showToast('❌ 날짜를 선택하세요'); return; }
-  var rows = D.salesData.filter(function(s){ return s.date===date && !s.cancelled; });
+  var range = getDelRange(); if(!range) return;
+  var rows = D.salesData.filter(function(s){ return s.date>=range.from && s.date<=range.to && !s.cancelled; });
   var el = document.getElementById('sales-del-preview');
   if(!rows.length){
-    el.innerHTML = '<div style="font-size:12px;color:var(--text3);text-align:center;padding:8px">해당 날짜 판매 데이터 없음</div>';
+    el.innerHTML = '<div style="font-size:12px;color:var(--text3);text-align:center;padding:8px">해당 기간 판매 데이터 없음</div>';
     return;
   }
-  // 제품별 합산
   var pm = {};
   rows.forEach(function(s){
     var p = gp(s.productId); if(!p) return;
-    pm[p.id] = pm[p.id] || {name:p.name, qty:0, amt:0, price:p.sellPrice};
+    pm[p.id] = pm[p.id] || {name:p.name, qty:0, amt:0};
     pm[p.id].qty += s.qty;
     pm[p.id].amt += s.qty * p.sellPrice;
   });
-  var totalQty=0, totalAmt=0;
-  var html = '';
+  var totalQty=0, totalAmt=0, html='';
+  // 기간 표시
+  var rangeLabel = range.from===range.to ? range.from : range.from+' ~ '+range.to;
+  html += '<div style="font-size:11px;color:var(--text3);margin-bottom:8px">'+rangeLabel+' · 총 '+rows.length+'건</div>';
   Object.values(pm).forEach(function(item){
     totalQty += item.qty; totalAmt += item.amt;
     html += '<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid var(--border)">';
@@ -1849,25 +1870,21 @@ function previewSalesDel(){
   el.innerHTML = html;
 }
 
-// 날짜별 삭제 + 재고 원복
+// 기간 삭제 + 재고 원복
 function confirmSalesDel(){
-  var date = document.getElementById('sales-del-date').value;
-  if(!date){ showToast('❌ 날짜를 선택하세요'); return; }
-  var rows = D.salesData.filter(function(s){ return s.date===date && !s.cancelled; });
+  var range = getDelRange(); if(!range) return;
+  var rows = D.salesData.filter(function(s){ return s.date>=range.from && s.date<=range.to && !s.cancelled; });
   if(!rows.length){ showToast('❌ 삭제할 데이터가 없어요'); return; }
-  if(!confirm(date+' 판매 데이터 '+rows.length+'건을 삭제하고 재고를 원복할까요?')) return;
-
-  // 재고 원복: 제품별 수량 집계
+  var rangeLabel = range.from===range.to ? range.from : range.from+' ~ '+range.to;
+  if(!confirm(rangeLabel+' 판매 데이터 '+rows.length+'건을 삭제하고 재고를 원복할까요?')) return;
   var qtyMap = {};
   rows.forEach(function(s){
     qtyMap[s.productId] = (qtyMap[s.productId]||0) + s.qty;
   });
   Object.keys(qtyMap).forEach(function(pid){
-    applyInventoryChange(pid, qtyMap[pid], date+' 판매삭제 재고원복');
+    applyInventoryChange(pid, qtyMap[pid], rangeLabel+' 판매삭제 재고원복');
   });
-
-  // 데이터 삭제
-  D.salesData = D.salesData.filter(function(s){ return s.date!==date; });
+  D.salesData = D.salesData.filter(function(s){ return !(s.date>=range.from && s.date<=range.to); });
   save();
   closeModal('sales-edit-modal');
   document.getElementById('sales-del-preview').innerHTML = '';
@@ -2033,37 +2050,38 @@ function fetchTodaySales(isAuto){
 
     if(colNum<0){ showToast('❌ 수집 데이터에 컬럼 필드 없음'); return; }
 
-    // 기존 txId Set
-    var existingTxIds = {};
-    D.salesData.forEach(function(s){ if(s.txId) existingTxIds[s.txId]=true; });
+    // 날짜+시간초+상품명 기준 중복키 Set
+    var existingKeys = {};
+    D.salesData.forEach(function(s){ if(s.dupKey) existingKeys[s.dupKey]=true; });
 
     var added=0, dup=0, qtyMap={};
     val.rows.forEach(function(row){
       var dateRaw  = String(row[colDate]||'').trim();
       var itemName = String(row[colItem]||'').trim();
       var colVal   = String(row[colNum] ||'').trim();
-      var state    = colState>=0 ? String(row[colState]||'').trim() : '구매';
+      var state    = colState>=0 ? String(row[colState]||'').trim() : '';
       var txId     = colTxId>=0  ? String(row[colTxId] ||'').trim() : '';
       var amt      = colAmt>=0   ? parseFloat(row[colAmt])||0 : 0;
 
       if(!dateRaw||!colVal) return;
       // 취소된 건만 제외
       if(state && (state==='취소' || state==='취소완료' || state==='환불')) return;
-      if(txId && existingTxIds[txId]){ dup++; return; }
-      if(txId) existingTxIds[txId]=true;
+
+      // 날짜+시간초+상품명 중복 체크
+      var dt = dateRaw.length>=19 ? dateRaw.slice(0,19) : dateRaw;
+      var dupKey = dt + '|' + itemName.trim();
+      if(existingKeys[dupKey]){ dup++; return; }
+      existingKeys[dupKey] = true;
 
       var dateStr = dateRaw.length>=10 ? dateRaw.slice(0,10) : dateRaw;
-      // 시간 추출 (HH:MM:SS)
-      var hour = -1;
-      if(dateRaw.length>=13) hour = parseInt(dateRaw.slice(11,13));
+      var hour = dateRaw.length>=13 ? parseInt(dateRaw.slice(11,13)) : -1;
 
       var prod = findProductByColumn(colVal);
-      console.log('컬럼매칭 시도:', colVal, '→', prod ? prod.name : '매칭실패', '등록컬럼수:', D.products.length);
       if(!prod) return;
 
       D.salesData.push({
         id: Date.now().toString()+Math.random(),
-        txId: txId, date: dateStr, hour: hour,
+        txId: txId, dupKey: dupKey, date: dateStr, hour: hour,
         productId: prod.id, qty: 1, amt: amt
       });
       qtyMap[prod.id] = (qtyMap[prod.id]||0)+1;
