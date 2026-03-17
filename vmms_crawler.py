@@ -1,18 +1,23 @@
 """
-VMMS 거래내역 크롤러 (GitHub Actions용)
+VMMS 거래내역 크롤러 (GitHub Actions용) - 개인화 버전
+- Firebase에 저장된 유저별 VMMS 계정으로 크롤링
+- 수집 데이터를 users/{uid}/crawledSales/{날짜} 에 저장
+- VMMS 계정 없는 유저는 환경변수 계정 사용 (기존 방식)
 """
 
 import asyncio
 import json
 import os
+import base64
 from datetime import datetime
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeout
 import firebase_admin
 from firebase_admin import credentials, db as rtdb
 
 # ── 설정 ──────────────────────────────────────────────────────────────────────
-ID = os.environ.get("VMMS_ID", "")
-PW = os.environ.get("VMMS_PW", "")
+# 기본 계정 (환경변수) - VMMS 계정 미등록 유저용
+DEFAULT_ID = os.environ.get("VMMS_ID", "")
+DEFAULT_PW = os.environ.get("VMMS_PW", "")
 DATABASE_URL = "https://vending-manager-2d64e-default-rtdb.asia-southeast1.firebasedatabase.app"
 
 def init_firebase():
@@ -28,6 +33,29 @@ def init_firebase():
         raise Exception("Firebase 키 없음")
     firebase_admin.initialize_app(cred, {'databaseURL': DATABASE_URL})
 
+def get_all_user_vmms():
+    """Firebase에서 VMMS 계정 등록한 유저 목록 가져오기"""
+    users = []
+    try:
+        users_ref = rtdb.reference('users')
+        snap = users_ref.get()
+        if not snap:
+            return users
+        for uid, data in snap.items():
+            if isinstance(data, dict) and 'vmms' in data:
+                vmms = data['vmms']
+                if vmms.get('id') and vmms.get('pw'):
+                    try:
+                        vmms_id = base64.b64decode(vmms['id']).decode('utf-8')
+                        vmms_pw = base64.b64decode(vmms['pw']).decode('utf-8')
+                        users.append({'uid': uid, 'id': vmms_id, 'pw': vmms_pw})
+                        print(f"  유저 {uid[:8]}... VMMS 계정 발견")
+                    except Exception as e:
+                        print(f"  유저 {uid[:8]}... VMMS 계정 디코딩 실패: {e}")
+    except Exception as e:
+        print(f"  유저 목록 조회 실패: {e}")
+    return users
+
 async def get_table_data(page):
     rows = await page.locator(
         'xpath=/html/body/div[4]/div/div[5]/div/div/div/div/div/div[1]/table//tbody//tr'
@@ -41,34 +69,28 @@ async def get_table_data(page):
     return data
 
 async def close_popup(page):
-    """광고 팝업 닫기 - 여러 방법 시도"""
     try:
-        # 방법 1: "닫기" 텍스트 버튼
         btn = page.locator('text=닫기').first
         if await btn.is_visible(timeout=3000):
             await btn.click()
-            print("  팝업 닫기 완료 (닫기 버튼)")
+            print("  팝업 닫기 완료")
             await page.wait_for_timeout(500)
             return
     except Exception:
         pass
     try:
-        # 방법 2: X 버튼 (팝업 상단 닫기)
         btn = page.locator('.modal-close, .popup-close, [class*="close"]').first
         if await btn.is_visible(timeout=2000):
             await btn.click()
-            print("  팝업 닫기 완료 (X 버튼)")
             await page.wait_for_timeout(500)
-            return
     except Exception:
         pass
-    # 팝업 없으면 그냥 통과
-    print("  팝업 없음 (통과)")
 
-async def crawl_today():
+async def crawl_for_user(vmms_id, vmms_pw, save_path):
+    """특정 VMMS 계정으로 크롤링 후 save_path에 저장"""
     today = datetime.now().strftime("%Y-%m-%d")
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[{now_str}] 크롤링 시작 ({today})...")
+    print(f"  크롤링 시작 (계정: {vmms_id[:3]}***)")
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(
@@ -83,28 +105,20 @@ async def crawl_today():
         page.set_default_timeout(60000)
 
         try:
-            # ── 로그인 ──────────────────────────────────────────────────────
-            print("  로그인 페이지 접속...")
             await page.goto("https://vmms.ubcn.co.kr/login", wait_until="domcontentloaded")
             await page.wait_for_timeout(3000)
 
             # 디버깅용 스크린샷
             await page.screenshot(path="login_page.png")
             html_preview = await page.content()
-            print(f"  페이지 HTML 일부: {html_preview[:500]}")
+            print(f"  페이지 HTML 일부: {html_preview[:300]}")
 
-            print("  아이디 입력...")
-            await page.locator('#id').fill(ID)
+            await page.locator('#id').fill(vmms_id)
             await page.wait_for_timeout(500)
-
-            print("  비밀번호 입력...")
-            await page.locator('#pass').fill(PW)
+            await page.locator('#pass').fill(vmms_pw)
             await page.wait_for_timeout(500)
-
-            print("  로그인 버튼 클릭...")
             await page.locator('#loginBtn').click()
 
-            # 로그인 완료 대기 (URL 변경 또는 networkidle)
             try:
                 await page.wait_for_url("**/main**", timeout=15000)
             except Exception:
@@ -112,40 +126,27 @@ async def crawl_today():
             await page.wait_for_timeout(2000)
             print(f"  로그인 완료. URL: {page.url}")
 
-            # ── 광고 팝업 닫기 ───────────────────────────────────────────────
             await close_popup(page)
 
-            # ── 거래내역 메뉴 ────────────────────────────────────────────────
-            print("  머신기 매출정보 메뉴 클릭...")
             await page.locator('xpath=/html/body/div[2]/div[1]/div/ul/li[3]/a').click()
             await page.wait_for_timeout(1000)
-
-            print("  거래내역 하위메뉴 클릭...")
             await page.locator('xpath=/html/body/div[2]/div[1]/div/ul/li[3]/ul/li[1]/a').click()
             await page.wait_for_load_state("networkidle")
             await page.wait_for_timeout(2000)
-
-            # 거래내역 페이지에서도 팝업 있을 수 있음
             await close_popup(page)
 
-            # ── 오늘 날짜 조회 ───────────────────────────────────────────────
-            print("  오늘 버튼 클릭...")
             await page.locator('xpath=/html/body/div[4]/div/div[4]/div/div/div/div/form/div/div[2]/div/div[1]/div[3]/div[4]/div/button[1]').click()
             await page.wait_for_timeout(1000)
-
-            print("  조회하기 클릭...")
             await page.locator('xpath=/html/body/div[4]/div/div[4]/div/div/div/div/form/div/div[2]/div/div[2]/button').click()
             await page.wait_for_load_state("networkidle")
             await page.wait_for_timeout(2000)
 
-            # ── 헤더 수집 ────────────────────────────────────────────────────
             header_cells = await page.locator(
                 'xpath=/html/body/div[4]/div/div[5]/div/div/div/div/div/div[1]/table//thead//th'
             ).all()
             headers = [(await c.inner_text()).strip() for c in header_cells]
             print(f"  헤더: {headers}")
 
-            # ── 전체 페이지 데이터 수집 ──────────────────────────────────────
             all_rows = []
             all_rows.extend(await get_table_data(page))
             print(f"  1페이지: {len(all_rows)}건")
@@ -169,8 +170,8 @@ async def crawl_today():
 
             print(f"  총 {len(all_rows)}건 수집 완료")
 
-            # ── Firebase 저장 ─────────────────────────────────────────────────
-            ref = rtdb.reference(f'vendingApp/crawledSales/{today}')
+            # Firebase 저장 (개인 경로)
+            ref = rtdb.reference(f'{save_path}/{today}')
             ref.set({
                 'date': today,
                 'updated_at': now_str,
@@ -178,14 +179,13 @@ async def crawl_today():
                 'headers': headers,
                 'rows': all_rows
             })
-            print(f"  Firebase 저장 완료 ✅")
+            print(f"  Firebase 저장 완료 ({save_path}/{today}) ✅")
             return len(all_rows)
 
         except Exception as e:
             print(f"  오류: {e}")
             try:
                 await page.screenshot(path="error_screenshot.png")
-                print("  오류 스크린샷 저장됨")
             except:
                 pass
             raise
@@ -195,8 +195,35 @@ async def crawl_today():
 
 def main():
     init_firebase()
-    count = asyncio.run(crawl_today())
-    print(f"완료: {count}건")
+    today = datetime.now().strftime("%Y-%m-%d")
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[{now_str}] VMMS 개인화 크롤러 시작")
+
+    # Firebase에서 VMMS 계정 등록한 유저 목록
+    users = get_all_user_vmms()
+
+    if users:
+        # 유저별 개인 계정으로 크롤링
+        for user in users:
+            print(f"\n유저 {user['uid'][:8]}... 크롤링 시작")
+            save_path = f"users/{user['uid']}/crawledSales"
+            try:
+                count = asyncio.run(crawl_for_user(user['id'], user['pw'], save_path))
+                print(f"  완료: {count}건")
+            except Exception as e:
+                print(f"  실패: {e}")
+    else:
+        # 등록된 VMMS 계정 없음 → 환경변수 기본 계정 사용 (공용 경로)
+        print("\nVMMS 개인 계정 없음 → 기본 계정 사용")
+        if DEFAULT_ID and DEFAULT_PW:
+            save_path = "vendingApp/crawledSales"
+            try:
+                count = asyncio.run(crawl_for_user(DEFAULT_ID, DEFAULT_PW, save_path))
+                print(f"  완료: {count}건")
+            except Exception as e:
+                print(f"  실패: {e}")
+        else:
+            print("  기본 VMMS 계정도 없음. 환경변수 VMMS_ID, VMMS_PW를 설정하거나 앱에서 VMMS 계정을 등록해주세요.")
 
 
 if __name__ == "__main__":
