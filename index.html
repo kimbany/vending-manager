@@ -248,8 +248,15 @@ input[type=date]{color-scheme:dark;}
 <div id="app" style="display:none">
   <div id="header">
     <span style="font-size:22px">🥤</span>
-    <div style="flex:1"><div class="h-title">자판기 관리</div><div class="h-sub" id="header-user">Vending Manager</div></div>
-    <button onclick="doLogout()" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:5px 10px;color:var(--text2);font-size:11px;cursor:pointer;font-family:inherit">로그아웃</button>
+    <div style="flex:1;min-width:0">
+      <div class="h-title">자판기 관리</div>
+      <div class="h-sub" id="header-user">Vending Manager</div>
+    </div>
+    <!-- 자판기 선택 드롭다운 -->
+    <select id="machine-select" onchange="onMachineSelect()" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:5px 8px;color:var(--gold);font-size:11px;font-weight:700;font-family:inherit;max-width:100px;display:none">
+      <option value="">전체</option>
+    </select>
+    <button onclick="doLogout()" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:5px 8px;color:var(--text2);font-size:11px;cursor:pointer;font-family:inherit;margin-left:6px;flex-shrink:0">로그아웃</button>
   </div>
 
   <div id="content">
@@ -363,43 +370,54 @@ input[type=date]{color-scheme:dark;}
     </div>
 
     <!-- 자판기 -->
+    <!-- 자판기 + 제품등록 통합 탭 -->
     <div class="tab" id="tab-machine">
-      <div style="margin-bottom:14px"><div style="font-size:16px;font-weight:700;margin-bottom:3px">🏪 자판기 현황</div><div style="font-size:12px;color:var(--text2)">컬럼별 제품 배치 현황</div></div>
-      <div class="vmw" id="vm-grid"></div>
-      <div class="card" style="margin-top:14px">
-        <div class="ch"><div class="ca" style="background:var(--blue)"></div><div><div class="ct">컬럼 배치 현황</div><div style="font-size:11px;color:var(--text3);margin-top:2px">제품 눌러서 상세 보기</div></div></div>
-        <div class="cb" id="vm-list"></div>
+      <!-- 서브탭 -->
+      <div style="display:flex;background:var(--bg3);border-radius:10px;padding:3px;margin-bottom:14px;gap:3px">
+        <button id="vm-sub-status" onclick="switchVmSub('status')" style="flex:1;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;background:var(--gold);color:#1a1208;font-family:inherit">🏪 자판기 현황</button>
+        <button id="vm-sub-products" onclick="switchVmSub('products')" style="flex:1;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--text2);font-family:inherit">🏷️ 제품 등록</button>
+      </div>
+
+      <!-- 자판기 현황 서브패널 -->
+      <div id="vm-panel-status">
+        <div class="vmw" id="vm-grid"></div>
+        <div class="card" style="margin-top:14px">
+          <div class="ch"><div class="ca" style="background:var(--blue)"></div><div><div class="ct">컬럼 배치 현황</div><div style="font-size:11px;color:var(--text3);margin-top:2px">제품 눌러서 상세 보기</div></div></div>
+          <div class="cb" id="vm-list"></div>
+        </div>
+      </div>
+
+      <!-- 제품 등록 서브패널 -->
+      <div id="vm-panel-products" style="display:none">
+        <div style="display:flex;gap:8px;margin-bottom:16px">
+          <button class="btn-p" style="margin-bottom:0;flex:1" onclick="openProductModal()">➕ 제품 등록</button>
+          <button class="btn-p" style="margin-bottom:0;width:80px;background:var(--bg3);color:var(--text2)" id="edit-mode-btn" onclick="toggleEditMode()">✏️ 편집</button>
+        </div>
+        <button class="btn-p btn-b" style="margin-bottom:16px" onclick="openModal('bulk-modal')">📋 일괄 등록 (CSV)</button>
+        <div id="edit-toolbar" style="display:none;background:var(--bg3);border-radius:10px;padding:10px 14px;margin-bottom:12px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600">
+              <input type="checkbox" id="select-all-cb" onchange="toggleSelectAll(this.checked)" style="width:18px;height:18px;accent-color:var(--gold)"/>
+              전체 선택
+            </label>
+            <span id="selected-count" style="font-size:12px;color:var(--text2)">0개 선택</span>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="btn-sm" style="flex:1;background:#1a2a3a;color:var(--blue)" onclick="downloadSelectedCSV()">⬇️ 선택 다운로드</button>
+            <button class="btn-sm" style="flex:1;background:#1a3a2a;color:var(--green)" onclick="document.getElementById('bulk-edit-file').click()">⬆️ 수정 업로드</button>
+            <button class="btn-sm" style="background:#3a1a1a;color:var(--red)" onclick="deleteSelected()">🗑️ 삭제</button>
+          </div>
+          <input type="file" id="bulk-edit-file" accept=".csv" style="display:none" onchange="handleBulkEditCSV(this)"/>
+        </div>
+        <div class="card">
+          <div class="ch"><div class="ca" style="background:var(--gold)"></div><div><div class="ct" id="prod-title">등록 제품</div></div></div>
+          <div class="cb" id="prod-list"></div>
+        </div>
       </div>
     </div>
 
-    <!-- 제품등록 -->
-    <div class="tab" id="tab-products">
-      <div style="display:flex;gap:8px;margin-bottom:16px">
-        <button class="btn-p" style="margin-bottom:0;flex:1" onclick="openProductModal()">➕ 제품 등록</button>
-        <button class="btn-p" style="margin-bottom:0;width:80px;background:var(--bg3);color:var(--text2)" id="edit-mode-btn" onclick="toggleEditMode()">✏️ 편집</button>
-      </div>
-      <button class="btn-p btn-b" style="margin-bottom:16px" onclick="openModal('bulk-modal')">📋 일괄 등록 (CSV)</button>
-      <!-- 편집 모드 툴바 -->
-      <div id="edit-toolbar" style="display:none;background:var(--bg3);border-radius:10px;padding:10px 14px;margin-bottom:12px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600">
-            <input type="checkbox" id="select-all-cb" onchange="toggleSelectAll(this.checked)" style="width:18px;height:18px;accent-color:var(--gold)"/>
-            전체 선택
-          </label>
-          <span id="selected-count" style="font-size:12px;color:var(--text2)">0개 선택</span>
-        </div>
-        <div style="display:flex;gap:6px">
-          <button class="btn-sm" style="flex:1;background:#1a2a3a;color:var(--blue)" onclick="downloadSelectedCSV()">⬇️ 선택 다운로드</button>
-          <button class="btn-sm" style="flex:1;background:#1a3a2a;color:var(--green)" onclick="document.getElementById('bulk-edit-file').click()">⬆️ 수정 업로드</button>
-          <button class="btn-sm" style="background:#3a1a1a;color:var(--red)" onclick="deleteSelected()">🗑️ 삭제</button>
-        </div>
-        <input type="file" id="bulk-edit-file" accept=".csv" style="display:none" onchange="handleBulkEditCSV(this)"/>
-      </div>
-      <div class="card">
-        <div class="ch"><div class="ca" style="background:var(--gold)"></div><div><div class="ct" id="prod-title">등록 제품</div></div></div>
-        <div class="cb" id="prod-list"></div>
-      </div>
-    </div>
+    <!-- tab-products는 하위호환용 빈 탭 유지 -->
+    <div class="tab" id="tab-products" style="display:none!important"></div>
 
     <!-- 설정 -->
     <div class="tab" id="tab-settings">
@@ -412,12 +430,12 @@ input[type=date]{color-scheme:dark;}
 
       <!-- 회원정보 패널 -->
       <div id="set-panel-profile">
+        <!-- 요약 카드 -->
         <div class="card" style="margin-bottom:12px">
           <div class="ch"><div class="ca" style="background:var(--gold)"></div><div><div class="ct">내 정보</div></div></div>
           <div class="cb" id="profile-info"></div>
         </div>
-        <button class="btn-p" style="margin-bottom:8px" onclick="openModal('edit-profile-modal')">✏️ 회원정보 수정</button>
-        <button class="btn-p" style="margin-bottom:0;background:var(--bg3);color:var(--text2)" onclick="openModal('change-pw-modal')">🔑 비밀번호 변경</button>
+        <button class="btn-p" onclick="openEditProfileModal()">✏️ 회원정보 수정 / 비밀번호 변경</button>
       </div>
 
       <!-- 자판기 관리 패널 -->
@@ -460,49 +478,66 @@ input[type=date]{color-scheme:dark;}
     <button class="nav-btn" onclick="switchTab('machine',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><circle cx="15" cy="9" r=".5" fill="currentColor"/><circle cx="15" cy="12" r=".5" fill="currentColor"/><circle cx="15" cy="15" r=".5" fill="currentColor"/></svg><span>자판기</span>
     </button>
-    <button class="nav-btn" onclick="switchTab('products',this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r=".5" fill="currentColor"/></svg><span>제품등록</span>
-    </button>
+
     <button class="nav-btn" onclick="switchTab('settings',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span>설정</span>
     </button>
   </nav>
 </div>
 
-<!-- 회원정보 수정 모달 -->
+<!-- 회원정보 수정/비밀번호변경 통합 모달 -->
 <div class="modal-bg" id="edit-profile-modal">
   <div class="modal">
-    <div class="mh"><div class="mt">✏️ 회원정보 수정</div><button class="mc" onclick="closeModal('edit-profile-modal')">✕</button></div>
+    <div class="mh"><div class="mt" id="ep-modal-title">👤 내 정보</div><button class="mc" onclick="closeEditProfileModal()">✕</button></div>
+
+    <!-- 비밀번호 잠금 -->
     <div id="edit-profile-lock">
       <div style="font-size:13px;color:var(--text2);margin-bottom:14px">보안을 위해 비밀번호를 먼저 입력해주세요.</div>
-      <div class="fr"><label class="lbl">현재 비밀번호</label><input type="password" id="ep-lock-pw" placeholder="로그인 비밀번호"/></div>
+      <div class="fr"><label class="lbl">현재 비밀번호</label><input type="password" id="ep-lock-pw" placeholder="로그인 비밀번호" onkeydown="if(event.key==='Enter')unlockEditProfile()"/></div>
       <button class="btn-p" style="margin-bottom:0" onclick="unlockEditProfile()">확인</button>
       <div id="ep-lock-msg" style="font-size:12px;color:var(--red);margin-top:8px;text-align:center"></div>
     </div>
-    <div id="edit-profile-form" style="display:none">
-      <div class="fr"><label class="lbl">이메일</label><input type="email" id="ep-email" placeholder="이메일"/></div>
-      <div class="fr">
-        <label class="lbl">연락처</label>
-        <input type="tel" id="ep-phone" placeholder="010-1234-5678" oninput="formatPhone(this)" maxlength="13"/>
+
+    <!-- 잠금 해제 후 본문 -->
+    <div id="edit-profile-unlocked" style="display:none">
+      <!-- 서브탭 -->
+      <div style="display:flex;background:var(--bg3);border-radius:8px;padding:3px;margin-bottom:16px;gap:3px">
+        <button id="ep-tab-info" onclick="switchEpTab('info')" style="flex:1;border:none;border-radius:6px;padding:8px;font-size:12px;font-weight:700;cursor:pointer;background:var(--gold);color:#1a1208;font-family:inherit">내 정보</button>
+        <button id="ep-tab-edit" onclick="switchEpTab('edit')" style="flex:1;border:none;border-radius:6px;padding:8px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--text2);font-family:inherit">정보 수정</button>
+        <button id="ep-tab-pw" onclick="switchEpTab('pw')" style="flex:1;border:none;border-radius:6px;padding:8px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--text2);font-family:inherit">비밀번호</button>
       </div>
-      <button class="btn-p" style="margin-bottom:0" onclick="saveProfile()">저장</button>
-      <div id="ep-msg" style="font-size:12px;margin-top:8px;text-align:center"></div>
+
+      <!-- 내 정보 보기 -->
+      <div id="ep-panel-info" id="ep-panel-info">
+        <div id="ep-detail-info"></div>
+      </div>
+
+      <!-- 정보 수정 -->
+      <div id="ep-panel-edit" style="display:none">
+        <div class="fr"><label class="lbl">이메일</label><input type="email" id="ep-email" placeholder="이메일"/></div>
+        <div class="fr"><label class="lbl">연락처</label><input type="tel" id="ep-phone" placeholder="010-1234-5678" oninput="formatPhone(this)" maxlength="13"/></div>
+        <div style="margin-bottom:14px">
+          <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">생년월일</label>
+          <div style="display:flex;gap:6px" id="ep-birth-selects"></div>
+        </div>
+        <button class="btn-p" style="margin-bottom:0" onclick="saveProfile()">저장</button>
+        <div id="ep-msg" style="font-size:12px;margin-top:8px;text-align:center"></div>
+      </div>
+
+      <!-- 비밀번호 변경 -->
+      <div id="ep-panel-pw" style="display:none">
+        <div class="fr"><label class="lbl">새 비밀번호 <span style="color:var(--text3);font-weight:400;font-size:11px">(영문+숫자 8자 이상)</span></label><input type="password" id="cp-new" oninput="checkNewPw()"/></div>
+        <div id="cp-strength" style="font-size:11px;margin:-8px 0 10px;padding:0 2px"></div>
+        <div class="fr"><label class="lbl">새 비밀번호 확인</label><input type="password" id="cp-new2"/></div>
+        <button class="btn-p" style="margin-bottom:0" onclick="doChangePw()">변경</button>
+        <div id="cp-msg" style="font-size:12px;margin-top:8px;text-align:center"></div>
+      </div>
     </div>
   </div>
 </div>
 
-<!-- 비밀번호 변경 모달 -->
-<div class="modal-bg" id="change-pw-modal">
-  <div class="modal">
-    <div class="mh"><div class="mt">🔑 비밀번호 변경</div><button class="mc" onclick="closeModal('change-pw-modal')">✕</button></div>
-    <div class="fr"><label class="lbl">현재 비밀번호</label><input type="password" id="cp-old"/></div>
-    <div class="fr"><label class="lbl">새 비밀번호 <span style="color:var(--text3);font-weight:400;font-size:11px">(영문+숫자 8자 이상)</span></label><input type="password" id="cp-new" oninput="checkNewPw()"/></div>
-    <div id="cp-strength" style="font-size:11px;margin:-8px 0 10px;padding:0 2px"></div>
-    <div class="fr"><label class="lbl">새 비밀번호 확인</label><input type="password" id="cp-new2"/></div>
-    <button class="btn-p" style="margin-bottom:0" onclick="doChangePw()">변경</button>
-    <div id="cp-msg" style="font-size:12px;margin-top:8px;text-align:center"></div>
-  </div>
-</div>
+<!-- change-pw-modal 하위호환 -->
+<div class="modal-bg" id="change-pw-modal" style="display:none!important"></div>
 
 <!-- 자판기 추가 모달 -->
 <div class="modal-bg" id="add-machine-modal">
@@ -1022,7 +1057,8 @@ function startApp(){
       Notification.requestPermission();
     }
     checkLowStockNotify();
-    checkMigration(); // 기존 데이터 이전 체크
+    checkMigration();
+    loadMachineDropdown(); // 자판기 드롭다운 로드
   }, 1500);
 }
 
@@ -1121,24 +1157,50 @@ function switchSettingsSub(sub){
 }
 
 // ─── 회원 정보 ────────────────────────────────────────────────────────────────
+// ─── 회원정보 렌더 (요약 - 설정 첫화면) ────────────────────────────────────
 function renderProfileInfo(){
   if(!currentUser) return;
-  db.ref('users/'+currentUser.uid+'/profile').once('value').then(function(snap){
-    var p = snap.val() || {};
+  db.ref('users/'+currentUser.uid).once('value').then(function(snap){
+    var d = snap.val()||{};
+    var p = d.profile||{};
     var el = document.getElementById('profile-info');
     if(!el) return;
+    // 자판기 대수 계산
+    var machineCount = d.machines ? Object.keys(d.machines).length : 0;
     el.innerHTML = [
-      ['이름', p.name||'-'],
       ['아이디', p.username||'-'],
       ['이메일', p.email||currentUser.email||'-'],
-      ['연락처', p.phone||'-'],
-      ['생년월일', p.birth||'-'],
-      ['가입일', p.createdAt ? p.createdAt.slice(0,10) : '-']
+      ['가입일', p.createdAt ? p.createdAt.slice(0,10) : '-'],
+      ['자판기', machineCount+'대']
     ].map(function(row){
-      return '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">'+
+      return '<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px">'+
         '<span style="color:var(--text2)">'+row[0]+'</span>'+
-        '<span style="font-weight:600">'+row[1]+'</span></div>';
+        '<span style="font-weight:700;color:var(--text)">'+row[1]+'</span></div>';
     }).join('');
+  });
+}
+
+// ─── 회원정보 수정 모달 열기/닫기 ────────────────────────────────────────────
+function openEditProfileModal(){
+  document.getElementById('edit-profile-lock').style.display='block';
+  document.getElementById('edit-profile-unlocked').style.display='none';
+  document.getElementById('ep-lock-pw').value='';
+  document.getElementById('ep-lock-msg').textContent='';
+  openModal('edit-profile-modal');
+}
+
+function closeEditProfileModal(){
+  document.getElementById('ep-lock-pw').value='';
+  closeModal('edit-profile-modal');
+}
+
+function switchEpTab(tab){
+  ['info','edit','pw'].forEach(function(t){
+    document.getElementById('ep-panel-'+t).style.display = t===tab ? 'block' : 'none';
+    var btn = document.getElementById('ep-tab-'+t);
+    btn.style.background = t===tab ? 'var(--gold)' : 'transparent';
+    btn.style.color      = t===tab ? '#1a1208' : 'var(--text2)';
+    btn.style.fontWeight = t===tab ? '700' : '600';
   });
 }
 
@@ -1146,35 +1208,72 @@ function unlockEditProfile(){
   var pw = document.getElementById('ep-lock-pw').value;
   var msg = document.getElementById('ep-lock-msg');
   if(!pw){ msg.textContent='비밀번호를 입력하세요'; return; }
-  var email = currentUser.email;
-  var cred = firebase.auth.EmailAuthProvider.credential(email, pw);
+  var cred = firebase.auth.EmailAuthProvider.credential(currentUser.email, pw);
   currentUser.reauthenticateWithCredential(cred).then(function(){
     document.getElementById('edit-profile-lock').style.display='none';
-    document.getElementById('edit-profile-form').style.display='block';
-    // 현재 값 채우기
-    db.ref('users/'+currentUser.uid+'/profile').once('value').then(function(snap){
-      var p = snap.val()||{};
-      document.getElementById('ep-email').value = p.email||currentUser.email||'';
-      document.getElementById('ep-phone').value = p.phone||'';
-    });
-  }).catch(function(e){
-    msg.textContent = '비밀번호가 올바르지 않아요';
+    document.getElementById('edit-profile-unlocked').style.display='block';
+    switchEpTab('info');
+    loadProfileForEdit();
+  }).catch(function(){
+    msg.textContent='비밀번호가 올바르지 않아요';
   });
+}
+
+function loadProfileForEdit(){
+  db.ref('users/'+currentUser.uid+'/profile').once('value').then(function(snap){
+    var p = snap.val()||{};
+    document.getElementById('ep-email').value = p.email||currentUser.email||'';
+    document.getElementById('ep-phone').value = p.phone||'';
+    // 상세 정보 표시
+    var el = document.getElementById('ep-detail-info');
+    if(el) el.innerHTML = [
+      ['이름', p.name||'-'],
+      ['아이디', p.username||'-'],
+      ['이메일', p.email||currentUser.email||'-'],
+      ['연락처', p.phone||'-'],
+      ['생년월일', p.birth||'-'],
+      ['가입일', p.createdAt ? p.createdAt.slice(0,10) : '-']
+    ].map(function(row){
+      return '<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px">'+
+        '<span style="color:var(--text2)">'+row[0]+'</span>'+
+        '<span style="font-weight:600">'+row[1]+'</span></div>';
+    }).join('');
+    // 생년월일 드롭다운 초기화
+    initEpBirthSelects(p.birth||'');
+  });
+}
+
+function initEpBirthSelects(current){
+  var el = document.getElementById('ep-birth-selects');
+  if(!el) return;
+  var ss = 'style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 6px;color:var(--text);font-size:13px;font-family:inherit;"';
+  var parts = current ? current.split('-') : ['','',''];
+  var yOpts='<option value="">년</option>', mOpts='<option value="">월</option>', dOpts='<option value="">일</option>';
+  var thisYear=new Date().getFullYear();
+  for(var y=thisYear-80;y<=thisYear-14;y++) yOpts+='<option value="'+y+'"'+(parts[0]==y?' selected':'')+'>'+y+'</option>';
+  for(var m=1;m<=12;m++){var mv=(m<10?'0':'')+m; mOpts+='<option value="'+mv+'"'+(parts[1]==mv?' selected':'')+'>'+mv+'</option>';}
+  for(var d=1;d<=31;d++){var dv=(d<10?'0':'')+d; dOpts+='<option value="'+dv+'"'+(parts[2]==dv?' selected':'')+'>'+dv+'</option>';}
+  el.innerHTML='<select id="ep-birth-y" '+ss+'>'+yOpts+'</select><select id="ep-birth-m" '+ss+'>'+mOpts+'</select><select id="ep-birth-d" '+ss+'>'+dOpts+'</select>';
 }
 
 function saveProfile(){
   var email = document.getElementById('ep-email').value.trim();
   var phone = document.getElementById('ep-phone').value.trim();
-  var msg   = document.getElementById('ep-msg');
+  var y = document.getElementById('ep-birth-y') ? document.getElementById('ep-birth-y').value : '';
+  var m = document.getElementById('ep-birth-m') ? document.getElementById('ep-birth-m').value : '';
+  var d = document.getElementById('ep-birth-d') ? document.getElementById('ep-birth-d').value : '';
+  var birth = (y&&m&&d) ? y+'-'+m+'-'+d : '';
+  var msg = document.getElementById('ep-msg');
   if(!email){ msg.style.color='var(--red)'; msg.textContent='이메일을 입력하세요'; return; }
   msg.style.color='var(--text2)'; msg.textContent='저장 중...';
   var updates = {email:email, phone:phone};
+  if(birth) updates.birth = birth;
   var promises = [db.ref('users/'+currentUser.uid+'/profile').update(updates)];
   if(email !== currentUser.email) promises.push(currentUser.updateEmail(email));
   Promise.all(promises).then(function(){
     msg.style.color='var(--green)'; msg.textContent='✅ 저장 완료';
-    closeModal('edit-profile-modal');
     renderProfileInfo();
+    setTimeout(function(){ switchEpTab('info'); loadProfileForEdit(); }, 1000);
   }).catch(function(e){
     msg.style.color='var(--red)'; msg.textContent=e.message;
   });
@@ -1190,24 +1289,21 @@ function checkNewPw(){
 }
 
 function doChangePw(){
-  var old  = document.getElementById('cp-old').value;
-  var nw   = document.getElementById('cp-new').value;
-  var nw2  = document.getElementById('cp-new2').value;
-  var msg  = document.getElementById('cp-msg');
-  if(!old||!nw||!nw2){ msg.style.color='var(--red)'; msg.textContent='모두 입력해주세요'; return; }
+  var nw  = document.getElementById('cp-new').value;
+  var nw2 = document.getElementById('cp-new2').value;
+  var msg = document.getElementById('cp-msg');
+  if(!nw||!nw2){ msg.style.color='var(--red)'; msg.textContent='새 비밀번호를 입력하세요'; return; }
   if(nw!==nw2){ msg.style.color='var(--red)'; msg.textContent='새 비밀번호가 일치하지 않아요'; return; }
   if(!/[a-zA-Z]/.test(nw)||!/[0-9]/.test(nw)||nw.length<8){ msg.style.color='var(--red)'; msg.textContent='영문+숫자 8자 이상이어야 해요'; return; }
   msg.style.color='var(--text2)'; msg.textContent='변경 중...';
-  var cred = firebase.auth.EmailAuthProvider.credential(currentUser.email, old);
-  currentUser.reauthenticateWithCredential(cred).then(function(){
-    return currentUser.updatePassword(nw);
-  }).then(function(){
-    msg.style.color='var(--green)'; msg.textContent='✅ 비밀번호 변경 완료';
-    setTimeout(function(){ closeModal('change-pw-modal'); }, 1500);
+  currentUser.updatePassword(nw).then(function(){
+    msg.style.color='var(--green)'; msg.textContent='✅ 비밀번호 변경 완료!';
+    document.getElementById('cp-new').value='';
+    document.getElementById('cp-new2').value='';
+    document.getElementById('cp-strength').textContent='';
+    setTimeout(function(){ closeEditProfileModal(); }, 1500);
   }).catch(function(e){
-    msg.style.color='var(--red)';
-    if(e.code==='auth/wrong-password') msg.textContent='현재 비밀번호가 올바르지 않아요';
-    else msg.textContent=e.message;
+    msg.style.color='var(--red)'; msg.textContent=e.message;
   });
 }
 
@@ -1253,6 +1349,7 @@ function addMachine(){
     ['am-name','am-devno','am-start','am-end'].forEach(function(i){ document.getElementById(i).value=''; });
     showToast('✅ 자판기 추가 완료');
     renderMachinesList();
+    loadMachineDropdown();
   });
 }
 
@@ -1422,6 +1519,77 @@ function migrateOldData(){
 function dismissMigrate(){
   document.getElementById('migrate-banner').style.display = 'none';
   if(currentUser) localStorage.setItem('migrateDismissed_' + currentUser.uid, '1');
+}
+
+
+// ─── 자판기 서브탭 ─────────────────────────────────────────────────────────────
+function switchVmSub(sub){
+  var isStatus = sub === 'status';
+  document.getElementById('vm-panel-status').style.display   = isStatus ? 'block' : 'none';
+  document.getElementById('vm-panel-products').style.display = isStatus ? 'none'  : 'block';
+  document.getElementById('vm-sub-status').style.background   = isStatus ? 'var(--gold)' : 'transparent';
+  document.getElementById('vm-sub-status').style.color        = isStatus ? '#1a1208' : 'var(--text2)';
+  document.getElementById('vm-sub-status').style.fontWeight   = isStatus ? '700' : '600';
+  document.getElementById('vm-sub-products').style.background = isStatus ? 'transparent' : 'var(--gold)';
+  document.getElementById('vm-sub-products').style.color      = isStatus ? 'var(--text2)' : '#1a1208';
+  document.getElementById('vm-sub-products').style.fontWeight = isStatus ? '600' : '700';
+  if(isStatus) renderMachine();
+  else renderProds();
+}
+
+// ─── 자판기 드롭다운 + 다중 관리 ──────────────────────────────────────────────
+var currentMachineId = null; // null = 전체 (기존 단일 데이터)
+
+function loadMachineDropdown(){
+  if(!currentUser) return;
+  db.ref('users/'+currentUser.uid+'/machines').once('value').then(function(snap){
+    var sel = document.getElementById('machine-select');
+    if(!sel) return;
+    if(!snap.exists()||!snap.val()){
+      sel.style.display='none';
+      return;
+    }
+    var machines = [];
+    snap.forEach(function(child){
+      machines.push({id:child.key, name:child.val().name});
+    });
+    if(machines.length === 0){ sel.style.display='none'; return; }
+    sel.style.display='block';
+    sel.innerHTML = '<option value="">전체</option>' +
+      machines.map(function(m){
+        return '<option value="'+m.id+'">'+m.name+'</option>';
+      }).join('');
+    // 이전 선택 복원
+    if(currentMachineId) sel.value = currentMachineId;
+  });
+}
+
+function onMachineSelect(){
+  var sel = document.getElementById('machine-select');
+  currentMachineId = sel.value || null;
+  // 선택한 자판기에 맞는 데이터 로드
+  if(currentMachineId){
+    loadMachineData(currentMachineId);
+  } else {
+    // 전체(기존 appData) 로드
+    REF = db.ref('users/'+currentUser.uid+'/appData');
+    loadUserData();
+  }
+}
+
+function loadMachineData(machineId){
+  var machineREF = db.ref('users/'+currentUser.uid+'/machines/'+machineId+'/appData');
+  machineREF.once('value').then(function(snap){
+    var val = snap.val();
+    D.products      = (val && val.products)      || [];
+    D.inventory     = (val && val.inventory)     || [];
+    D.inventoryLogs = (val && val.inventoryLogs) || [];
+    D.salesData     = (val && val.salesData)     || [];
+    // 저장 경로 변경
+    REF = machineREF;
+    renderAll();
+    showToast('🏪 '+document.getElementById('machine-select').options[document.getElementById('machine-select').selectedIndex].text+' 데이터 로드');
+  });
 }
 
 // ─── 재고 서브탭 ──────────────────────────────────────────────────────────────
@@ -3101,7 +3269,8 @@ function switchTab(name,btn){
   document.getElementById('tab-'+name).classList.add('active');
   btn.classList.add('active');
   if(name==='settings') renderProfileInfo();
-  else resetVmmsLock(); // 설정 탭 벗어날 때 VMMS 잠금
+  else resetVmmsLock();
+  if(name==='machine') switchVmSub('status'); // 설정 탭 벗어날 때 VMMS 잠금
 }
 function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
