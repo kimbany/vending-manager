@@ -1267,6 +1267,141 @@ function renderAllMachineLowStock(){
 
 
 // ─── 설정 탭 ──────────────────────────────────────────────────────────────────
+
+// ─── 누락 함수 복구 ──────────────────────────────────────────────────────────
+
+function resetVmmsLock(){
+  var el = document.getElementById('vmms-lock-pw');
+  if(el) el.value = '';
+  var msg = document.getElementById('vmms-lock-msg');
+  if(msg) msg.textContent = '';
+  var locked = document.getElementById('vmms-locked');
+  var panel  = document.getElementById('vmms-panel');
+  if(locked) locked.style.display = 'block';
+  if(panel)  panel.style.display  = 'none';
+}
+
+function unlockVmms(){
+  var pw  = document.getElementById('vmms-lock-pw').value;
+  var msg = document.getElementById('vmms-lock-msg');
+  if(!pw){ msg.textContent='비밀번호를 입력하세요'; return; }
+  var cred = firebase.auth.EmailAuthProvider.credential(currentUser.email, pw);
+  currentUser.reauthenticateWithCredential(cred).then(function(){
+    document.getElementById('vmms-locked').style.display='none';
+    document.getElementById('vmms-panel').style.display='block';
+    renderVmmsInfo();
+  }).catch(function(){
+    msg.textContent='비밀번호가 올바르지 않아요';
+  });
+}
+
+function renderVmmsInfo(){
+  db.ref('users/'+currentUser.uid+'/vmms').once('value').then(function(snap){
+    var v = snap.val()||{};
+    var el = document.getElementById('vmms-info');
+    var hasData = v.id;
+    el.innerHTML = hasData
+      ? '<div style="padding:10px 0"><div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px"><span style="color:var(--text2)">아이디</span><span style="font-weight:600">'+atob(v.id||'')+'</span></div>'+
+        '<div style="display:flex;justify-content:space-between;padding:8px 0;font-size:13px"><span style="color:var(--text2)">비밀번호</span><span style="font-weight:600">••••••••</span></div></div>'
+      : '<div style="text-align:center;padding:16px;color:var(--text3);font-size:13px">VMMS 계정을 등록해주세요</div>';
+  });
+}
+
+function saveVmms(){
+  var id  = document.getElementById('ev-id').value.trim();
+  var pw  = document.getElementById('ev-pw').value;
+  var msg = document.getElementById('ev-msg');
+  if(!id||!pw){ msg.style.color='var(--red)'; msg.textContent='아이디와 비밀번호를 입력하세요'; return; }
+  db.ref('users/'+currentUser.uid+'/vmms').set({
+    id: btoa(id), pw: btoa(pw), updatedAt: new Date().toISOString()
+  }).then(function(){
+    msg.style.color='var(--green)'; msg.textContent='✅ 저장 완료';
+    setTimeout(function(){ closeModal('edit-vmms-modal'); renderVmmsInfo(); }, 1000);
+  }).catch(function(e){
+    msg.style.color='var(--red)'; msg.textContent=e.message;
+  });
+}
+
+function switchVmSub(sub){
+  var isStatus = sub === 'status';
+  document.getElementById('vm-panel-status').style.display   = isStatus ? 'block' : 'none';
+  document.getElementById('vm-panel-products').style.display = isStatus ? 'none'  : 'block';
+  var btnS = document.getElementById('vm-sub-status');
+  var btnP = document.getElementById('vm-sub-products');
+  btnS.style.background = isStatus ? 'var(--gold)' : 'transparent';
+  btnS.style.color      = isStatus ? '#1a1208' : 'var(--text2)';
+  btnS.style.fontWeight = isStatus ? '700' : '600';
+  btnP.style.background = isStatus ? 'transparent' : 'var(--gold)';
+  btnP.style.color      = isStatus ? 'var(--text2)' : '#1a1208';
+  btnP.style.fontWeight = isStatus ? '600' : '700';
+  if(isStatus) renderMachine();
+  else renderProds();
+}
+
+function checkMigration(){
+  if(!currentUser) return;
+  var dismissed = localStorage.getItem('migrateDismissed_' + currentUser.uid);
+  if(dismissed) return;
+  db.ref('users/'+currentUser.uid+'/appData').once('value').then(function(snap){
+    var val = snap.val();
+    if(!val || !val.products || !val.products.length) return;
+    db.ref('users/'+currentUser.uid+'/locations').once('value').then(function(msnap){
+      var sel = document.getElementById('migrate-target');
+      if(sel){
+        sel.innerHTML = '<option value="global">공통 데이터로 유지</option>';
+        if(msnap.exists()){
+          msnap.forEach(function(locSnap){
+            var loc=locSnap.val();
+            Object.keys(loc.machines||{}).forEach(function(mid){
+              var m=loc.machines[mid];
+              var opt=document.createElement('option');
+              opt.value=locSnap.key+'|'+mid;
+              opt.textContent='📍 '+loc.name+' · 🏪 '+m.name;
+              sel.appendChild(opt);
+            });
+          });
+        }
+      }
+      var banner = document.getElementById('migrate-banner');
+      if(banner) banner.style.display='block';
+    });
+  });
+}
+
+function migrateOldData(){
+  var sel = document.getElementById('migrate-target');
+  var targetVal = sel ? sel.value : 'global';
+  var targetLabel = sel ? sel.options[sel.selectedIndex].text : '공통';
+  if(!confirm(targetLabel+'로 이전할까요?')) return;
+  if(targetVal==='global'){
+    document.getElementById('migrate-banner').style.display='none';
+    localStorage.setItem('migrateDismissed_'+currentUser.uid,'1');
+    return;
+  }
+  var parts=targetVal.split('|'); var locId=parts[0], machineId=parts[1];
+  showToast('⏳ 이전 중...');
+  db.ref('users/'+currentUser.uid+'/appData').once('value').then(function(snap){
+    var val=snap.val();
+    if(!val||!val.products){showToast('❌ 이전할 데이터 없음'); return;}
+    var destPath=db.ref('users/'+currentUser.uid+'/locations/'+locId+'/machines/'+machineId+'/appData');
+    destPath.set(val).then(function(){
+      document.getElementById('migrate-banner').style.display='none';
+      localStorage.setItem('migrateDismissed_'+currentUser.uid,'1');
+      currentLocationId=locId; currentMachineId=machineId; REF=destPath;
+      D.products=val.products||[]; D.inventory=val.inventory||[];
+      D.inventoryLogs=val.inventoryLogs||[]; D.salesData=val.salesData||[];
+      showToast('✅ '+targetLabel+' 이전 완료!');
+      loadLocationDropdown(); renderAll();
+    });
+  });
+}
+
+function dismissMigrate(){
+  var banner=document.getElementById('migrate-banner');
+  if(banner) banner.style.display='none';
+  if(currentUser) localStorage.setItem('migrateDismissed_'+currentUser.uid,'1');
+}
+
 function switchSettingsSub(sub){
   ['profile','machines','vmms'].forEach(function(s){
     document.getElementById('set-panel-'+s).style.display = s===sub ? 'block' : 'none';
@@ -1571,7 +1706,7 @@ function addEmDevnoField(){
   var wrap=document.getElementById('em-devnos');
   var row=document.createElement('div');
   row.style='display:flex;gap:6px';
-  row.innerHTML='<input type="text" placeholder="단말기 번호" class="em-devno" style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-size:14px;font-family:inherit"/><button onclick="this.parentElement.remove()" style="background:rgba(224,88,88,.15);border:1px solid rgba(224,88,88,.3);border-radius:8px;padding:0 10px;color:var(--red);cursor:pointer">−</button>';
+  row.innerHTML='<input type="text" placeholder="단말기 번호" class="em-devno" style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-size:14px;font-family:inherit"/>'+'<button onclick="this.parentElement.remove()" style="background:rgba(224,88,88,.15);border:1px solid rgba(224,88,88,.3);border-radius:8px;padding:0 10px;color:var(--red);cursor:pointer">−</button>';
   wrap.appendChild(row);
 }
 
@@ -3653,4 +3788,4 @@ document.querySelectorAll('.modal-bg').forEach(function(bg){
 </script>
 </body>
 </html>
-<!-- updated -->
+<!-- v130237 -->
