@@ -3817,13 +3817,28 @@ function fetchTodaySales(isAuto){
   }).then(function(snap){
     var val = snap.val();
     if(btn){ btn.textContent='🔄 오늘 데이터 수집'; btn.disabled=false; }
-    if(!val || !val.rows || !val.rows.length){
-      if(!isAuto) showToast('📭 오늘 수집된 데이터가 없어요\n설정 > VMMS에서 계정을 등록해주세요');
+    if(!val){
+      if(!isAuto) showToast('📭 오늘('+today+') 수집 데이터 없음\n크롤러를 실행해주세요');
       return;
     }
+    // rows가 Firebase에서 객체로 변환된 경우 배열로 변환
+    var rows = val.rows;
+    if(rows && !Array.isArray(rows)){
+      rows = Object.keys(rows).sort(function(a,b){return parseInt(a)-parseInt(b);}).map(function(k){return rows[k];});
+    }
+    if(!rows || !rows.length){
+      if(!isAuto) showToast('📭 오늘 수집된 데이터 없음 (total:'+val.total_count+')');
+      return;
+    }
+    val.rows = rows; // 배열로 교체
 
     // 헤더 인덱스 찾기
     var headers = val.headers || [];
+    // headers도 객체로 변환됐으면 배열로
+    if(headers && !Array.isArray(headers)){
+      headers = Object.keys(headers).sort(function(a,b){return parseInt(a)-parseInt(b);}).map(function(k){return headers[k];});
+      val.headers = headers;
+    }
 
     var colDate    = headers.indexOf('거래일시');
     var colItem    = headers.indexOf('판매항목');
@@ -3865,78 +3880,144 @@ function fetchTodaySales(isAuto){
     var existingKeys = {};
     D.salesData.forEach(function(s){ if(s.dupKey) existingKeys[s.dupKey]=true; });
 
-    var added=0, dup=0, filtered=0, qtyMap={};
-    // 현재 선택 자판기 필터 정보 (동기처리)
-    var fetchMachineRef = currentMachineId ?
-      db.ref('users/'+currentUser.uid+'/machines/'+currentMachineId) : null;
+    var added=0, dup=0, filtered=0;
 
-    function doFetchProcess(machineInfo){
-      var filterName = machineInfo ? machineInfo.name : null;
-      var filterCode = machineInfo ? machineInfo.deviceNo : null;
+    // 모든 위치/자판기 로드 → 단말기번호 기준으로 행 분배
+    db.ref('users/'+currentUser.uid+'/locations').once('value').then(function(locSnap){
+      // 단말기번호 → {locId, machineId, products, inventory, inventoryLogs, salesData} 맵
+      var machineByCode = {}, machineByName = {};
+      var machineDataMap = {}; // key = locId+'|'+machineId
 
-      val.rows.forEach(function(row){
-        var dateRaw   = String(row[colDate]||'').trim();
-        var itemName  = String(row[colItem]||'').trim();
-        var colVal    = String(row[colNum] ||'').trim();
-        var state     = colState>=0 ? String(row[colState]||'').trim() : '';
-        var txId      = colTxId>=0  ? String(row[colTxId] ||'').trim() : '';
-        var amt       = colAmt>=0   ? parseFloat(row[colAmt])||0 : 0;
-        var rowMach   = colMachine>=0 ? String(row[colMachine]||'').trim() : '';
-        var rowCode   = colMachineCode>=0 ? String(row[colMachineCode]||'').trim() : '';
-
-        if(!dateRaw||!colVal) return;
-        if(state && (state==='취소' || state==='취소완료' || state==='환불')) return;
-
-        // 자판기 필터 (단말기명 또는 머신기코드 매칭)
-        if(filterName || filterCode){
-          var nameMatch = filterName && rowMach && rowMach === filterName;
-          var codeMatch = filterCode && rowCode && rowCode === filterCode;
-          if(!nameMatch && !codeMatch){ filtered++; return; }
-        }
-
-      // 날짜+시간초+상품명 중복 체크
-      var dt = dateRaw.length>=19 ? dateRaw.slice(0,19) : dateRaw;
-      var dupKey = dt + '|' + itemName.trim();
-      if(existingKeys[dupKey]){ dup++; return; }
-      existingKeys[dupKey] = true;
-
-      var dateStr = dateRaw.length>=10 ? dateRaw.slice(0,10) : dateRaw;
-      var hour = dateRaw.length>=13 ? parseInt(dateRaw.slice(11,13)) : -1;
-
-      var prod = findProductByColumn(colVal);
-      if(!prod) return;
-
-      D.salesData.push({
-        id: Date.now().toString()+Math.random(),
-        txId: txId, dupKey: dupKey, date: dateStr, hour: hour,
-        productId: prod.id, qty: 1, amt: amt
-      });
-      qtyMap[prod.id] = (qtyMap[prod.id]||0)+1;
-      added++;
-    });
-
-      if(added>0){
-        Object.keys(qtyMap).forEach(function(pid){
-          applyInventoryChange(pid, -qtyMap[pid], '자동수집 차감 '+today);
+      if(!locSnap.exists()){
+        // locations 없으면 현재 D에 직접 저장
+        doFetchToTarget(val.rows, null, D, function(){
+          save(); renderAll();
+          var msg = (isAuto?'🤖 자동수집':'✅ 수집')+' '+added+'건 반영';
+          if(dup>0) msg += ' · 중복 '+dup+'건 제외';
+          showToast(msg);
         });
-        save();
-        var msg = (isAuto?'🤖 자동수집':'✅ 수집')+' '+added+'건 반영';
-        if(dup>0) msg += ' · 중복 '+dup+'건 제외';
-        if(filtered>0) msg += ' · 타자판기 '+filtered+'건 제외';
-        showToast(msg);
-        localStorage.setItem('lastAutoCollect', today+' '+new Date().toTimeString().slice(0,5));
-        updateAutoCollectStatus();
-        renderAll();
-      } else {
-        if(!isAuto) showToast(dup>0 ? '이미 모두 반영된 데이터예요 ('+dup+'건 중복)' : '📭 새 데이터가 없어요');
+        return;
       }
-    } // end doFetchProcess
 
-    if(fetchMachineRef){
-      fetchMachineRef.once('value').then(function(ms){ doFetchProcess(ms.val()); });
-    } else {
-      doFetchProcess(null);
-    }
+      locSnap.forEach(function(locChild){
+        var loc = locChild.val();
+        Object.keys(loc.machines||{}).forEach(function(mid){
+          var m = loc.machines[mid];
+          var key = locChild.key+'|'+mid;
+          var devnos = Array.isArray(m.deviceNos)?m.deviceNos:(m.deviceNo?[m.deviceNo]:[]);
+          devnos.forEach(function(d){ machineByCode[d] = key; });
+          if(m.name) machineByName[m.name] = key;
+        });
+      });
+
+      // 행을 자판기별로 분류
+      var rowsByMachine = {}; // key = locId+'|'+machineId
+      val.rows.forEach(function(row){
+        var rowMach = colMachine>=0 ? String(row[colMachine]||'').trim() : '';
+        var rowCode = colMachineCode>=0 ? String(row[colMachineCode]||'').trim() : '';
+        var key = machineByCode[rowCode] || machineByName[rowMach] || (currentLocationId&&currentMachineId ? currentLocationId+'|'+currentMachineId : null);
+        if(!key) return;
+        if(!rowsByMachine[key]) rowsByMachine[key]=[];
+        rowsByMachine[key].push(row);
+      });
+
+      var keys = Object.keys(rowsByMachine);
+      if(!keys.length){
+        if(!isAuto) showToast('📭 등록된 자판기와 일치하는 데이터 없음
+단말기번호를 확인해주세요');
+        if(btn){ btn.textContent='🔄 오늘 데이터 수집'; btn.disabled=false; }
+        return;
+      }
+
+      // 자판기별 appData 로드 후 저장
+      var promises = keys.map(function(key){
+        var parts = key.split('|');
+        var locId=parts[0], machineId=parts[1];
+        var appRef = db.ref('users/'+currentUser.uid+'/locations/'+locId+'/machines/'+machineId+'/appData');
+        return appRef.once('value').then(function(snap){
+          var mData = snap.val()||{};
+          var mProds = mData.products||[], mInv = mData.inventory||[];
+          var mLogs = mData.inventoryLogs||[], mSales = mData.salesData||[];
+          var isCurrentMachine = (locId===currentLocationId && machineId===currentMachineId);
+
+          // 기존 중복키
+          var existingKeysM = {};
+          mSales.forEach(function(s){ if(s.dupKey) existingKeysM[s.dupKey]=true; });
+
+          var qtyMap = {};
+          var machineAdded = 0;
+
+          function findProd(colVal){
+            return mProds.find(function(p){
+              var cols=Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
+              return cols.some(function(c){
+                c=String(c).trim();
+                if(c===colVal) return true;
+                var rm=c.match(/^(\d+)~(\d+)$/);
+                if(rm){ var n=parseInt(colVal); return n>=parseInt(rm[1])&&n<=parseInt(rm[2]); }
+                return false;
+              });
+            });
+          }
+
+          (rowsByMachine[key]||[]).forEach(function(row){
+            var dateRaw = String(row[colDate]||'').trim();
+            var itemName = String(row[colItem]||'').trim();
+            var colVal = String(row[colNum]||'').trim();
+            var state = colState>=0 ? String(row[colState]||'').trim() : '';
+            var txId = colTxId>=0 ? String(row[colTxId]||'').trim() : '';
+            var amt = colAmt>=0 ? parseFloat(row[colAmt])||0 : 0;
+
+            if(!dateRaw||!colVal) return;
+            if(state&&(state==='취소'||state==='취소완료'||state==='환불')) return;
+
+            var dt = dateRaw.length>=19 ? dateRaw.slice(0,19) : dateRaw;
+            var dupKey = dt+'|'+itemName.trim();
+            if(existingKeysM[dupKey]){ dup++; return; }
+            existingKeysM[dupKey]=true;
+
+            var dateStr = dateRaw.length>=10 ? dateRaw.slice(0,10) : dateRaw;
+            var hour = dateRaw.length>=13 ? parseInt(dateRaw.slice(11,13)) : -1;
+            var prod = findProd(colVal);
+            if(!prod) return;
+
+            mSales.push({id:Date.now().toString()+Math.random(), txId:txId, dupKey:dupKey, date:dateStr, hour:hour, productId:prod.id, qty:1, amt:amt});
+            qtyMap[prod.id]=(qtyMap[prod.id]||0)+1;
+            machineAdded++;
+            added++;
+          });
+
+          // 재고 차감
+          Object.keys(qtyMap).forEach(function(pid){
+            var idx=mInv.findIndex(function(i){return i.productId===pid;});
+            var qty=qtyMap[pid];
+            if(idx>=0) mInv[idx].qty=Math.max(0,mInv[idx].qty-qty);
+            else mInv.push({productId:pid,qty:0});
+            mLogs.push({id:Date.now().toString()+Math.random(),productId:pid,delta:-qty,memo:'자동수집 차감 '+today,date:today});
+          });
+
+          var saveData={products:mProds,inventory:mInv,inventoryLogs:mLogs,salesData:mSales};
+          if(isCurrentMachine){
+            D.salesData=mSales; D.inventory=mInv; D.inventoryLogs=mLogs;
+          }
+          return appRef.set(saveData);
+        });
+      });
+
+      Promise.all(promises).then(function(){
+        if(btn){ btn.textContent='🔄 오늘 데이터 수집'; btn.disabled=false; }
+        if(added>0){
+          var msg=(isAuto?'🤖 자동수집':'✅ 수집')+' '+added+'건 반영';
+          if(dup>0) msg+=' · 중복 '+dup+'건 제외';
+          showToast(msg);
+          localStorage.setItem('lastAutoCollect', today+' '+new Date().toTimeString().slice(0,5));
+          updateAutoCollectStatus();
+          renderAll();
+        } else {
+          if(!isAuto) showToast(dup>0?'이미 모두 반영된 데이터예요 ('+dup+'건 중복)':'📭 새 데이터가 없어요');
+        }
+      });
+    });
   }).catch(function(e){
     if(btn){ btn.textContent='🔄 오늘 데이터 수집'; btn.disabled=false; }
     if(!isAuto) showToast('❌ 수집 실패: '+e.message);
