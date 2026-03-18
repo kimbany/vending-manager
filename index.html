@@ -557,19 +557,26 @@ input[type=date]{color-scheme:dark;}
 <!-- change-pw-modal 하위호환 -->
 <div class="modal-bg" id="change-pw-modal" style="display:none!important"></div>
 
-<!-- 자판기 추가 모달 -->
 <!-- 위치(구역) 추가 모달 -->
 <div class="modal-bg" id="add-location-modal">
   <div class="modal">
     <div class="mh"><div class="mt">📍 위치(구역) 추가</div><button class="mc" onclick="closeModal('add-location-modal')">✕</button></div>
     <div class="fr"><label class="lbl">위치명 <span style="color:var(--red)">*</span></label><input type="text" id="al-locname" placeholder="예: 예일초등학교"/></div>
-    <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px">🏪 자판기 추가 <span style="font-size:11px;font-weight:400;color:var(--text3)">(위치에 자판기 1대 이상)</span></div>
+    <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px">🏪 단말기 등록 <span style="font-size:11px;font-weight:400;color:var(--text3)">(단말기번호마다 종류 지정)</span></div>
     <div id="al-machines-wrap">
       <div class="al-machine-row" style="background:var(--bg3);border-radius:10px;padding:10px;margin-bottom:8px">
-        <div class="fr" style="margin-bottom:6px"><label class="lbl">자판기명</label><input type="text" placeholder="예: 멀티 자판기" class="al-mname"/></div>
-        <div style="margin-bottom:6px"><label class="lbl">단말기 번호</label>
-          <div class="al-devnos" style="display:flex;flex-direction:column;gap:6px">
-            <div style="display:flex;gap:6px"><input type="text" placeholder="예: 2000107965" class="al-devno" style="flex:1"/><button onclick="addDevnoField(this)" style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:0 10px;color:var(--gold);font-size:16px;cursor:pointer">+</button></div>
+        <div class="f2" style="margin-bottom:8px">
+          <div><label class="lbl">단말기 번호 <span style="color:var(--red)">*</span></label><input type="text" placeholder="예: 2000107965" class="al-devno"/></div>
+          <div><label class="lbl">자판기 종류 <span style="color:var(--red)">*</span></label>
+            <select class="al-vtype" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-size:13px;font-family:inherit">
+              <option value="">종류 선택</option>
+<option value="멀티자판기">멀티자판기</option>
+<option value="음료자판기">음료자판기</option>
+<option value="아이스크림자판기">아이스크림자판기</option>
+<option value="과자자판기">과자자판기</option>
+<option value="컵라면자판기">컵라면자판기</option>
+<option value="기타">기타</option>
+            </select>
           </div>
         </div>
         <div class="f2" style="margin-bottom:0">
@@ -578,7 +585,7 @@ input[type=date]{color-scheme:dark;}
         </div>
       </div>
     </div>
-    <button onclick="addMachineRow()" style="width:100%;background:var(--bg3);border:1px dashed var(--border);border-radius:8px;padding:10px;color:var(--text2);font-size:13px;cursor:pointer;font-family:inherit;margin-bottom:12px">+ 자판기 추가</button>
+    <button onclick="addMachineRow()" style="width:100%;background:var(--bg3);border:1px dashed var(--border);border-radius:8px;padding:10px;color:var(--text2);font-size:13px;cursor:pointer;font-family:inherit;margin-bottom:12px">+ 단말기 추가</button>
     <label style="display:flex;align-items:center;gap:10px;padding:8px 0;cursor:pointer;margin-bottom:12px">
       <input type="checkbox" id="al-main" style="width:18px;height:18px;accent-color:var(--gold)"/>
       <span style="font-size:13px;font-weight:600">⭐ 메인 위치로 설정</span>
@@ -1718,12 +1725,21 @@ function addMachineRow(){
   var div=document.createElement('div');
   div.className='al-machine-row';
   div.style='background:var(--bg3);border-radius:10px;padding:10px;margin-bottom:8px';
-  div.innerHTML=[
-    '<div style="display:flex;justify-content:space-between;margin-bottom:6px"><div style="font-size:12px;font-weight:600;color:var(--text2)">자판기</div><button onclick="this.parentElement.parentElement.remove()" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px">✕</button></div>',
-    '<div class="fr" style="margin-bottom:6px"><label class="lbl">자판기명</label><input type="text" placeholder="예: 음료 자판기" class="al-mname"/></div>',
-    '<div style="margin-bottom:6px"><label class="lbl">단말기 번호</label><div class="al-devnos" style="display:flex;flex-direction:column;gap:6px"><div style="display:flex;gap:6px"><input type="text" placeholder="예: 2000107965" class="al-devno" style="flex:1"/><span onclick="addDevnoField(this)" style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:0 12px;color:var(--gold);font-size:16px;cursor:pointer;display:inline-flex;align-items:center">+</span></div></div></div>',
-    '<div class="f2" style="margin-bottom:0"><div><label class="lbl">계약 시작</label><input type="date" class="al-start"/></div><div><label class="lbl">계약 종료</label><input type="date" class="al-end"/></div></div>'
-  ].join('');
+  var vtypeOpts='<option value="">종류 선택</option><option value="멀티자판기">멀티자판기</option><option value="음료자판기">음료자판기</option><option value="아이스크림자판기">아이스크림자판기</option><option value="과자자판기">과자자판기</option><option value="컵라면자판기">컵라면자판기</option><option value="기타">기타</option>';
+  div.innerHTML=
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
+      '<div style="font-size:12px;font-weight:600;color:var(--text2)">단말기</div>'+
+      '<button onclick="this.parentElement.parentElement.remove()" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;line-height:1">✕</button>'+
+    '</div>'+
+    '<div class="f2" style="margin-bottom:8px">'+
+      '<div><label class="lbl">단말기 번호</label><input type="text" placeholder="예: 2000107965" class="al-devno"/></div>'+
+      '<div><label class="lbl">자판기 종류</label><select class="al-vtype" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-size:13px;font-family:inherit">'+vtypeOpts+'</select></div>'+
+    '</div>'+
+    '<div class="f2" style="margin-bottom:0">'+
+      '<div><label class="lbl">계약 시작</label><input type="date" class="al-start"/></div>'+
+      '<div><label class="lbl">계약 종료</label><input type="date" class="al-end"/></div>'+
+    '</div>';
+  wrap.appendChild(div);
 }
 
 // 위치 추가
@@ -1732,19 +1748,20 @@ function addLocation(){
   var isMain=document.getElementById('al-main').checked;
   var msg=document.getElementById('al-msg');
   if(!locName){ msg.style.color='var(--red)'; msg.textContent='위치명을 입력하세요'; return; }
-  var machineRows=document.querySelectorAll('#al-machines-wrap .al-machine-row');
+  var rows=document.querySelectorAll('#al-machines-wrap .al-machine-row');
+  if(!rows.length){ msg.style.color='var(--red)'; msg.textContent='단말기를 1개 이상 추가하세요'; return; }
   var machines={};
   var valid=true;
-  machineRows.forEach(function(row){
-    var mname=row.querySelector('.al-mname').value.trim();
-    var devnoInputs=row.querySelectorAll('.al-devno');
-    var devnos=[]; devnoInputs.forEach(function(inp){ if(inp.value.trim()) devnos.push(inp.value.trim()); });
+  rows.forEach(function(row){
+    var devno=row.querySelector('.al-devno').value.trim();
+    var vtype=row.querySelector('.al-vtype').value.trim();
     var start=row.querySelector('.al-start').value;
     var end=row.querySelector('.al-end').value;
-    if(!mname){ msg.style.color='var(--red)'; msg.textContent='자판기명을 입력하세요'; valid=false; return; }
-    if(!devnos.length){ msg.style.color='var(--red)'; msg.textContent='단말기 번호를 1개 이상 입력하세요'; valid=false; return; }
+    if(!devno){ msg.style.color='var(--red)'; msg.textContent='단말기 번호를 입력하세요'; valid=false; return; }
+    if(!vtype){ msg.style.color='var(--red)'; msg.textContent='자판기 종류를 선택하세요'; valid=false; return; }
     var mid='machine_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
-    machines[mid]={name:mname, deviceNos:devnos, contractStart:start, contractEnd:end, createdAt:td()};
+    // 단말기번호 1개 = 자판기 1대 (name = 자판기종류)
+    machines[mid]={name:vtype, deviceNos:[devno], contractStart:start, contractEnd:end, createdAt:td()};
   });
   if(!valid) return;
   msg.style.color='var(--text2)'; msg.textContent='저장 중...';
@@ -1756,9 +1773,19 @@ function addLocation(){
     closeModal('add-location-modal');
     document.getElementById('al-locname').value='';
     document.getElementById('al-main').checked=false;
-    // 자판기 행 초기화
-    var wrap=document.getElementById('al-machines-wrap');
-    wrap.innerHTML='<div class="al-machine-row" style="background:var(--bg3);border-radius:10px;padding:10px;margin-bottom:8px"><div class="fr" style="margin-bottom:6px"><label class="lbl">자판기명</label><input type="text" placeholder="예: 멀티 자판기" class="al-mname"/></div><div style="margin-bottom:6px"><label class="lbl">단말기 번호</label><div class="al-devnos" style="display:flex;flex-direction:column;gap:6px"><div style="display:flex;gap:6px"><input type="text" placeholder="예: 2000107965" class="al-devno" style="flex:1"/><button onclick="addDevnoField(this)" style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:0 10px;color:var(--gold);font-size:16px;cursor:pointer">+</button></div></div></div><div class="f2" style="margin-bottom:0"><div><label class="lbl">계약 시작</label><input type="date" class="al-start"/></div><div><label class="lbl">계약 종료</label><input type="date" class="al-end"/></div></div></div>';
+    // 초기화
+    var vtypeOpts='<option value="">종류 선택</option><option value="멀티자판기">멀티자판기</option><option value="음료자판기">음료자판기</option><option value="아이스크림자판기">아이스크림자판기</option><option value="과자자판기">과자자판기</option><option value="컵라면자판기">컵라면자판기</option><option value="기타">기타</option>';
+    document.getElementById('al-machines-wrap').innerHTML=
+      '<div class="al-machine-row" style="background:var(--bg3);border-radius:10px;padding:10px;margin-bottom:8px">'+
+        '<div class="f2" style="margin-bottom:8px">'+
+          '<div><label class="lbl">단말기 번호</label><input type="text" placeholder="예: 2000107965" class="al-devno"/></div>'+
+          '<div><label class="lbl">자판기 종류</label><select class="al-vtype" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-size:13px;font-family:inherit">'+vtypeOpts+'</select></div>'+
+        '</div>'+
+        '<div class="f2" style="margin-bottom:0">'+
+          '<div><label class="lbl">계약 시작</label><input type="date" class="al-start"/></div>'+
+          '<div><label class="lbl">계약 종료</label><input type="date" class="al-end"/></div>'+
+        '</div>'+
+      '</div>';
     showToast('✅ 위치 추가 완료');
     renderMachinesList();
     loadLocationDropdown();
