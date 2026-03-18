@@ -3219,15 +3219,29 @@ function delProd(id){
 var bulkRows = [];
 
 function downloadBulkTemplate(){
-  var csv = '제품명,구매가,총수량,판매가,컬럼위치\n';
-  csv += '콜라,15000,30,800,"47,31"\n';
-  csv += '사이다,14000,30,800,52\n';
-  csv += '물,8000,24,500,"11,12,13"\n';
-  var blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'});
-  var a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = '제품일괄등록_양식.csv';
-  a.click();
+  // 등록된 단말기번호 목록 가져와서 양식에 반영
+  db.ref('users/'+currentUser.uid+'/locations').once('value').then(function(snap){
+    var devnoExample = '2000107965';
+    if(snap.exists()){
+      snap.forEach(function(locSnap){
+        var loc=locSnap.val();
+        Object.keys(loc.machines||{}).forEach(function(mid){
+          var m=loc.machines[mid];
+          var devnos=Array.isArray(m.deviceNos)?m.deviceNos:(m.deviceNo?[m.deviceNo]:[]);
+          if(devnos.length) devnoExample=devnos[0];
+        });
+      });
+    }
+    var csv = '제품명,구매가,초기총수량,판매가,단말기번호,컬럼위치\n';
+    csv += '콜라,15000,30,800,'+devnoExample+',"47,31"\n';
+    csv += '사이다,14000,30,800,'+devnoExample+',52\n';
+    csv += '물,8000,24,500,'+devnoExample+',"11,12,13"\n';
+    var blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'});
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = '제품일괄등록_양식.csv';
+    a.click();
+  });
 }
 
 function handleBulkCSV(input){
@@ -3243,7 +3257,9 @@ function handleBulkCSV(input){
     if(lines.length < 2){ showToast('❌ 데이터가 없어요'); return; }
     // 헤더: 따옴표·공백·\r 제거
     var headers = lines[0].split(',').map(function(h){return h.trim().replace(/["\r]/g,'');});
-    var required = ['제품명','구매가','총수량','판매가'];
+    var required = ['제품명','구매가','초기총수량','판매가'];
+    // 총수량도 허용 (구버전 호환)
+    if(headers.indexOf('초기총수량')<0 && headers.indexOf('총수량')>=0) headers=headers.map(function(h){return h==='총수량'?'초기총수량':h;});
     var missing = required.filter(function(r){return headers.indexOf(r)<0;});
     if(missing.length){ showToast('❌ 필수 컬럼 없음: '+missing.join(', ')); return; }
     bulkRows = [];
@@ -3283,8 +3299,9 @@ function showBulkPreview(){
   bulkRows.forEach(function(row){
     var name = row['제품명']||'';
     var buy = parseFloat(row['구매가'])||0;
-    var total = parseFloat(row['총수량'])||0;
+    var total = parseFloat(row['초기총수량']||row['총수량'])||0;
     var sell = parseFloat(row['판매가'])||0;
+    var devno = (row['단말기번호']||'').trim();
     var colRaw = row['컬럼위치']||'';
     var cols = colRaw.split(',').map(function(c){return c.trim();}).filter(function(c){return c;});
     var errors = [];
@@ -3309,6 +3326,7 @@ function showBulkPreview(){
     html += '<span style="font-size:13px;font-weight:700">'+(name||'(이름없음)')+'</span>';
     html += '<span style="font-size:11px;color:'+(hasErr?'var(--red)':'var(--green)')+'">'+( hasErr ? '⚠️ 오류' : '✅ 정상')+'</span>';
     html += '</div>';
+    if(devno) html += '<div style="font-size:11px;color:var(--text3);margin-bottom:3px">단말기: '+devno+'</div>';
     if(cols.length) html += '<div style="font-size:11px;color:var(--text3);margin-bottom:3px">컬럼: '+cols.join(', ')+'</div>';
     html += '<div style="font-size:11px;color:var(--text2)">구매가 '+fmt(buy)+'원 / 총'+total+'개 / 판매가 '+fmt(sell)+'원 / 마진 '+mr+'%</div>';
     if(hasErr) html += '<div style="font-size:11px;color:var(--red);margin-top:4px">❌ '+errors.join(' · ')+'</div>';
@@ -3325,22 +3343,27 @@ function confirmBulk(){
   var added=0, skipped=[];
   bulkRows.forEach(function(row){
     var name = (row['제품명']||'').trim();
-    var buy  = cleanNum(row['구매가']);
-    var total= cleanNum(row['총수량']);
-    var sell = cleanNum(row['판매가']);
+    var buy   = cleanNum(row['구매가']);
+    var total = cleanNum(row['초기총수량']||row['총수량']);
+    var sell  = cleanNum(row['판매가']);
+    var devno = (row['단말기번호']||'').trim();
     var colRaw = (row['컬럼위치']||'').trim();
-    // 컬럼위치: 쉼표 또는 슬래시 구분 모두 허용
     var cols = colRaw ? colRaw.split(/[,\/]/).map(function(c){return c.trim();}).filter(function(c){return c;}) : [];
     if(!name||!buy||!total||!sell){ skipped.push(name||'(이름없음)'); return; }
     var unit = total>0 ? Math.round(buy/total) : 0;
     var ma   = sell - unit;
     var mr   = sell>0 ? Math.round(ma/sell*100) : 0;
+    var pid  = Date.now().toString()+Math.random();
     D.products.push({
-      id: Date.now().toString()+Math.random(),
-      name:name, buyPrice:buy, totalQty:total,
+      id:pid, name:name, buyPrice:buy, totalQty:total,
       unitPrice:unit, sellPrice:sell, marginAmt:ma, marginRate:mr,
-      column:cols
+      column:cols, deviceNo:devno
     });
+    // 초기 재고 설정
+    if(total>0){
+      D.inventory.push({productId:pid, qty:total});
+      D.inventoryLogs.push({id:Date.now().toString()+Math.random(), productId:pid, delta:total, memo:'초기 재고 설정 (일괄등록)', date:td()});
+    }
     added++;
   });
   save();
