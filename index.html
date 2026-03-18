@@ -3923,8 +3923,7 @@ function fetchTodaySales(isAuto){
 
       var keys = Object.keys(rowsByMachine);
       if(!keys.length){
-        if(!isAuto) showToast('📭 등록된 자판기와 일치하는 데이터 없음
-단말기번호를 확인해주세요');
+        if(!isAuto) showToast('📭 등록된 자판기와 일치하는 데이터 없음. 단말기번호를 확인해주세요');
         if(btn){ btn.textContent='🔄 오늘 데이터 수집'; btn.disabled=false; }
         return;
       }
