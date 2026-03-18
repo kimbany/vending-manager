@@ -1463,7 +1463,7 @@ function renderMachinesList(){
       html+='<div style="display:flex;gap:6px">';
       html+='<button onclick="openEditLocation(this.dataset.id)" data-id="'+locId+'" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:11px;color:var(--text2);cursor:pointer;font-family:inherit">✏️</button>';
       html+='<button onclick="openAddMachineToLocation(this.dataset.id)" data-id="'+locId+'" style="background:rgba(122,218,154,.15);border:1px solid rgba(122,218,154,.3);border-radius:6px;padding:4px 8px;font-size:11px;color:var(--green);cursor:pointer;font-family:inherit">+ 자판기</button>';
-      html+='<button onclick="openDelItem('location',this.dataset.id,null)" data-id="'+locId+'" style="background:rgba(224,88,88,.15);border:1px solid rgba(224,88,88,.3);border-radius:6px;padding:4px 8px;font-size:11px;color:var(--red);cursor:pointer;font-family:inherit">🗑️</button>';
+      html+='<button onclick="openDelItem(this.dataset.type,this.dataset.locid,null)" data-type="location" data-locid="'+locId+'" style="background:rgba(224,88,88,.15);border:1px solid rgba(224,88,88,.3);border-radius:6px;padding:4px 8px;font-size:11px;color:var(--red);cursor:pointer;font-family:inherit">🗑️</button>';
       html+='</div></div>';
       // 자판기 목록
       Object.keys(machines).forEach(function(mid){
@@ -1478,8 +1478,8 @@ function renderMachinesList(){
         html+='<div style="display:flex;gap:4px;flex-direction:column;align-items:flex-end">';
         html+='<span style="font-size:10px;background:'+(expired?'rgba(224,88,88,.2)':'rgba(122,218,154,.15)')+';color:'+(expired?'var(--red)':'var(--green)')+';border-radius:4px;padding:2px 6px">'+(expired?'계약종료':'운영중')+'</span>';
         html+='<div style="display:flex;gap:4px;margin-top:4px">';
-        html+='<button onclick="openEditMachine(''+locId+'',''+mid+'')" style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:3px 7px;font-size:11px;color:var(--text2);cursor:pointer;font-family:inherit">✏️</button>';
-        html+='<button onclick="openDelItem('machine',''+locId+'',''+mid+'')" style="background:rgba(224,88,88,.15);border:1px solid rgba(224,88,88,.3);border-radius:6px;padding:3px 7px;font-size:11px;color:var(--red);cursor:pointer;font-family:inherit">🗑️</button>';
+        html+='<button onclick="openEditMachine(this.dataset.locid,this.dataset.mid)" data-locid="'+locId+'" data-mid="'+mid+'" style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:3px 7px;font-size:11px;color:var(--text2);cursor:pointer;font-family:inherit">✏️</button>';
+        html+='<button onclick="openDelItem(this.dataset.type,this.dataset.locid,this.dataset.mid)" data-type="machine" data-locid="'+locId+'" data-mid="'+mid+'" style="background:rgba(224,88,88,.15);border:1px solid rgba(224,88,88,.3);border-radius:6px;padding:3px 7px;font-size:11px;color:var(--red);cursor:pointer;font-family:inherit">🗑️</button>';
         html+='</div></div></div></div>';
       });
       html+='</div>';
