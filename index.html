@@ -1122,7 +1122,7 @@ function startApp(){
   if('Notification' in window && Notification.permission === 'default'){
     Notification.requestPermission();
   }
-  checkMigration();
+  checkMigrationV2();
   loadMachineDropdown();
 }
 
