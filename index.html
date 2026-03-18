@@ -3810,15 +3810,25 @@ function fetchTodaySales(isAuto){
   if(btn){ btn.textContent='⏳ 수집 중...'; btn.disabled=true; }
 
   var today = td();
-  // 개인 경로 먼저, 없으면 공용 경로 fallback
+  console.log('[수집] 시작, today='+today+', CRAWL_REF=', CRAWL_REF ? CRAWL_REF.toString() : 'null');
+
+  if(!CRAWL_REF){
+    if(btn){ btn.textContent='🔄 오늘 데이터 수집'; btn.disabled=false; }
+    showToast('❌ 로그인 후 사용해주세요');
+    return;
+  }
+
   CRAWL_REF.child(today).once('value').then(function(snap){
-    if(snap.val() && snap.val().rows && snap.val().rows.length) return snap;
+    console.log('[수집] 개인경로 snap exists:', snap.exists(), 'val:', JSON.stringify(snap.val())&&JSON.stringify(snap.val()).slice(0,100));
+    if(snap.exists() && snap.val() && snap.val().rows) return snap;
+    console.log('[수집] 공용경로 fallback');
     return db.ref('vendingApp/crawledSales/'+today).once('value');
   }).then(function(snap){
     var val = snap.val();
+    console.log('[수집] 최종 val:', val ? '있음 total='+val.total_count : 'null');
     if(btn){ btn.textContent='🔄 오늘 데이터 수집'; btn.disabled=false; }
     if(!val){
-      if(!isAuto) showToast('📭 오늘('+today+') 수집 데이터 없음\n크롤러를 실행해주세요');
+      if(!isAuto) showToast('📭 오늘('+today+') 수집 데이터 없음. 크롤러를 실행해주세요');
       return;
     }
     // rows가 Firebase에서 객체로 변환된 경우 배열로 변환
@@ -3826,19 +3836,20 @@ function fetchTodaySales(isAuto){
     if(rows && !Array.isArray(rows)){
       rows = Object.keys(rows).sort(function(a,b){return parseInt(a)-parseInt(b);}).map(function(k){return rows[k];});
     }
+    console.log('[수집] rows 수:', rows ? rows.length : 0);
     if(!rows || !rows.length){
       if(!isAuto) showToast('📭 오늘 수집된 데이터 없음 (total:'+val.total_count+')');
       return;
     }
-    val.rows = rows; // 배열로 교체
+    val.rows = rows;
 
     // 헤더 인덱스 찾기
     var headers = val.headers || [];
-    // headers도 객체로 변환됐으면 배열로
     if(headers && !Array.isArray(headers)){
       headers = Object.keys(headers).sort(function(a,b){return parseInt(a)-parseInt(b);}).map(function(k){return headers[k];});
       val.headers = headers;
     }
+    console.log('[수집] headers:', headers);
 
     var colDate    = headers.indexOf('거래일시');
     var colItem    = headers.indexOf('판매항목');
