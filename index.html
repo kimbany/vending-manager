@@ -815,7 +815,10 @@ input[type=date]{color-scheme:dark;}
     <div class="fr"><label class="lbl">제품명</label><input type="text" id="p-name" placeholder="제품명 입력"/></div>
     <div class="f2">
       <div><label class="lbl">구매가 (원)</label><input type="number" id="p-buy" placeholder="총 구매금액" oninput="calcProduct()"/></div>
-      <div><label class="lbl">총 수량 (개)</label><input type="number" id="p-total" placeholder="구매 수량" oninput="calcProduct()"/></div>
+      <div><label class="lbl">초기 총수량 (개)</label><input type="number" id="p-total" placeholder="현재 재고 수량" oninput="calcProduct()"/></div>
+    </div>
+    <div style="background:rgba(122,218,154,.08);border:1px solid rgba(122,218,154,.2);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:11px;color:var(--text2)">
+      💡 초기 총수량 = 현재 진열된 재고 수량 (또는 첫 설치 시 구매한 수량)
     </div>
     <div class="fr"><label class="lbl">낱개가 (자동계산)</label><div class="af" id="p-unit" style="color:var(--green)">구매가 ÷ 총수량</div></div>
     <div class="fr"><label class="lbl">판매가 (원)</label><input type="number" id="p-sell" placeholder="판매 가격" oninput="calcProduct()"/></div>
@@ -823,7 +826,13 @@ input[type=date]{color-scheme:dark;}
       <div><label class="lbl">마진가 (자동)</label><div class="af" id="p-ma" style="color:var(--gold)">-</div></div>
       <div><label class="lbl">마진율 (자동)</label><div class="af" id="p-mr" style="color:var(--gold)">-</div></div>
     </div>
-    <div class="fr"><label class="lbl">컬럼 위치 · 쉼표=여러위치, ~=두칸차지</label><input type="text" id="p-col" placeholder="예) 47  /  45,47  /  45~46"/></div>
+    <div class="fr">
+      <label class="lbl">단말기 번호 <span style="color:var(--text3);font-weight:400;font-size:11px">(어느 자판기에 배치?)</span></label>
+      <select id="p-devno" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-size:13px;font-family:inherit;width:100%">
+        <option value="">단말기 선택</option>
+      </select>
+    </div>
+    <div class="fr"><label class="lbl">컬럼 위치 <span style="color:var(--text3);font-weight:400;font-size:11px">· 쉼표=여러위치, ~=두칸차지</span></label><input type="text" id="p-col" placeholder="예) 47  /  45,47  /  45~46"/></div>
     <button class="btn-p" style="margin-bottom:0" id="p-save-btn" onclick="saveProduct()">등록 완료</button>
   </div>
 </div>
@@ -3101,7 +3110,32 @@ function openProductModal(){
   document.getElementById('p-unit').textContent='구매가 ÷ 총수량';
   document.getElementById('p-ma').textContent='-';
   document.getElementById('p-mr').textContent='-';
+  loadDevnoOptions('p-devno', null);
   openModal('prod-modal');
+}
+
+// 단말기번호 드롭다운 로드
+function loadDevnoOptions(selectId, selectedDevno){
+  var sel = document.getElementById(selectId);
+  sel.innerHTML = '<option value="">단말기 선택 (선택 시 해당 자판기에 배치)</option>';
+  if(!currentUser) return;
+  db.ref('users/'+currentUser.uid+'/locations').once('value').then(function(snap){
+    if(!snap.exists()) return;
+    snap.forEach(function(locSnap){
+      var loc = locSnap.val();
+      Object.keys(loc.machines||{}).forEach(function(mid){
+        var m = loc.machines[mid];
+        var devnos = Array.isArray(m.deviceNos)?m.deviceNos:(m.deviceNo?[m.deviceNo]:[]);
+        devnos.forEach(function(devno){
+          var opt = document.createElement('option');
+          opt.value = locSnap.key+'|'+mid+'|'+devno;
+          opt.textContent = '📍 '+loc.name+' · 🏪 '+m.name+' ('+devno+')';
+          if(selectedDevno && devno===selectedDevno) opt.selected=true;
+          sel.appendChild(opt);
+        });
+      });
+    });
+  });
 }
 
 function editProd(id){
@@ -3113,6 +3147,7 @@ function editProd(id){
   document.getElementById('p-buy').value=p.buyPrice;
   document.getElementById('p-total').value=p.totalQty;
   document.getElementById('p-sell').value=p.sellPrice;
+  loadDevnoOptions('p-devno', p.deviceNo||null);
   var cols=Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
   document.getElementById('p-col').value=cols.join(', ');
   calcProduct();
@@ -3130,6 +3165,9 @@ function saveProduct(){
   var mr=sell>0?Math.round(ma/sell*100):0;
   var colRaw=document.getElementById('p-col').value;
   var col=colRaw.split(',').map(function(c){return c.trim();}).filter(function(c){return c.length>0;});
+  // 단말기번호 - locId|machineId|devno 형태
+  var devnoVal = document.getElementById('p-devno').value;
+  var devno = devnoVal ? devnoVal.split('|')[2]||'' : '';
   var eid=document.getElementById('p-eid').value;
   // 중복 위치 체크: 다른 제품이 이미 사용 중인 컬럼인지 확인
   var conflicts=[];
@@ -3144,12 +3182,28 @@ function saveProduct(){
     var msg=conflicts.map(function(c){return c.col+'번 ('+c.name+')';}).join(', ');
     if(!confirm('⚠️ 중복된 컬럼 위치가 있어요!\n\n'+msg+'\n\n이미 위 제품이 배정된 위치예요.\n그래도 저장할까요?')) return;
   }
-  var prod={id:eid||Date.now().toString(),name:name,buyPrice:buy,totalQty:total,unitPrice:unit,sellPrice:sell,marginAmt:ma,marginRate:mr,column:col};
-  if(eid)D.products=D.products.map(function(p){return p.id===eid?prod:p;});
-  else D.products.push(prod);
+  var prod={id:eid||Date.now().toString(),name:name,buyPrice:buy,totalQty:total,unitPrice:unit,sellPrice:sell,marginAmt:ma,marginRate:mr,column:col,deviceNo:devno};
+  if(eid){
+    D.products=D.products.map(function(p){return p.id===prod.id?prod:p;});
+  } else {
+    D.products.push(prod);
+    // 신규 등록 시 초기 재고 설정
+    if(total>0){
+      var idx=D.inventory.findIndex(function(i){return i.productId===prod.id;});
+      if(idx>=0) D.inventory[idx].qty=total;
+      else D.inventory.push({productId:prod.id, qty:total});
+      D.inventoryLogs.push({
+        id:Date.now().toString()+Math.random(),
+        productId:prod.id,
+        delta:total,
+        memo:'초기 재고 설정',
+        date:td()
+      });
+    }
+  }
   save();
   closeModal('prod-modal');
-  showToast(eid?'✅ 수정 완료':'✅ 제품 등록 완료');
+  showToast(eid?'✅ 수정 완료':'✅ 제품 등록 완료 (초기 재고 '+total+'개)');
   renderAll();
 }
 
