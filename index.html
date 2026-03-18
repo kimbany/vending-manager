@@ -263,18 +263,18 @@ input[type=date]{color-scheme:dark;}
   <div id="content">
     <!-- 홈 -->
     <div class="tab active" id="tab-home">
-      <!-- 기존 데이터 이전 안내 (한번만 표시) -->
+      <!-- 기존 데이터 이전 안내 -->
       <div id="migrate-banner" style="display:none;background:rgba(232,184,109,.1);border:1px solid rgba(232,184,109,.3);border-radius:12px;padding:14px;margin-bottom:14px">
-        <div style="font-size:13px;font-weight:700;color:var(--gold);margin-bottom:6px">📦 기존 데이터가 있어요!</div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:10px">이전에 사용하던 제품·재고·판매 데이터를 이 계정으로 가져올 수 있어요.</div>
+        <div style="font-size:13px;font-weight:700;color:var(--gold);margin-bottom:6px">📦 이전 데이터가 있어요!</div>
+        <div class="migrate-desc" style="font-size:12px;color:var(--text2);margin-bottom:10px">기존 데이터를 위치/자판기로 가져올 수 있어요.<br/>먼저 <b style="color:var(--gold)">설정 &gt; 자판기</b>에서 위치와 자판기를 추가해주세요.</div>
         <div style="margin-bottom:10px">
-          <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:5px">어느 자판기 데이터인가요?</label>
-          <select id="migrate-target" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:9px 10px;color:var(--text);font-size:13px;font-family:inherit;">
-            <option value="global">공통 데이터로 가져오기 (자판기 미구분)</option>
+          <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:5px">이전 방향 선택</label>
+          <select id="migrate-target" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:9px 10px;color:var(--text);font-size:12px;font-family:inherit;">
+            <option value="">설정에서 자판기 추가 후 선택 가능</option>
           </select>
         </div>
         <div style="display:flex;gap:8px">
-          <button onclick="migrateOldData()" style="flex:1;background:var(--gold);border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;color:#1a1208;cursor:pointer;font-family:inherit">✅ 데이터 가져오기</button>
+          <button onclick="migrateOldData()" style="flex:1;background:var(--gold);border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;color:#1a1208;cursor:pointer;font-family:inherit">✅ 데이터 이전</button>
           <button onclick="dismissMigrate()" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:12px;color:var(--text2);cursor:pointer;font-family:inherit">건너뛰기</button>
         </div>
       </div>
@@ -1338,30 +1338,90 @@ function switchVmSub(sub){
   else renderProds();
 }
 
-function checkMigration(){
+function checkMigrationV2(){
   if(!currentUser) return;
-  var dismissed = localStorage.getItem('migrateDismissed_' + currentUser.uid);
+  var dismissed = localStorage.getItem('migrateDismissed_v2_' + currentUser.uid);
   if(dismissed) return;
-  db.ref('users/'+currentUser.uid+'/appData').once('value').then(function(snap){
-    var val = snap.val();
-    if(!val || !val.products || !val.products.length) return;
-    db.ref('users/'+currentUser.uid+'/locations').once('value').then(function(msnap){
+
+  // appData 또는 기존 machines/ 경로에 데이터 있는지 확인
+  Promise.all([
+    db.ref('users/'+currentUser.uid+'/appData').once('value'),
+    db.ref('users/'+currentUser.uid+'/machines').once('value')
+  ]).then(function(results){
+    var appSnap = results[0], machSnap = results[1];
+    var hasAppData = appSnap.exists() && appSnap.val() && appSnap.val().products && appSnap.val().products.length;
+    var hasMachines = machSnap.exists() && machSnap.val() && Object.keys(machSnap.val()).length;
+    if(!hasAppData && !hasMachines) return;
+
+    // 이전할 소스 파악
+    var sources = [];
+    if(hasAppData) sources.push({type:'appData', label:'공통 데이터', ref:'appData'});
+    if(hasMachines){
+      machSnap.forEach(function(child){
+        var m = child.val();
+        if(m && m.name) sources.push({type:'machine', label:'🏪 '+m.name, ref:child.key, data:m});
+      });
+    }
+
+    // locations에 등록된 자판기 목록
+    db.ref('users/'+currentUser.uid+'/locations').once('value').then(function(locSnap){
       var sel = document.getElementById('migrate-target');
-      if(sel){
-        sel.innerHTML = '<option value="global">공통 데이터로 유지</option>';
-        if(msnap.exists()){
-          msnap.forEach(function(locSnap){
-            var loc=locSnap.val();
-            Object.keys(loc.machines||{}).forEach(function(mid){
-              var m=loc.machines[mid];
-              var opt=document.createElement('option');
-              opt.value=locSnap.key+'|'+mid;
-              opt.textContent='📍 '+loc.name+' · 🏪 '+m.name;
+      if(!sel) return;
+      sel.innerHTML = '';
+
+      // 이전할 소스 목록
+      sources.forEach(function(src){
+        var optSrc = document.createElement('option');
+        optSrc.value = 'src:'+src.ref;
+        optSrc.textContent = '원본: '+src.label;
+        optSrc.disabled = true;
+        optSrc.style.color = 'var(--text3)';
+        sel.appendChild(optSrc);
+      });
+
+      // 이전 대상: locations의 자판기들
+      if(locSnap.exists()){
+        locSnap.forEach(function(locChild){
+          var loc = locChild.val();
+          Object.keys(loc.machines||{}).forEach(function(mid){
+            var m = loc.machines[mid];
+            var opt = document.createElement('option');
+            opt.value = locChild.key+'|'+mid+'|'+(sources[0]?sources[0].ref:'appData');
+            opt.textContent = '-> 📍 '+loc.name+' · 🏪 '+m.name;
+            sel.appendChild(opt);
+          });
+        });
+      }
+
+      // 소스가 1개면 자동 선택용 값 세팅
+      // 실제 UI는 단순하게: 소스 첫번째를 기본으로 각 자판기로 이전
+      sel.innerHTML = '';
+      if(locSnap.exists()){
+        locSnap.forEach(function(locChild){
+          var loc = locChild.val();
+          Object.keys(loc.machines||{}).forEach(function(mid){
+            var m = loc.machines[mid];
+            sources.forEach(function(src){
+              var opt = document.createElement('option');
+              opt.value = locChild.key+'|'+mid+'|'+src.ref+'|'+src.type;
+              opt.textContent = src.label+' -> 📍 '+loc.name+' · 🏪 '+m.name;
               sel.appendChild(opt);
             });
           });
-        }
+        });
       }
+
+      if(!sel.options.length){
+        // locations가 없음 - 먼저 위치/자판기를 추가하라고 안내
+        var banner = document.getElementById('migrate-banner');
+        if(banner){
+          banner.style.display='block';
+          var desc = banner.querySelector('.migrate-desc');
+          if(desc) desc.textContent='설정 > 자판기에서 위치와 자판기를 먼저 추가해주세요.';
+        }
+        return;
+      }
+
       var banner = document.getElementById('migrate-banner');
       if(banner) banner.style.display='block';
     });
@@ -1370,30 +1430,41 @@ function checkMigration(){
 
 function migrateOldData(){
   var sel = document.getElementById('migrate-target');
-  var targetVal = sel ? sel.value : 'global';
-  var targetLabel = sel ? sel.options[sel.selectedIndex].text : '공통';
-  if(!confirm(targetLabel+'로 이전할까요?')) return;
-  if(targetVal==='global'){
-    document.getElementById('migrate-banner').style.display='none';
-    localStorage.setItem('migrateDismissed_'+currentUser.uid,'1');
-    return;
-  }
-  var parts=targetVal.split('|'); var locId=parts[0], machineId=parts[1];
+  if(!sel||!sel.value){ showToast('대상을 선택해주세요'); return; }
+  var parts = sel.value.split('|');
+  var locId=parts[0], machineId=parts[1], srcRef=parts[2], srcType=parts[3];
+  var targetLabel = sel.options[sel.selectedIndex].text;
+  if(!confirm(targetLabel+' 이전할까요?')) return;
   showToast('⏳ 이전 중...');
-  db.ref('users/'+currentUser.uid+'/appData').once('value').then(function(snap){
-    var val=snap.val();
-    if(!val||!val.products){showToast('❌ 이전할 데이터 없음'); return;}
-    var destPath=db.ref('users/'+currentUser.uid+'/locations/'+locId+'/machines/'+machineId+'/appData');
-    destPath.set(val).then(function(){
+
+  // 소스 데이터 읽기
+  var srcPath = srcType==='machine'
+    ? db.ref('users/'+currentUser.uid+'/machines/'+srcRef)
+    : db.ref('users/'+currentUser.uid+'/appData');
+
+  srcPath.once('value').then(function(snap){
+    var val = snap.val();
+    // machine 타입이면 appData 서브노드 확인
+    if(srcType==='machine' && val && val.appData) val = val.appData;
+    if(!val||!val.products||!val.products.length){
+      showToast('❌ 이전할 데이터가 없어요'); return;
+    }
+    var destPath = db.ref('users/'+currentUser.uid+'/locations/'+locId+'/machines/'+machineId+'/appData');
+    return destPath.set({
+      products: val.products||[],
+      inventory: val.inventory||[],
+      inventoryLogs: val.inventoryLogs||[],
+      salesData: val.salesData||[]
+    }).then(function(){
       document.getElementById('migrate-banner').style.display='none';
-      localStorage.setItem('migrateDismissed_'+currentUser.uid,'1');
+      localStorage.setItem('migrateDismissed_v2_'+currentUser.uid,'1');
       currentLocationId=locId; currentMachineId=machineId; REF=destPath;
       D.products=val.products||[]; D.inventory=val.inventory||[];
       D.inventoryLogs=val.inventoryLogs||[]; D.salesData=val.salesData||[];
-      showToast('✅ '+targetLabel+' 이전 완료!');
+      showToast('✅ 이전 완료!');
       loadLocationDropdown(); renderAll();
     });
-  });
+  }).catch(function(e){ showToast('❌ 실패: '+e.message); });
 }
 
 function dismissMigrate(){
