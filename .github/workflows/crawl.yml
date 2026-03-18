@@ -1,20 +1,23 @@
-name: VMMS 거래내역 자동 수집
+name: VMMS 자동 크롤링
 
 on:
   schedule:
-    - cron: '0 3 * * *'   # 한국시간 12:00
-    - cron: '0 10 * * *'  # 한국시간 19:00
-  workflow_dispatch:
+    # 한국시간 기준 (UTC+9)
+    - cron: '0 0 * * *'   # 매일 오전 09:00 KST
+    - cron: '0 6 * * *'   # 매일 오후 03:00 KST
+    - cron: '0 9 * * *'   # 매일 오후 06:00 KST
+  workflow_dispatch:       # 수동 실행 버튼
 
 jobs:
   crawl:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: 코드 체크아웃
         uses: actions/checkout@v4
 
-      - name: Python 설치
+      - name: Python 설정
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -25,17 +28,17 @@ jobs:
           playwright install chromium
           playwright install-deps chromium
 
-      - name: 크롤링 실행
+      - name: VMMS 크롤링 실행
         env:
+          FIREBASE_KEY: ${{ secrets.FIREBASE_KEY }}
           VMMS_ID: ${{ secrets.VMMS_ID }}
           VMMS_PW: ${{ secrets.VMMS_PW }}
-          FIREBASE_KEY: ${{ secrets.FIREBASE_KEY }}
         run: python vmms_crawler.py
 
-      - name: 스크린샷 업로드 (오류시 확인용)
-        if: always()
+      - name: 스크린샷 업로드 (오류 시 확인용)
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: screenshots
-          path: "*.png"
-          if-no-files-found: ignore
+          name: debug-screenshots
+          path: '*.png'
+          retention-days: 3
