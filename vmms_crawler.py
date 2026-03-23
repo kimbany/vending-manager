@@ -147,26 +147,73 @@ async def crawl_for_user(vmms_id, vmms_pw, save_path):
             headers = [(await c.inner_text()).strip() for c in header_cells]
             print(f"  헤더: {headers}")
 
-            all_rows = []
-            all_rows.extend(await get_table_data(page))
-            print(f"  1페이지: {len(all_rows)}건")
+            # 페이지당 100개로 변경 시도
+            try:
+                size_sel = page.locator('select[name="pageSize"], select.page-size, select[name="size"]').first
+                if await size_sel.count() > 0:
+                    await size_sel.select_option('100')
+                    await page.wait_for_load_state("networkidle")
+                    await page.wait_for_timeout(1500)
+                    print("  페이지당 100개로 변경")
+            except Exception:
+                pass
 
-            page_num = 2
-            while True:
-                next_btn = page.locator(
-                    f'xpath=/html/body/div[4]/div/div[5]/div/div/div/div/div/div[2]/ul/li[{page_num}]/a'
-                )
-                if await next_btn.count() == 0:
+            all_rows = []
+            first_rows = await get_table_data(page)
+            all_rows.extend(first_rows)
+            print(f"  1페이지: {len(first_rows)}건")
+
+            # 페이지네이션 - 다음 페이지 버튼 방식
+            max_pages = 50  # 무한루프 방지
+            current_page = 1
+            while current_page < max_pages:
+                try:
+                    # 다음 페이지 버튼 찾기 (여러 방식 시도)
+                    next_clicked = False
+
+                    # 방식 1: 현재 페이지+1 번호 버튼
+                    next_num_btn = page.locator(
+                        f'xpath=/html/body/div[4]/div/div[5]/div/div/div/div/div/div[2]/ul/li/a[text()="{current_page+1}"]'
+                    )
+                    if await next_num_btn.count() > 0:
+                        await next_num_btn.click()
+                        next_clicked = True
+                    else:
+                        # 방식 2: > 또는 다음 버튼
+                        next_arrow = page.locator(
+                            'xpath=/html/body/div[4]/div/div[5]/div/div/div/div/div/div[2]/ul/li/a[contains(text(),"다음") or contains(@class,"next")]'
+                        ).first
+                        if await next_arrow.count() > 0 and await next_arrow.is_visible():
+                            await next_arrow.click()
+                            next_clicked = True
+                        else:
+                            # 방식 3: li 순서로 접근
+                            li_btn = page.locator(
+                                f'xpath=/html/body/div[4]/div/div[5]/div/div/div/div/div/div[2]/ul/li[{current_page+2}]/a'
+                            )
+                            if await li_btn.count() > 0:
+                                txt = (await li_btn.inner_text()).strip()
+                                if txt.isdigit() and int(txt) == current_page + 1:
+                                    await li_btn.click()
+                                    next_clicked = True
+
+                    if not next_clicked:
+                        print(f"  마지막 페이지 ({current_page}페이지)")
+                        break
+
+                    await page.wait_for_load_state("networkidle")
+                    await page.wait_for_timeout(1000)
+                    new_rows = await get_table_data(page)
+                    if not new_rows:
+                        print(f"  {current_page+1}페이지: 데이터 없음, 종료")
+                        break
+                    all_rows.extend(new_rows)
+                    current_page += 1
+                    print(f"  {current_page}페이지: {len(new_rows)}건 추가 (누계: {len(all_rows)}건)")
+
+                except Exception as e:
+                    print(f"  페이지네이션 오류: {e}")
                     break
-                if not (await next_btn.inner_text()).strip().isdigit():
-                    break
-                await next_btn.click()
-                await page.wait_for_load_state("networkidle")
-                await page.wait_for_timeout(1000)
-                new_rows = await get_table_data(page)
-                all_rows.extend(new_rows)
-                print(f"  {page_num}페이지: {len(new_rows)}건 추가")
-                page_num += 1
 
             print(f"  총 {len(all_rows)}건 수집 완료")
 
