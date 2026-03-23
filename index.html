@@ -1200,6 +1200,16 @@ function showToast(msg){
 function renderAll(){ renderHome(); renderInv(); renderSales(); renderMachine(); renderProds(); }
 
 // ─── 홈 ───────────────────────────────────────────────────────────────────────
+
+function toggleRankFull(btn){
+  var rid = btn.dataset.rid;
+  var total = btn.dataset.total;
+  var el = document.getElementById(rid);
+  var show = el.style.display === 'none';
+  el.style.display = show ? 'block' : 'none';
+  btn.textContent = show ? '▲ 접기' : '▼ 전체 '+total+'개 제품 보기';
+}
+
 function renderHome(){
   var date = document.getElementById('home-date').value || td();
   document.getElementById('home-dt').textContent = date + ' 판매 현황';
@@ -2448,45 +2458,41 @@ function renderSalesStats(){
   // 제품 판매 순위
   if(prodRank.length){
     html += '<div class="card" style="margin-bottom:12px">';
-    html += '<div class="ch"><div class="ca" style="background:var(--gold)"></div><div><div class="ct">🏆 제품 판매 순위</div></div></div>';
+    html += '<div class="ch"><div class="ca" style="background:var(--gold)"></div><div><div class="ct">🏆 제품 판매 순위 ('+prodRank.length+'종)</div></div></div>';
     html += '<div class="cb">';
     var maxQ = prodRank[0].qty;
-    var rankId = 'rank-full-'+Date.now();
-    // 전체 목록 생성
-    var rankHtml = '';
-    prodRank.forEach(function(item,i){
-      var pct = Math.round(item.qty/maxQ*100);
-      var color = i===0?'var(--gold)':i===1?'#b0b0c0':i===2?'#c87941':'var(--blue)';
-      rankHtml += '<div style="margin-bottom:10px">';
-      rankHtml += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">';
-      rankHtml += '<div style="display:flex;align-items:center;gap:6px">';
-      rankHtml += '<span style="font-size:11px;color:var(--text3);min-width:20px;font-weight:700">#'+(i+1)+'</span>';
-      rankHtml += '<span style="font-size:13px;font-weight:'+(i<3?'700':'600')+';color:'+(i<3?color:'var(--text')+'">' +item.name+'</span></div>';
-      rankHtml += '<span style="font-size:12px;font-weight:700;color:'+color+'">'+item.qty+'개</span>';
-      rankHtml += '</div>';
-      rankHtml += '<div style="height:4px;background:var(--bg3);border-radius:2px"><div style="height:4px;width:'+pct+'%;background:'+color+';border-radius:2px"></div></div>';
-      rankHtml += '</div>';
+    var showAll = prodRank.length <= 10;
+    prodRank.forEach(function(item, i){
+      if(!showAll && i >= 10) return;
+      var pct = Math.round(item.qty / maxQ * 100);
+      var color = i===0 ? 'var(--gold)' : i===1 ? '#b0b0c0' : i===2 ? '#c87941' : 'var(--blue)';
+      html += '<div style="margin-bottom:10px">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">';
+      html += '<span style="font-size:11px;color:var(--text3);min-width:20px;font-weight:700">#'+(i+1)+'</span>';
+      html += '<span style="font-size:13px;flex:1;margin:0 6px">'+ item.name +'</span>';
+      html += '<span style="font-size:12px;font-weight:700;color:'+color+'">'+item.qty+'개</span>';
+      html += '</div>';
+      html += '<div style="height:4px;background:var(--bg3);border-radius:2px">';
+      html += '<div style="height:4px;width:'+pct+'%;background:'+color+';border-radius:2px"></div></div>';
+      html += '</div>';
     });
-    // 처음 10개 표시, 나머지 접기
-    if(prodRank.length <= 10){
-      html += rankHtml;
-    } else {
-      var top10Html = prodRank.slice(0,10).map(function(item,i){
-        var pct = Math.round(item.qty/maxQ*100);
-        var color = i===0?'var(--gold)':i===1?'#b0b0c0':i===2?'#c87941':'var(--blue)';
-        return '<div style="margin-bottom:10px">'+
-          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">'+
-          '<div style="display:flex;align-items:center;gap:6px">'+
-          '<span style="font-size:11px;color:var(--text3);min-width:20px;font-weight:700">#'+(i+1)+'</span>'+
-          '<span style="font-size:13px;font-weight:'+(i<3?'700':'600')+';color:'+(i<3?color:'var(--text')+'">' +item.name+'</span></div>'+
-          '<span style="font-size:12px;font-weight:700;color:'+color+'">'+item.qty+'개</span>'+
-          '</div>'+
-          '<div style="height:4px;background:var(--bg3);border-radius:2px"><div style="height:4px;width:'+pct+'%;background:'+color+';border-radius:2px"></div></div>'+
-          '</div>';
-      }).join('');
-      html += top10Html;
-      html += '<div id="'+rankId+'" style="display:none">'+rankHtml.split('</div>').slice(10).join('</div>')+'</div>';
-      html += '<button onclick="var el=document.getElementById(''+rankId+'');var show=el.style.display==='none';el.style.display=show?'block':'none';this.textContent=show?'▲ 접기':'▼ 전체 '+prodRank.length+'개 제품 보기'" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:12px;color:var(--text2);cursor:pointer;font-family:inherit;margin-top:4px">▼ 전체 '+prodRank.length+'개 제품 보기</button>';
+    if(!showAll){
+      html += '<div id="rank-more-'+period+'" style="display:none">';
+      prodRank.slice(10).forEach(function(item, ii){
+        var i = ii + 10;
+        var pct = Math.round(item.qty / maxQ * 100);
+        html += '<div style="margin-bottom:10px">';
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">';
+        html += '<span style="font-size:11px;color:var(--text3);min-width:20px;font-weight:700">#'+(i+1)+'</span>';
+        html += '<span style="font-size:13px;flex:1;margin:0 6px">'+item.name+'</span>';
+        html += '<span style="font-size:12px;font-weight:700;color:var(--blue)">'+item.qty+'개</span>';
+        html += '</div>';
+        html += '<div style="height:4px;background:var(--bg3);border-radius:2px">';
+        html += '<div style="height:4px;width:'+pct+'%;background:var(--blue);border-radius:2px"></div></div>';
+        html += '</div>';
+      });
+      html += '</div>';
+      html += '<button onclick="toggleRankFull(this)" data-rid="rank-more-'+period+'" data-total="'+prodRank.length+'" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:12px;color:var(--text2);cursor:pointer;font-family:inherit;margin-top:4px">▼ 전체 '+prodRank.length+'종 보기</button>';
     }
     html += '</div></div>';
   }
