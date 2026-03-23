@@ -622,20 +622,22 @@ input[type=date]{color-scheme:dark;}
       <div class="fr"><label class="lbl">위치명</label><input type="text" id="em-locname" placeholder="예: 예일초등학교"/></div>
     </div>
     <div id="em-machine-fields" style="display:none">
-      <div class="fr"><label class="lbl">단말기 번호 <span style="color:var(--red)">*</span></label><input type="text" id="em-devno-single" placeholder="예: 2000107965"/></div>
-      <div class="f2" style="margin-bottom:12px">
-        <div><label class="lbl">자판기 종류 <span style="color:var(--red)">*</span></label>
-          <select id="em-vtype" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-size:13px;font-family:inherit">
-            <option value="">종류 선택</option>
-            <option value="멀티자판기">멀티자판기</option>
-            <option value="음료자판기">음료자판기</option>
-            <option value="아이스크림자판기">아이스크림자판기</option>
-            <option value="과자자판기">과자자판기</option>
-            <option value="컵라면자판기">컵라면자판기</option>
-            <option value="기타">기타</option>
-          </select>
-        </div>
-        <div><label class="lbl">자판기 모델명</label><input type="text" id="em-model" placeholder="예: VM-3000"/></div>
+      <div class="fr">
+        <label class="lbl">자판기 종류 <span style="color:var(--red)">*</span></label>
+        <select id="em-vtype" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-size:13px;font-family:inherit">
+          <option value="">종류 선택</option>
+          <option value="멀티자판기">멀티자판기</option>
+          <option value="음료자판기">음료자판기</option>
+          <option value="아이스크림자판기">아이스크림자판기</option>
+          <option value="과자자판기">과자자판기</option>
+          <option value="컵라면자판기">컵라면자판기</option>
+          <option value="기타">기타</option>
+        </select>
+      </div>
+      <div style="margin-bottom:12px">
+        <label class="lbl">단말기 번호 <span style="color:var(--red)">*</span></label>
+        <div id="em-devnos" style="display:flex;flex-direction:column;gap:6px;margin-top:6px"></div>
+        <button onclick="addEmDevnoField()" style="margin-top:6px;background:var(--bg3);border:1px dashed var(--border);border-radius:8px;padding:7px;width:100%;color:var(--text2);font-size:12px;cursor:pointer;font-family:inherit">+ 단말기 번호 추가</button>
       </div>
       <div class="f2">
         <div><label class="lbl">계약 시작</label><input type="date" id="em-start"/></div>
