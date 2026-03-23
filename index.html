@@ -3009,20 +3009,33 @@ function resetCsvModal(){
 
 function parseCol(col){
   if(!col) return null;
-  col = col.trim();
+  col = String(col).trim();
   // 범위형: "45~46"
   var rangeMatch = col.match(/^(\d+)~(\d+)$/);
   if(rangeMatch){
-    var floor = parseInt(col.slice(0, -2));  // 앞 숫자(들)
-    // 층은 앞부분, 슬롯은 마지막 1자리
     var a = rangeMatch[1], b = rangeMatch[2];
-    var floorA = parseInt(a.slice(0,-1)), slotA = parseInt(a.slice(-1));
-    var floorB = parseInt(b.slice(0,-1)), slotB = parseInt(b.slice(-1));
+    var floorA, slotA, slotB;
+    if(a.length >= 2){
+      floorA = parseInt(a.slice(0,-1)); slotA = parseInt(a.slice(-1));
+    } else {
+      floorA = 0; slotA = parseInt(a);
+    }
+    if(b.length >= 2){
+      slotB = parseInt(b.slice(-1));
+    } else {
+      slotB = parseInt(b);
+    }
     if(isNaN(floorA)||isNaN(slotA)||isNaN(slotB)) return null;
     return {floor:floorA, slot:slotA, span:slotB-slotA+1, label:col};
   }
-  // 단일형: "47"
-  if(col.length < 2) return null;
+  // 단일형
+  var n = parseInt(col);
+  if(isNaN(n)) return null;
+  if(col.length === 1){
+    // 1자리: 층=0, 슬롯=숫자 (예: "1" → floor:0, slot:1)
+    return {floor:0, slot:n, span:1, label:col};
+  }
+  // 2자리 이상: 앞자리=층, 마지막1자리=슬롯 (예: "47" → floor:4, slot:7)
   var f = parseInt(col.slice(0,-1));
   var s = parseInt(col.slice(-1));
   if(isNaN(f)||isNaN(s)) return null;
