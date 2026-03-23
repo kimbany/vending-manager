@@ -2444,6 +2444,7 @@ function renderSalesStats(){
   });
 
   var prodRank = Object.values(prodMap).sort(function(a,b){return b.qty-a.qty;});
+  var period = range.from + '_' + range.to; // rank-more ID용
   var html = '';
 
   // 기간 요약 카드
