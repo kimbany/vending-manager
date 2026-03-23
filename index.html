@@ -3965,9 +3965,16 @@ function fetchTodaySales(isAuto){
 
       var keys = Object.keys(rowsByMachine);
       if(!keys.length){
-        if(!isAuto) showToast('📭 등록된 자판기와 일치하는 데이터 없음. 단말기번호를 확인해주세요');
-        if(btn){ btn.textContent='🔄 오늘 데이터 수집'; btn.disabled=false; }
-        return;
+        // 매칭된 자판기 없음 → 현재 선택 자판기에 저장 (fallback)
+        if(currentLocationId && currentMachineId){
+          rowsByMachine[currentLocationId+'|'+currentMachineId] = val.rows;
+          keys = [currentLocationId+'|'+currentMachineId];
+          if(!isAuto) showToast('⚠️ 단말기번호 미매칭 → 현재 자판기에 저장');
+        } else {
+          if(!isAuto) showToast('📭 등록된 자판기와 일치하는 데이터 없음\n설정에서 단말기번호를 확인해주세요');
+          if(btn){ btn.textContent='🔄 오늘 데이터 수집'; btn.disabled=false; }
+          return;
+        }
       }
 
       // 자판기별 appData 로드 후 저장
