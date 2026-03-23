@@ -2451,18 +2451,43 @@ function renderSalesStats(){
     html += '<div class="ch"><div class="ca" style="background:var(--gold)"></div><div><div class="ct">🏆 제품 판매 순위</div></div></div>';
     html += '<div class="cb">';
     var maxQ = prodRank[0].qty;
-    prodRank.slice(0,10).forEach(function(item,i){
+    var rankId = 'rank-full-'+Date.now();
+    // 전체 목록 생성
+    var rankHtml = '';
+    prodRank.forEach(function(item,i){
       var pct = Math.round(item.qty/maxQ*100);
-      html += '<div style="margin-bottom:10px">';
-      html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">';
-      html += '<div style="display:flex;align-items:center;gap:6px">';
-      html += '<span style="font-size:11px;color:var(--text3);min-width:18px;font-weight:700">#'+(i+1)+'</span>';
-      html += '<span style="font-size:13px;font-weight:600">'+item.name+'</span></div>';
-      html += '<span style="font-size:12px;font-weight:700;color:var(--blue)">'+item.qty+'개</span>';
-      html += '</div>';
-      html += '<div style="height:4px;background:var(--bg3);border-radius:2px"><div style="height:4px;width:'+pct+'%;background:var(--gold);border-radius:2px;transition:width .3s"></div></div>';
-      html += '</div>';
+      var color = i===0?'var(--gold)':i===1?'#b0b0c0':i===2?'#c87941':'var(--blue)';
+      rankHtml += '<div style="margin-bottom:10px">';
+      rankHtml += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">';
+      rankHtml += '<div style="display:flex;align-items:center;gap:6px">';
+      rankHtml += '<span style="font-size:11px;color:var(--text3);min-width:20px;font-weight:700">#'+(i+1)+'</span>';
+      rankHtml += '<span style="font-size:13px;font-weight:'+(i<3?'700':'600')+';color:'+(i<3?color:'var(--text')+'">' +item.name+'</span></div>';
+      rankHtml += '<span style="font-size:12px;font-weight:700;color:'+color+'">'+item.qty+'개</span>';
+      rankHtml += '</div>';
+      rankHtml += '<div style="height:4px;background:var(--bg3);border-radius:2px"><div style="height:4px;width:'+pct+'%;background:'+color+';border-radius:2px"></div></div>';
+      rankHtml += '</div>';
     });
+    // 처음 10개 표시, 나머지 접기
+    if(prodRank.length <= 10){
+      html += rankHtml;
+    } else {
+      var top10Html = prodRank.slice(0,10).map(function(item,i){
+        var pct = Math.round(item.qty/maxQ*100);
+        var color = i===0?'var(--gold)':i===1?'#b0b0c0':i===2?'#c87941':'var(--blue)';
+        return '<div style="margin-bottom:10px">'+
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">'+
+          '<div style="display:flex;align-items:center;gap:6px">'+
+          '<span style="font-size:11px;color:var(--text3);min-width:20px;font-weight:700">#'+(i+1)+'</span>'+
+          '<span style="font-size:13px;font-weight:'+(i<3?'700':'600')+';color:'+(i<3?color:'var(--text')+'">' +item.name+'</span></div>'+
+          '<span style="font-size:12px;font-weight:700;color:'+color+'">'+item.qty+'개</span>'+
+          '</div>'+
+          '<div style="height:4px;background:var(--bg3);border-radius:2px"><div style="height:4px;width:'+pct+'%;background:'+color+';border-radius:2px"></div></div>'+
+          '</div>';
+      }).join('');
+      html += top10Html;
+      html += '<div id="'+rankId+'" style="display:none">'+rankHtml.split('</div>').slice(10).join('</div>')+'</div>';
+      html += '<button onclick="var el=document.getElementById(''+rankId+'');var show=el.style.display==='none';el.style.display=show?'block':'none';this.textContent=show?'▲ 접기':'▼ 전체 '+prodRank.length+'개 제품 보기'" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:12px;color:var(--text2);cursor:pointer;font-family:inherit;margin-top:4px">▼ 전체 '+prodRank.length+'개 제품 보기</button>';
+    }
     html += '</div></div>';
   }
 
