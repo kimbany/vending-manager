@@ -618,35 +618,16 @@ input[type=date]{color-scheme:dark;}
     <div class="mh"><div class="mt" id="em-modal-title">✏️ 수정</div><button class="mc" onclick="closeModal('edit-machine-modal')">✕</button></div>
     <input type="hidden" id="edit-machine-id"/>
     <input type="hidden" id="edit-machine-type"/>
+    <!-- 위치 수정 필드 -->
     <div id="em-location-fields">
-      <div class="fr"><label class="lbl">위치명</label><input type="text" id="em-locname" placeholder="예: 예일초등학교"/></div>
+      <div class="fr"><label class="lbl">위치명 <span style="color:var(--red)">*</span></label><input type="text" id="em-locname" placeholder="예: 예일초등학교"/></div>
     </div>
+    <!-- 자판기(단말기) 수정 필드 - 추가 모달과 동일한 구조 -->
     <div id="em-machine-fields" style="display:none">
-      <div class="fr">
-        <label class="lbl">자판기 종류 <span style="color:var(--red)">*</span></label>
-        <select id="em-vtype" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-size:13px;font-family:inherit">
-          <option value="">종류 선택</option>
-          <option value="멀티자판기">멀티자판기</option>
-          <option value="음료자판기">음료자판기</option>
-          <option value="아이스크림자판기">아이스크림자판기</option>
-          <option value="과자자판기">과자자판기</option>
-          <option value="컵라면자판기">컵라면자판기</option>
-          <option value="기타">기타</option>
-        </select>
+      <div id="em-machines-wrap">
+        <!-- JS에서 동적으로 채워짐 -->
       </div>
-      <div style="margin-bottom:12px">
-        <label class="lbl">단말기 번호 <span style="color:var(--red)">*</span></label>
-        <div id="em-devnos" style="display:flex;flex-direction:column;gap:6px;margin-top:6px"></div>
-        <button onclick="addEmDevnoField()" style="margin-top:6px;background:var(--bg3);border:1px dashed var(--border);border-radius:8px;padding:7px;width:100%;color:var(--text2);font-size:12px;cursor:pointer;font-family:inherit">+ 단말기 번호 추가</button>
-      </div>
-      <div class="f2">
-        <div><label class="lbl">계약 시작</label><input type="date" id="em-start"/></div>
-        <div><label class="lbl">계약 종료</label><input type="date" id="em-end"/></div>
-      </div>
-      <label style="display:flex;align-items:center;gap:10px;padding:8px 0;cursor:pointer;margin-bottom:8px">
-        <input type="checkbox" id="em-main" style="width:18px;height:18px;accent-color:var(--gold)"/>
-        <span style="font-size:13px;font-weight:600">⭐ 메인으로 설정</span>
-      </label>
+      <button onclick="addEmMachineRow()" style="width:100%;background:var(--bg3);border:1px dashed var(--border);border-radius:8px;padding:10px;color:var(--text2);font-size:13px;cursor:pointer;font-family:inherit;margin-bottom:12px">+ 단말기 추가</button>
     </div>
     <button class="btn-p" style="margin-bottom:0" onclick="saveMachineEdit()">저장</button>
     <div id="em-msg" style="font-size:12px;margin-top:8px;text-align:center"></div>
@@ -1839,13 +1820,35 @@ function openAddMachineToLocation(locId){
   openModal('edit-machine-modal');
 }
 
-function addEmDevnoField(){
-  var wrap=document.getElementById('em-devnos');
-  var row=document.createElement('div');
-  row.style='display:flex;gap:6px';
-  row.innerHTML='<input type="text" placeholder="단말기 번호" class="em-devno" style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-size:14px;font-family:inherit"/>'+'<button onclick="this.parentElement.remove()" style="background:rgba(224,88,88,.15);border:1px solid rgba(224,88,88,.3);border-radius:8px;padding:0 10px;color:var(--red);cursor:pointer">−</button>';
-  wrap.appendChild(row);
+function addEmDevnoField(){} // 하위호환
+
+function makeEmRowHtml(devno, vtype, model, start, end){
+  var vtypeOpts = '<option value="">종류 선택</option><option value="멀티자판기">멀티자판기</option><option value="음료자판기">음료자판기</option><option value="아이스크림자판기">아이스크림자판기</option><option value="과자자판기">과자자판기</option><option value="컵라면자판기">컵라면자판기</option><option value="기타">기타</option>';
+  vtypeOpts = vtypeOpts.replace('value="'+vtype+'"', 'value="'+vtype+'" selected');
+  return '<div class="em-machine-row" style="background:var(--bg3);border-radius:10px;padding:10px;margin-bottom:8px">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
+      '<div style="font-size:12px;font-weight:600;color:var(--text2)">단말기</div>'+
+      '<button onclick="this.closest(\'.em-machine-row\').remove()" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:16px">✕</button>'+
+    '</div>'+
+    '<div class="f2" style="margin-bottom:8px">'+
+      '<div><label class="lbl">단말기 번호</label><input type="text" value="'+(devno||'')+'" class="em-devno" placeholder="예: 2000107965"/></div>'+
+      '<div><label class="lbl">자판기 종류</label><select class="em-vtype" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-size:13px;font-family:inherit">'+vtypeOpts+'</select></div>'+
+    '</div>'+
+    '<div class="fr" style="margin-bottom:8px"><label class="lbl">자판기 모델명 <span style="font-size:11px;color:var(--text3);font-weight:400">(선택)</span></label><input type="text" value="'+(model||'')+'" class="em-model" placeholder="예: VM-3000"/></div>'+
+    '<div class="f2" style="margin-bottom:0">'+
+      '<div><label class="lbl">계약 시작</label><input type="date" value="'+(start||'')+'" class="em-start"/></div>'+
+      '<div><label class="lbl">계약 종료</label><input type="date" value="'+(end||'')+'" class="em-end"/></div>'+
+    '</div>'+
+  '</div>';
 }
+
+function addEmMachineRow(){
+  var wrap = document.getElementById('em-machines-wrap');
+  var div = document.createElement('div');
+  div.innerHTML = makeEmRowHtml('','','','','');
+  wrap.appendChild(div.firstChild);
+}
+
 
 // 위치 수정
 function openEditLocation(locId){
@@ -1865,24 +1868,28 @@ function openEditLocation(locId){
 // 자판기 수정
 function openEditMachine(locId, machineId){
   db.ref('users/'+currentUser.uid+'/locations/'+locId+'/machines/'+machineId).once('value').then(function(snap){
-    var m=snap.val();if(!m)return;
+    var m=snap.val(); if(!m) return;
     var devnos=Array.isArray(m.deviceNos)?m.deviceNos:(m.deviceNo?[m.deviceNo]:[]);
     document.getElementById('em-modal-title').textContent='✏️ 자판기 수정';
     document.getElementById('edit-machine-id').value=locId+'|'+machineId;
     document.getElementById('edit-machine-type').value='machine';
     document.getElementById('em-location-fields').style.display='none';
     document.getElementById('em-machine-fields').style.display='block';
-    // em-name 필드 제거됨 (vtype으로 대체)
-    var wrap=document.getElementById('em-devnos');
-    wrap.innerHTML=devnos.map(function(d){
-      return '<div style="display:flex;gap:6px"><input type="text" value="'+d+'" class="em-devno" style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-size:14px;font-family:inherit"/><button onclick="this.parentElement.remove()" style="background:rgba(224,88,88,.15);border:1px solid rgba(224,88,88,.3);border-radius:8px;padding:0 10px;color:var(--red);cursor:pointer">−</button></div>';
-    }).join('');
-    var vtEl=document.getElementById('em-vtype'); if(vtEl) vtEl.value=m.name||'';
-    var mdEl=document.getElementById('em-model'); if(mdEl) mdEl.value=m.model||'';
-    document.getElementById('em-start').value=m.contractStart||'';
-    document.getElementById('em-end').value=m.contractEnd||'';
-    document.getElementById('em-main').checked=false;
     document.getElementById('em-msg').textContent='';
+    // 단말기 행 렌더 (단말기번호 1개 = 1행)
+    var wrap = document.getElementById('em-machines-wrap');
+    wrap.innerHTML = '';
+    if(devnos.length){
+      devnos.forEach(function(d){
+        var div=document.createElement('div');
+        div.innerHTML=makeEmRowHtml(d, m.name||'', m.model||'', m.contractStart||'', m.contractEnd||'');
+        wrap.appendChild(div.firstChild);
+      });
+    } else {
+      var div=document.createElement('div');
+      div.innerHTML=makeEmRowHtml('', m.name||'', m.model||'', m.contractStart||'', m.contractEnd||'');
+      wrap.appendChild(div.firstChild);
+    }
     openModal('edit-machine-modal');
   });
 }
@@ -1904,19 +1911,32 @@ function saveMachineEdit(){
   } else if(type==='machine' || type.startsWith('machine_to_loc:')){
     var locId = type.startsWith('machine_to_loc:') ? type.split(':')[1] : id.split('|')[0];
     var machineId = type.startsWith('machine_to_loc:') ? 'machine_'+Date.now() : id.split('|')[1];
-    var vtEl=document.getElementById('em-vtype');
-    var mdEl=document.getElementById('em-model');
-    var vtype=vtEl?vtEl.value.trim():'';
-    var model=mdEl?mdEl.value.trim():'';
-    var devnoInputs=document.querySelectorAll('#em-devnos .em-devno');
-    var devnos=[]; devnoInputs.forEach(function(inp){ if(inp.value.trim()) devnos.push(inp.value.trim()); });
-    var start=document.getElementById('em-start').value;
-    var end=document.getElementById('em-end').value;
-    if(!devnos.length){ msg.style.color='var(--red)'; msg.textContent='단말기 번호를 입력하세요'; return; }
-    var mname=vtype||model||devnos[0];
-    var data={name:mname, model:model, deviceNos:devnos, contractStart:start, contractEnd:end};
-    if(type.startsWith('machine_to_loc:')) data.createdAt=td();
-    db.ref('users/'+currentUser.uid+'/locations/'+locId+'/machines/'+machineId).update(data).then(function(){
+    // em-machines-wrap 에서 각 행 읽기
+    var rows = document.querySelectorAll('#em-machines-wrap .em-machine-row');
+    if(!rows.length){ msg.style.color='var(--red)'; msg.textContent='단말기를 1개 이상 추가하세요'; return; }
+    var saves = [];
+    var valid = true;
+    rows.forEach(function(row){
+      var devno = row.querySelector('.em-devno').value.trim();
+      var vtype = row.querySelector('.em-vtype').value.trim();
+      var model = row.querySelector('.em-model') ? row.querySelector('.em-model').value.trim() : '';
+      var start = row.querySelector('.em-start') ? row.querySelector('.em-start').value : '';
+      var end   = row.querySelector('.em-end')   ? row.querySelector('.em-end').value   : '';
+      if(!devno){ msg.style.color='var(--red)'; msg.textContent='단말기 번호를 입력하세요'; valid=false; return; }
+      saves.push({devno:devno, vtype:vtype, model:model, start:start, end:end});
+    });
+    if(!valid) return;
+    // 단말기 1개: 기존 자판기 업데이트 / 여러 개: 추가분은 새 machineId로 생성
+    var promises = [];
+    saves.forEach(function(s, i){
+      var mid = i===0 ? machineId : 'machine_'+Date.now()+'_'+i;
+      var mname = s.vtype || s.model || s.devno;
+      var data = {name:mname, deviceNos:[s.devno], contractStart:s.start, contractEnd:s.end};
+      if(s.model) data.model = s.model;
+      if(type.startsWith('machine_to_loc:') || i>0) data.createdAt=td();
+      promises.push(db.ref('users/'+currentUser.uid+'/locations/'+locId+'/machines/'+mid).update(data));
+    });
+    Promise.all(promises).then(function(){
       msg.style.color='var(--green)'; msg.textContent='✅ 저장 완료';
       setTimeout(function(){ closeModal('edit-machine-modal'); renderMachinesList(); loadLocationDropdown(); }, 800);
     });
