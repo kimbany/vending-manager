@@ -570,14 +570,18 @@ input[type=date]{color-scheme:dark;}
           <div><label class="lbl">자판기 종류 <span style="color:var(--red)">*</span></label>
             <select class="al-vtype" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-size:13px;font-family:inherit">
               <option value="">종류 선택</option>
-<option value="멀티자판기">멀티자판기</option>
-<option value="음료자판기">음료자판기</option>
-<option value="아이스크림자판기">아이스크림자판기</option>
-<option value="과자자판기">과자자판기</option>
-<option value="컵라면자판기">컵라면자판기</option>
-<option value="기타">기타</option>
+              <option value="멀티자판기">멀티자판기</option>
+              <option value="음료자판기">음료자판기</option>
+              <option value="아이스크림자판기">아이스크림자판기</option>
+              <option value="과자자판기">과자자판기</option>
+              <option value="컵라면자판기">컵라면자판기</option>
+              <option value="기타">기타</option>
             </select>
           </div>
+        </div>
+        <div class="fr" style="margin-bottom:8px">
+          <label class="lbl">자판기 모델명 <span style="font-size:11px;color:var(--text3);font-weight:400">(예: VM-3000, 선택)</span></label>
+          <input type="text" placeholder="예: VM-3000" class="al-model"/>
         </div>
         <div class="f2" style="margin-bottom:0">
           <div><label class="lbl">계약 시작</label><input type="date" class="al-start"/></div>
@@ -618,10 +622,20 @@ input[type=date]{color-scheme:dark;}
       <div class="fr"><label class="lbl">위치명</label><input type="text" id="em-locname" placeholder="예: 예일초등학교"/></div>
     </div>
     <div id="em-machine-fields" style="display:none">
-      <div class="fr"><label class="lbl">자판기명</label><input type="text" id="em-name" placeholder="예: 멀티 자판기"/></div>
-      <div style="margin-bottom:12px"><label class="lbl">단말기 번호</label>
-        <div id="em-devnos" style="display:flex;flex-direction:column;gap:6px;margin-top:6px"></div>
-        <button onclick="addEmDevnoField()" style="margin-top:6px;background:var(--bg3);border:1px dashed var(--border);border-radius:8px;padding:7px;width:100%;color:var(--text2);font-size:12px;cursor:pointer;font-family:inherit">+ 단말기 번호 추가</button>
+      <div class="fr"><label class="lbl">단말기 번호 <span style="color:var(--red)">*</span></label><input type="text" id="em-devno-single" placeholder="예: 2000107965"/></div>
+      <div class="f2" style="margin-bottom:12px">
+        <div><label class="lbl">자판기 종류 <span style="color:var(--red)">*</span></label>
+          <select id="em-vtype" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-size:13px;font-family:inherit">
+            <option value="">종류 선택</option>
+            <option value="멀티자판기">멀티자판기</option>
+            <option value="음료자판기">음료자판기</option>
+            <option value="아이스크림자판기">아이스크림자판기</option>
+            <option value="과자자판기">과자자판기</option>
+            <option value="컵라면자판기">컵라면자판기</option>
+            <option value="기타">기타</option>
+          </select>
+        </div>
+        <div><label class="lbl">자판기 모델명</label><input type="text" id="em-model" placeholder="예: VM-3000"/></div>
       </div>
       <div class="f2">
         <div><label class="lbl">계약 시작</label><input type="date" id="em-start"/></div>
@@ -1701,11 +1715,13 @@ function renderMachinesList(){
       Object.keys(machines).forEach(function(mid){
         var m=machines[mid];
         var devNos=Array.isArray(m.deviceNos)?m.deviceNos:(m.deviceNo?[m.deviceNo]:[]);
+        var modelName=m.model?(' · '+m.model):'';
         var expired=m.contractEnd&&m.contractEnd<now;
         html+='<div style="background:var(--bg3);border-radius:8px;padding:10px;margin-bottom:6px">';
         html+='<div style="display:flex;justify-content:space-between;align-items:center">';
-        html+='<div><div style="font-size:13px;font-weight:600">🏪 '+m.name+'</div>';
+        html+='<div><div style="font-size:13px;font-weight:600">🏪 '+m.name+modelName+'</div>';
         html+='<div style="font-size:11px;color:var(--text3);margin-top:2px">단말기: '+devNos.join(', ')+'</div>';
+        if(m.model) html+='<div style="font-size:11px;color:var(--text3)">모델: '+m.model+'</div>';
         html+='<div style="font-size:11px;color:var(--text3)">계약: '+(m.contractStart||'-')+' ~ '+(m.contractEnd||'-')+'</div></div>';
         html+='<div style="display:flex;gap:4px;flex-direction:column;align-items:flex-end">';
         html+='<span style="font-size:10px;background:'+(expired?'rgba(224,88,88,.2)':'rgba(122,218,154,.15)')+';color:'+(expired?'var(--red)':'var(--green)')+';border-radius:4px;padding:2px 6px">'+(expired?'계약종료':'운영중')+'</span>';
@@ -1745,6 +1761,7 @@ function addMachineRow(){
       '<div><label class="lbl">단말기 번호</label><input type="text" placeholder="예: 2000107965" class="al-devno"/></div>'+
       '<div><label class="lbl">자판기 종류</label><select class="al-vtype" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-size:13px;font-family:inherit">'+vtypeOpts+'</select></div>'+
     '</div>'+
+    '<div class="fr" style="margin-bottom:8px"><label class="lbl">자판기 모델명</label><input type="text" placeholder="예: LM-5000, VM-300 등" class="al-model"/></div>'+
     '<div class="f2" style="margin-bottom:0">'+
       '<div><label class="lbl">계약 시작</label><input type="date" class="al-start"/></div>'+
       '<div><label class="lbl">계약 종료</label><input type="date" class="al-end"/></div>'+
@@ -1765,13 +1782,13 @@ function addLocation(){
   rows.forEach(function(row){
     var devno=row.querySelector('.al-devno').value.trim();
     var vtype=row.querySelector('.al-vtype').value.trim();
+    var model=row.querySelector('.al-model') ? row.querySelector('.al-model').value.trim() : '';
     var start=row.querySelector('.al-start').value;
     var end=row.querySelector('.al-end').value;
     if(!devno){ msg.style.color='var(--red)'; msg.textContent='단말기 번호를 입력하세요'; valid=false; return; }
     if(!vtype){ msg.style.color='var(--red)'; msg.textContent='자판기 종류를 선택하세요'; valid=false; return; }
     var mid='machine_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
-    // 단말기번호 1개 = 자판기 1대 (name = 자판기종류)
-    machines[mid]={name:vtype, deviceNos:[devno], contractStart:start, contractEnd:end, createdAt:td()};
+    machines[mid]={name:vtype, model:model, deviceNos:[devno], contractStart:start, contractEnd:end, createdAt:td()};
   });
   if(!valid) return;
   msg.style.color='var(--text2)'; msg.textContent='저장 중...';
@@ -1788,9 +1805,10 @@ function addLocation(){
     document.getElementById('al-machines-wrap').innerHTML=
       '<div class="al-machine-row" style="background:var(--bg3);border-radius:10px;padding:10px;margin-bottom:8px">'+
         '<div class="f2" style="margin-bottom:8px">'+
-          '<div><label class="lbl">단말기 번호</label><input type="text" placeholder="예: 2000107965" class="al-devno"/></div>'+
-          '<div><label class="lbl">자판기 종류</label><select class="al-vtype" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-size:13px;font-family:inherit">'+vtypeOpts+'</select></div>'+
+          '<div><label class="lbl">단말기 번호 *</label><input type="text" placeholder="예: 2000107965" class="al-devno"/></div>'+
+          '<div><label class="lbl">자판기 종류 *</label><select class="al-vtype" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-size:13px;font-family:inherit">'+vtypeOpts+'</select></div>'+
         '</div>'+
+        '<div class="fr" style="margin-bottom:8px"><label class="lbl">자판기 모델명</label><input type="text" placeholder="예: VM-3000" class="al-model"/></div>'+
         '<div class="f2" style="margin-bottom:0">'+
           '<div><label class="lbl">계약 시작</label><input type="date" class="al-start"/></div>'+
           '<div><label class="lbl">계약 종료</label><input type="date" class="al-end"/></div>'+
@@ -1852,11 +1870,13 @@ function openEditMachine(locId, machineId){
     document.getElementById('edit-machine-type').value='machine';
     document.getElementById('em-location-fields').style.display='none';
     document.getElementById('em-machine-fields').style.display='block';
-    document.getElementById('em-name').value=m.name||'';
+    // em-name 필드 제거됨 (vtype으로 대체)
     var wrap=document.getElementById('em-devnos');
     wrap.innerHTML=devnos.map(function(d){
       return '<div style="display:flex;gap:6px"><input type="text" value="'+d+'" class="em-devno" style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-size:14px;font-family:inherit"/><button onclick="this.parentElement.remove()" style="background:rgba(224,88,88,.15);border:1px solid rgba(224,88,88,.3);border-radius:8px;padding:0 10px;color:var(--red);cursor:pointer">−</button></div>';
     }).join('');
+    var vtEl=document.getElementById('em-vtype'); if(vtEl) vtEl.value=m.name||'';
+    var mdEl=document.getElementById('em-model'); if(mdEl) mdEl.value=m.model||'';
     document.getElementById('em-start').value=m.contractStart||'';
     document.getElementById('em-end').value=m.contractEnd||'';
     document.getElementById('em-main').checked=false;
@@ -1882,18 +1902,22 @@ function saveMachineEdit(){
   } else if(type==='machine' || type.startsWith('machine_to_loc:')){
     var locId = type.startsWith('machine_to_loc:') ? type.split(':')[1] : id.split('|')[0];
     var machineId = type.startsWith('machine_to_loc:') ? 'machine_'+Date.now() : id.split('|')[1];
-    var mname=document.getElementById('em-name').value.trim();
+    var vtEl=document.getElementById('em-vtype');
+    var mdEl=document.getElementById('em-model');
+    var vtype=vtEl?vtEl.value.trim():'';
+    var model=mdEl?mdEl.value.trim():'';
     var devnoInputs=document.querySelectorAll('#em-devnos .em-devno');
     var devnos=[]; devnoInputs.forEach(function(inp){ if(inp.value.trim()) devnos.push(inp.value.trim()); });
     var start=document.getElementById('em-start').value;
     var end=document.getElementById('em-end').value;
-    if(!mname){ msg.style.color='var(--red)'; msg.textContent='자판기명을 입력하세요'; return; }
     if(!devnos.length){ msg.style.color='var(--red)'; msg.textContent='단말기 번호를 입력하세요'; return; }
-    var data={name:mname, deviceNos:devnos, contractStart:start, contractEnd:end};
+    var mname=vtype||model||devnos[0];
+    var data={name:mname, model:model, deviceNos:devnos, contractStart:start, contractEnd:end};
     if(type.startsWith('machine_to_loc:')) data.createdAt=td();
     db.ref('users/'+currentUser.uid+'/locations/'+locId+'/machines/'+machineId).update(data).then(function(){
       msg.style.color='var(--green)'; msg.textContent='✅ 저장 완료';
       setTimeout(function(){ closeModal('edit-machine-modal'); renderMachinesList(); loadLocationDropdown(); }, 800);
+    });
     });
   }
 }
