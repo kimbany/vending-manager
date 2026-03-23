@@ -252,10 +252,10 @@ input[type=date]{color-scheme:dark;}
       <div class="h-title">자판기 관리</div>
       <div class="h-sub" id="header-user">Vending Manager</div>
     </div>
-    <!-- 위치→자판기 선택 -->
-    <div id="machine-selector" style="display:none;flex-direction:column;align-items:flex-end;gap:2px">
-      <select id="location-select" onchange="onLocationSelect()" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:3px 6px;color:var(--gold);font-size:10px;font-weight:700;font-family:inherit;max-width:110px"></select>
-      <select id="machine-select" onchange="onMachineSelect()" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:3px 6px;color:var(--text2);font-size:10px;font-family:inherit;max-width:110px;display:none"></select>
+    <!-- 위치 선택 -->
+    <div id="machine-selector" style="display:none">
+      <select id="location-select" onchange="onLocationSelect()" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--gold);font-size:11px;font-weight:700;font-family:inherit;max-width:130px"></select>
+      <select id="machine-select" style="display:none"></select>
     </div>
     <button onclick="doLogout()" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:5px 8px;color:var(--text2);font-size:11px;cursor:pointer;font-family:inherit;margin-left:6px;flex-shrink:0">로그아웃</button>
   </div>
@@ -389,9 +389,18 @@ input[type=date]{color-scheme:dark;}
 
       <!-- 자판기 현황 서브패널 -->
       <div id="vm-panel-status">
+        <!-- 단말기 네비게이터 -->
+        <div id="vm-machine-nav" style="display:none;align-items:center;justify-content:space-between;background:var(--bg3);border-radius:10px;padding:8px 12px;margin-bottom:10px">
+          <button onclick="navMachine(-1)" style="background:none;border:1px solid var(--border);border-radius:6px;padding:4px 10px;color:var(--text2);cursor:pointer;font-size:14px">‹</button>
+          <div style="text-align:center">
+            <div id="vm-machine-name" style="font-size:13px;font-weight:700;color:var(--gold)"></div>
+            <div id="vm-machine-devno" style="font-size:11px;color:var(--text3)"></div>
+          </div>
+          <button onclick="navMachine(1)" style="background:none;border:1px solid var(--border);border-radius:6px;padding:4px 10px;color:var(--text2);cursor:pointer;font-size:14px">›</button>
+        </div>
         <div class="vmw" id="vm-grid"></div>
         <div class="card" style="margin-top:14px">
-          <div class="ch"><div class="ca" style="background:var(--blue)"></div><div><div class="ct">컬럼 배치 현황</div><div style="font-size:11px;color:var(--text3);margin-top:2px">제품 눌러서 상세 보기</div></div></div>
+          <div class="ch"><div class="ca" style="background:var(--blue)"></div><div><div class="ct">컬럼 배치 현황</div><div id="vm-list-sub" style="font-size:11px;color:var(--text3);margin-top:2px">제품 눌러서 상세 보기</div></div></div>
           <div class="cb" id="vm-list"></div>
         </div>
       </div>
@@ -3014,14 +3023,106 @@ function parseCol(col){
   return {floor:f, slot:s, span:1, label:col};
 }
 
+// 단말기 네비게이션 상태
+var vmMachineList = []; // [{machineId, locId, name, devno, model}]
+var vmMachineIdx  = 0;
+
+function navMachine(dir){
+  if(!vmMachineList.length) return;
+  vmMachineIdx = (vmMachineIdx + dir + vmMachineList.length) % vmMachineList.length;
+  var mc = vmMachineList[vmMachineIdx];
+  // 해당 단말기 데이터 로드
+  var appRef = db.ref('users/'+currentUser.uid+'/locations/'+mc.locId+'/machines/'+mc.machineId+'/appData');
+  appRef.once('value').then(function(snap){
+    var val = snap.val()||{};
+    var mProds = val.products||[];
+    var mInv   = val.inventory||[];
+    renderMachineView(mc, mProds, mInv);
+  });
+}
+
 function renderMachine(){
-  // 1칸=1fr, 2칸짜리=2fr, 전체 8칸(0~7) 고정
-  // overflow 방지: vmw에 overflow:hidden, 셀에 min-width:0
+  // 위치의 모든 단말기 로드
+  if(!currentUser){ renderMachineView(null, D.products, D.inventory); return; }
+  db.ref('users/'+currentUser.uid+'/locations').once('value').then(function(snap){
+    vmMachineList = [];
+    if(snap.exists()){
+      snap.forEach(function(locSnap){
+        var loc = locSnap.val();
+        Object.keys(loc.machines||{}).forEach(function(mid){
+          var m = loc.machines[mid];
+          var devnos = Array.isArray(m.deviceNos)?m.deviceNos:(m.deviceNo?[m.deviceNo]:[]);
+          vmMachineList.push({
+            machineId:mid, locId:locSnap.key,
+            name:m.name, devno:devnos[0]||'', model:m.model||''
+          });
+        });
+      });
+    }
+    var nav = document.getElementById('vm-machine-nav');
+    if(vmMachineList.length > 1){
+      nav.style.display='flex';
+    } else {
+      nav.style.display='none';
+    }
+    if(vmMachineList.length === 0){
+      renderMachineView(null, D.products, D.inventory);
+    } else {
+      // 현재 선택된 자판기 찾기
+      var found = -1;
+      vmMachineList.forEach(function(mc, i){
+        if(mc.machineId === currentMachineId) found = i;
+      });
+      vmMachineIdx = found >= 0 ? found : 0;
+      var mc = vmMachineList[vmMachineIdx];
+      var appRef = db.ref('users/'+currentUser.uid+'/locations/'+mc.locId+'/machines/'+mc.machineId+'/appData');
+      appRef.once('value').then(function(snap){
+        var val = snap.val()||{};
+        renderMachineView(mc, val.products||[], val.inventory||[]);
+      });
+    }
+  });
+}
+
+function renderMachineView(mc, prods, inv){
+  // 네비게이터 업데이트
+  if(mc){
+    var nameEl = document.getElementById('vm-machine-name');
+    var devnoEl = document.getElementById('vm-machine-devno');
+    if(nameEl) nameEl.textContent = (mc.name||'') + (mc.model ? ' · '+mc.model : '');
+    if(devnoEl) devnoEl.textContent = '단말기: '+mc.devno + (vmMachineList.length>1 ? ' ('+( vmMachineIdx+1)+'/'+vmMachineList.length+')' : '');
+  }
+
+  // 모델명에 따라 레이아웃 결정
+  var model = mc ? (mc.model||'').toUpperCase() : '';
+  var isLVM482 = model.indexOf('LVM-482') >= 0 || model.indexOf('LVM482') >= 0;
+
+  if(!isLVM482 && mc && mc.model){
+    // 모델 있지만 LVM-482 아닌 경우 - 업데이트 중 메시지 + 제품 목록만
+    var gridEl = document.getElementById('vm-grid');
+    gridEl.innerHTML = '<div style="text-align:center;padding:24px;background:var(--bg3);border-radius:12px;margin-bottom:8px">'+
+      '<div style="font-size:32px;margin-bottom:8px">🔧</div>'+
+      '<div style="font-size:14px;font-weight:700;color:var(--text)">'+mc.model+'</div>'+
+      '<div style="font-size:12px;color:var(--text3);margin-top:4px">컬럼 레이아웃 업데이트 중...</div>'+
+    '</div>';
+    renderVmList(mc, prods, inv);
+    return;
+  }
+
+  // LVM-482 또는 모델 없는 경우 - 기존 컬럼 레이아웃
   var TOTAL_SLOTS = 8;
 
   // 제품 슬롯 파싱
+  // 단말기번호 기준 제품 필터
+  var devno = mc ? mc.devno : '';
+  var filteredProds = (prods||[]).filter(function(p){
+    if(!devno) return true;
+    return !p.deviceNo || p.deviceNo === devno;
+  });
+  function getQLocal(pid){ var i=(inv||[]).find(function(x){return x.productId===pid;}); return i?i.qty:0; }
+
   var allSlots=[];
-  D.products.forEach(function(p){
+  filteredProds.forEach(function(p){
     var cols=Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
     cols.forEach(function(c){
       var pc=parseCol(c);
@@ -3072,7 +3173,7 @@ function renderMachine(){
       var entry=floorSlots.find(function(x){return x.slot===s;});
       var p=entry?entry.prod:null;
       var span=entry?entry.span:1;
-      var q=p?gq(p.id):0;
+      var q=p?getQLocal(p.id):0;
       var cl=!p?'':q<=5?' ls':' hp';
 
       // span 설정
@@ -3103,33 +3204,51 @@ function renderMachine(){
   html+='</div>'; // overflow wrapper 닫기
   html+='<div class="vml" style="margin-top:8px"><div class="vmli"><div class="vmld" style="border:1px solid rgba(126,200,227,.4);background:rgba(126,200,227,.1)"></div>정상</div><div class="vmli"><div class="vmld" style="border:1px solid rgba(224,88,88,.4);background:rgba(224,88,88,.1)"></div>부족(≤5)</div><div class="vmli"><div class="vmld" style="border:1px solid var(--border);background:var(--bg)"></div>비어있음</div></div>';
   document.getElementById('vm-grid').innerHTML=html;
+  renderVmList(mc, prods, inv);
+}
 
-  // 배치 목록 (제품 기준으로 중복 없이)
+function renderVmList(mc, prods, inv){
+  function getQ(pid){ var i=(inv||[]).find(function(x){return x.productId===pid;}); return i?i.qty:0; }
+
+  var devno = mc ? mc.devno : '';
+
+  // 단말기번호 기준으로 제품 필터 (없으면 전체)
+  var filteredProds = prods.filter(function(p){
+    if(!devno) return true;
+    // p.deviceNo가 현재 단말기번호와 일치하거나 미지정
+    return !p.deviceNo || p.deviceNo === devno;
+  });
+
+  var listEl = document.getElementById('vm-list');
+  var subEl  = document.getElementById('vm-list-sub');
+  if(subEl) subEl.textContent = devno ? '단말기: '+devno : '제품 눌러서 상세 보기';
+
   var listItems=[];
-  D.products.forEach(function(p){
+  filteredProds.forEach(function(p){
     var cols=Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
     if(!cols.length) return;
-    var q=gq(p.id);
+    var q=getQ(p.id);
     var labels=cols.map(function(c){
       var pc=parseCol(c);
       if(!pc) return c;
-      return pc.span>1 ? pc.floor+'층 '+pc.slot+'~'+( pc.slot+pc.span-1)+'번' : pc.floor+'층 '+pc.slot+'번';
+      return pc.span>1 ? pc.floor+'층 '+pc.slot+'~'+(pc.slot+pc.span-1)+'번' : pc.floor+'층 '+pc.slot+'번';
     });
-    listItems.push({name:p.name, labels:labels, q:q});
-    listItems.sort(function(a,b){return a.labels[0].localeCompare(b.labels[0]);});
+    listItems.push({id:p.id, name:p.name, labels:labels, q:q});
   });
-  document.getElementById('vm-list').innerHTML=listItems.length
-    ?listItems.map(function(item){
-      var q=item.q;
-      var tagHtml=item.labels.map(function(l){
-        return '<span style="background:rgba(232,184,109,.15);border:1px solid rgba(232,184,109,.4);border-radius:6px;padding:2px 7px;font-size:11px;font-weight:700;color:var(--gold)">'+l+'</span>';
-      }).join(' ');
-      return '<div class="item" style="flex-wrap:wrap;gap:6px;cursor:pointer" onclick="openProdDetail(this.dataset.pid)" data-pid="'+item.id+'">'+
-        '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;flex:1">'+tagHtml+
-        '<span style="font-size:13px;font-weight:600">'+item.name+'</span></div>'+
-        '<span style="color:'+(q<=5?'var(--red)':'var(--green)')+';font-weight:700">'+q+'개</span></div>';
-    }).join('')
-    :'<div class="empty"><div class="ei">🏪</div><div class="et">컬럼 배정된 제품 없음</div></div>';
+  listItems.sort(function(a,b){return (a.labels[0]||'').localeCompare(b.labels[0]||'');});
+
+  listEl.innerHTML = listItems.length
+    ? listItems.map(function(item){
+        var q=item.q;
+        var tagHtml=item.labels.map(function(l){
+          return '<span style="background:rgba(232,184,109,.15);border:1px solid rgba(232,184,109,.4);border-radius:6px;padding:2px 7px;font-size:11px;font-weight:700;color:var(--gold)">'+l+'</span>';
+        }).join(' ');
+        return '<div class="item" style="flex-wrap:wrap;gap:6px;cursor:pointer" onclick="openProdDetail(this.dataset.pid)" data-pid="'+item.id+'">'+
+          '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;flex:1">'+tagHtml+
+          '<span style="font-size:13px;font-weight:600">'+item.name+'</span></div>'+
+          '<span style="color:'+(q<=5?'var(--red)':'var(--green)')+';font-weight:700">'+q+'개</span></div>';
+      }).join('')
+    : '<div class="empty"><div class="ei">🏪</div><div class="et">컬럼 배정된 제품 없음</div></div>';
 }
 
 // ─── 제품 등록 ────────────────────────────────────────────────────────────────
@@ -3180,17 +3299,35 @@ function renderProds(){
   document.getElementById('prod-title').textContent='등록 제품 ('+D.products.length+'개)';
   var el=document.getElementById('prod-list');
   if(!D.products.length){el.innerHTML='<div class="empty"><div class="ei">🏷️</div><div class="et">등록된 제품이 없습니다</div></div>';return;}
-  el.innerHTML=D.products.map(function(p){
+
+  function renderProdCard(p){
     var cols=Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
     var colLabel=cols.length?cols.join(', '):'미배정';
-    var cbHtml = editMode
-      ? '<input type="checkbox" class="prod-cb" value="'+p.id+'" onchange="updateSelectedCount()" style="width:20px;height:20px;accent-color:var(--gold);flex-shrink:0;cursor:pointer"/>'
-      : '';
-    var btnHtml = editMode ? '' : '<div style="display:flex;gap:6px"><button class="btn-sm" style="background:#1a2a4a;color:var(--blue)" onclick="editProd(\''+p.id+'\')">수정</button><button class="btn-sm" style="background:#2a1a1a;color:var(--red)" onclick="delProd(\''+p.id+'\')">삭제</button></div>';
-    return '<div class="pc" style="'+(editMode?'cursor:pointer':'')+'" onclick="'+(editMode?'var cb=this.querySelector(\".prod-cb\");cb.checked=!cb.checked;updateSelectedCount()':'')+'"><div class="pch"><div style="display:flex;align-items:center;gap:10px">'+cbHtml+'<div><div class="in">'+p.name+'</div><div class="is">컬럼: '+colLabel+'</div></div></div>'+btnHtml+'</div><div class="pm">'+[['구매가',fmt(p.buyPrice)+'원'],['낱개가',fmt(p.unitPrice)+'원'],['판매가',fmt(p.sellPrice)+'원'],['마진가',fmt(p.marginAmt)+'원'],['마진율',(p.marginRate||0)+'%'],['총수량',p.totalQty+'개']].map(function(lv){return '<div class="pmb"><div class="pml">'+lv[0]+'</div><div class="pmv">'+lv[1]+'</div></div>';}).join('')+'</div></div>';
-  }).join('');
-}
+    var cbHtml=editMode?'<input type="checkbox" class="prod-cb" value="'+p.id+'" onchange="updateSelectedCount()" style="width:20px;height:20px;accent-color:var(--gold);flex-shrink:0;cursor:pointer"/>'  :'';
+    var btnHtml=editMode?'':'<div style="display:flex;gap:6px"><button class="btn-sm" style="background:#1a2a4a;color:var(--blue)" onclick="editProd(\'' +p.id+ '\')">수정</button><button class="btn-sm" style="background:#2a1a1a;color:var(--red)" onclick="delProd(\'' +p.id+ '\')">삭제</button></div>';
+    var clickFn=editMode?'var cb=this.querySelector(\'.prod-cb\');cb.checked=!cb.checked;updateSelectedCount()':'';
+    return '<div class="pc" style="'+(editMode?'cursor:pointer':'')+'" onclick="'+clickFn+'"><div class="pch"><div style="display:flex;align-items:center;gap:10px">'+cbHtml+'<div><div class="in">'+p.name+'</div><div class="is">컬럼: '+colLabel+'</div></div></div>'+btnHtml+'</div><div class="pm">'+[['구매가',fmt(p.buyPrice)+'원'],['낱개가',fmt(p.unitPrice)+'원'],['판매가',fmt(p.sellPrice)+'원'],['마진가',fmt(p.marginAmt)+'원'],['마진율',(p.marginRate||0)+'%'],['총수량',p.totalQty+'개']].map(function(lv){return '<div class="pmb"><div class="pml">'+lv[0]+'</div><div class="pmv">'+lv[1]+'</div></div>';}).join('')+'</div></div>';
+  }
 
+  // 단말기번호별 그룹화
+  var groups={}, noDevno=[];
+  D.products.forEach(function(p){
+    if(p.deviceNo){ if(!groups[p.deviceNo]) groups[p.deviceNo]=[]; groups[p.deviceNo].push(p); }
+    else noDevno.push(p);
+  });
+
+  var html='';
+  var devnos=Object.keys(groups);
+  devnos.forEach(function(devno){
+    html+='<div style="font-size:12px;font-weight:700;color:var(--gold);padding:8px 0 6px;border-top:1px solid var(--border);margin-top:4px">📟 단말기 '+devno+' ('+groups[devno].length+'개)</div>';
+    html+=groups[devno].map(renderProdCard).join('');
+  });
+  if(noDevno.length){
+    if(devnos.length) html+='<div style="font-size:12px;font-weight:700;color:var(--text2);padding:8px 0 6px;border-top:1px solid var(--border);margin-top:4px">📦 단말기 미지정 ('+noDevno.length+'개)</div>';
+    html+=noDevno.map(renderProdCard).join('');
+  }
+  el.innerHTML=html;
+}
 function calcProduct(){
   var buy=parseFloat(document.getElementById('p-buy').value);
   var total=parseFloat(document.getElementById('p-total').value);
