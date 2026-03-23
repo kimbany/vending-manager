@@ -364,6 +364,7 @@ input[type=date]{color-scheme:dark;}
       <!-- 기간 선택 탭 -->
       <div class="stabs" style="margin-bottom:8px">
         <button class="stab active" id="sp-today" onclick="setSalesPeriod('today',this)">오늘</button>
+        <button class="stab" id="sp-yesterday" onclick="setSalesPeriod('yesterday',this)">어제</button>
         <button class="stab" id="sp-week" onclick="setSalesPeriod('week',this)">일주일</button>
         <button class="stab" id="sp-month" onclick="setSalesPeriod('month',this)">한달</button>
         <button class="stab" id="sp-custom" onclick="setSalesPeriod('custom',this)">직접입력</button>
@@ -2438,6 +2439,11 @@ function setSalesPeriod(period, btn){
 function getSalesDateRange(){
   var today = td();
   if(salesPeriod==='today') return {from:today, to:today};
+  if(salesPeriod==='yesterday'){
+    var yd = new Date(); yd.setDate(yd.getDate()-1);
+    var ydStr = yd.toISOString().slice(0,10);
+    return {from:ydStr, to:ydStr};
+  }
   if(salesPeriod==='week'){
     var d = new Date(); d.setDate(d.getDate()-6);
     return {from:d.toISOString().slice(0,10), to:today};
@@ -3582,38 +3588,98 @@ function cleanNum(v){ return parseFloat((v||'').replace(/[^0-9.\-]/g,'')); }
 
 function confirmBulk(){
   var added=0, skipped=[];
+
+  // 단말기번호별로 행 분류
+  var byDevno = {}; // {devno: [rows]}
+  var noDevno = [];
   bulkRows.forEach(function(row){
-    var name = (row['제품명']||'').trim();
-    var buy   = cleanNum(row['구매가']);
-    var total = cleanNum(row['초기총수량']||row['총수량']);
-    var sell  = cleanNum(row['판매가']);
     var devno = (row['단말기번호']||'').trim();
-    var colRaw = (row['컬럼위치']||'').trim();
-    var cols = colRaw ? colRaw.split(/[,\/]/).map(function(c){return c.trim();}).filter(function(c){return c;}) : [];
-    if(!name||!buy||!total||!sell){ skipped.push(name||'(이름없음)'); return; }
-    var unit = total>0 ? Math.round(buy/total) : 0;
-    var ma   = sell - unit;
-    var mr   = sell>0 ? Math.round(ma/sell*100) : 0;
-    var pid  = Date.now().toString()+Math.random();
-    D.products.push({
-      id:pid, name:name, buyPrice:buy, totalQty:total,
-      unitPrice:unit, sellPrice:sell, marginAmt:ma, marginRate:mr,
-      column:cols, deviceNo:devno
-    });
-    // 초기 재고 설정
-    if(total>0){
-      D.inventory.push({productId:pid, qty:total});
-      D.inventoryLogs.push({id:Date.now().toString()+Math.random(), productId:pid, delta:total, memo:'초기 재고 설정 (일괄등록)', date:td()});
-    }
-    added++;
+    if(devno){ if(!byDevno[devno]) byDevno[devno]=[]; byDevno[devno].push(row); }
+    else noDevno.push(row);
   });
-  save();
-  closeModal('bulk-modal');
-  resetBulk();
-  var msg = '✅ '+added+'개 등록 완료';
-  if(skipped.length) msg += ' (⚠️ '+skipped.length+'개 스킵: '+skipped.join(', ')+')';
-  showToast(msg);
-  renderAll();
+
+  // 단말기번호 → locId|machineId 맵 (locations에서 조회)
+  db.ref('users/'+currentUser.uid+'/locations').once('value').then(function(locSnap){
+    var devnoToKey = {}; // {devno: 'locId|machineId'}
+    if(locSnap.exists()){
+      locSnap.forEach(function(locChild){
+        var loc=locChild.val();
+        Object.keys(loc.machines||{}).forEach(function(mid){
+          var m=loc.machines[mid];
+          var devnos=Array.isArray(m.deviceNos)?m.deviceNos:(m.deviceNo?[m.deviceNo]:[]);
+          devnos.forEach(function(d){ devnoToKey[d]=locChild.key+'|'+mid; });
+        });
+      });
+    }
+
+    function makeProduct(row){
+      var name=(row['제품명']||'').trim();
+      var buy=cleanNum(row['구매가']);
+      var total=cleanNum(row['초기총수량']||row['총수량']);
+      var sell=cleanNum(row['판매가']);
+      var devno=(row['단말기번호']||'').trim();
+      var colRaw=(row['컬럼위치']||'').trim();
+      var cols=colRaw?colRaw.split(/[,\/]/).map(function(c){return c.trim();}).filter(function(c){return c;}) : [];
+      if(!name||!buy||!total||!sell){ skipped.push(name||'(이름없음)'); return null; }
+      var unit=total>0?Math.round(buy/total):0;
+      var ma=sell-unit, mr=sell>0?Math.round(ma/sell*100):0;
+      var pid=Date.now().toString()+Math.random();
+      return {prod:{id:pid,name:name,buyPrice:buy,totalQty:total,unitPrice:unit,sellPrice:sell,marginAmt:ma,marginRate:mr,column:cols,deviceNo:devno}, total:total, pid:pid};
+    }
+
+    // 단말기번호별 저장
+    var promises = [];
+    var devnos = Object.keys(byDevno);
+
+    devnos.forEach(function(devno){
+      var key = devnoToKey[devno];
+      var rows = byDevno[devno];
+      var isCurrentMachine = key && (key === currentLocationId+'|'+currentMachineId);
+      var appRef = key
+        ? (isCurrentMachine ? REF : db.ref('users/'+currentUser.uid+'/locations/'+key.split('|')[0]+'/machines/'+key.split('|')[1]+'/appData'))
+        : REF;
+
+      promises.push(appRef.once('value').then(function(snap){
+        var mData=snap.val()||{};
+        var mProds=mData.products||[], mInv=mData.inventory||[], mLogs=mData.inventoryLogs||[];
+        rows.forEach(function(row){
+          var r=makeProduct(row); if(!r) return;
+          mProds.push(r.prod);
+          if(r.total>0){
+            mInv.push({productId:r.pid, qty:r.total});
+            mLogs.push({id:Date.now().toString()+Math.random(), productId:r.pid, delta:r.total, memo:'초기 재고 설정 (일괄등록)', date:td()});
+          }
+          added++;
+        });
+        var saveData={products:mProds, inventory:mInv, inventoryLogs:mLogs, salesData:mData.salesData||[]};
+        if(isCurrentMachine){ D.products=mProds; D.inventory=mInv; D.inventoryLogs=mLogs; }
+        return appRef.set(saveData);
+      }));
+    });
+
+    // 단말기번호 없는 것 → 현재 자판기
+    if(noDevno.length){
+      noDevno.forEach(function(row){
+        var r=makeProduct(row); if(!r) return;
+        D.products.push(r.prod);
+        if(r.total>0){
+          D.inventory.push({productId:r.pid, qty:r.total});
+          D.inventoryLogs.push({id:Date.now().toString()+Math.random(), productId:r.pid, delta:r.total, memo:'초기 재고 설정 (일괄등록)', date:td()});
+        }
+        added++;
+      });
+      promises.push(Promise.resolve(save()));
+    }
+
+    Promise.all(promises).then(function(){
+      closeModal('bulk-modal');
+      resetBulk();
+      var msg='✅ '+added+'개 등록 완료';
+      if(skipped.length) msg+=' (⚠️ '+skipped.length+'개 스킵)';
+      showToast(msg);
+      renderAll();
+    }).catch(function(e){ showToast('❌ 저장 실패: '+e.message); });
+  });
 }
 
 function resetBulk(){
