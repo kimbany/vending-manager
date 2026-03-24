@@ -3528,7 +3528,33 @@ function saveProduct(){
     var msg=conflicts.map(function(c){return c.col+'번 ('+c.name+')';}).join(', ');
     if(!confirm('⚠️ 중복된 컬럼 위치가 있어요!\n\n'+msg+'\n\n이미 위 제품이 배정된 위치예요.\n그래도 저장할까요?')) return;
   }
-  var prod={id:eid||Date.now().toString(),name:name,buyPrice:buy,totalQty:total,unitPrice:unit,sellPrice:sell,marginAmt:ma,marginRate:mr,column:col,deviceNo:devno};
+  var prod={id:eid||Date.now().toString(),name:name,buyPrice:buy,totalQty:total,unitPrice:unit,sellPrice:sell,marginAmt:ma,marginRate:mr,column:col,deviceNo:devno,discontinued:discontinuedVal};
+  // 다른 자판기 제품이면 해당 appData에 저장
+  var targetLocMachine = null;
+  if(devnoVal && devnoVal.indexOf('|') >= 0){
+    var parts = devnoVal.split('|');
+    var tLocId = parts[0], tMachId = parts[1];
+    if(tLocId !== currentLocationId || tMachId !== currentMachineId){
+      targetLocMachine = {locId: tLocId, machId: tMachId};
+    }
+  }
+
+  if(targetLocMachine){
+    var tRef = db.ref('users/'+currentUser.uid+'/locations/'+targetLocMachine.locId+'/machines/'+targetLocMachine.machId+'/appData/products');
+    tRef.once('value').then(function(snap){
+      var tProds = snap.val()||[];
+      if(!Array.isArray(tProds)) tProds = Object.values(tProds);
+      if(eid){ tProds = tProds.map(function(p){return p.id===prod.id?prod:p;}); }
+      else { tProds.push(prod); }
+      tRef.set(tProds).then(function(){
+        closeModal('prod-modal');
+        showToast(eid?'✅ 수정 완료':'✅ 등록 완료');
+        renderProds();
+      });
+    });
+    return;
+  }
+
   if(eid){
     D.products=D.products.map(function(p){return p.id===prod.id?prod:p;});
   } else {
