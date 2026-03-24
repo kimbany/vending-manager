@@ -3267,11 +3267,7 @@ function renderVmList(mc, prods, inv){
     var cols=Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
     if(!cols.length) return;
     var q=getQ(p.id);
-    var labels=cols.map(function(c){
-      var pc=parseCol(c);
-      if(!pc) return c;
-      return pc.span>1 ? pc.floor+'층 '+pc.slot+'~'+(pc.slot+pc.span-1)+'번' : pc.floor+'층 '+pc.slot+'번';
-    });
+    var labels=cols.map(function(c){return String(c).trim();});
     listItems.push({id:p.id, name:p.name, labels:labels, q:q});
   });
   listItems.sort(function(a,b){return (a.labels[0]||'').localeCompare(b.labels[0]||'');});
@@ -4042,11 +4038,7 @@ function openProdDetail(el){
   if(!p) return;
   var q = gq(id);
   var cols = Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
-  var colLabels = cols.map(function(c){
-    var pc = parseCol(c);
-    if(!pc) return c;
-    return pc.span>1 ? pc.floor+'층 '+pc.slot+'~'+(pc.slot+pc.span-1)+'번' : pc.floor+'층 '+pc.slot+'번';
-  });
+  var colLabels = cols.map(function(c){return String(c).trim();});
 
   // 최근 판매 내역 (최근 5건)
   var sales = D.salesData.filter(function(s){return s.productId===id;})
