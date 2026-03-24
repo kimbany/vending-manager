@@ -2751,24 +2751,39 @@ function parseSalesRows(rows){
 
   if(colNum<0){ showToast('❌ 컬럼 필드가 없어요'); return; }
 
-  // 등록된 모든 위치/자판기 로드 후 자동 분배
+  // 등록된 모든 위치/자판기 + 각 appData(products) 로드
   db.ref('users/'+currentUser.uid+'/locations').once('value').then(function(snap){
-    // machines 형태로 평탄화: {machineId: {name, deviceNos, locId}}
     var flatMachines = {};
+    var appDataPromises = [];
     if(snap.exists() && snap.val()){
       Object.keys(snap.val()).forEach(function(locId){
         var loc = snap.val()[locId];
         Object.keys(loc.machines||{}).forEach(function(mid){
           var m = loc.machines[mid];
-          flatMachines[locId+'|'+mid] = {
+          var key = locId+'|'+mid;
+          flatMachines[key] = {
             name: m.name,
             deviceNos: Array.isArray(m.deviceNos)?m.deviceNos:(m.deviceNo?[m.deviceNo]:[]),
-            locId: locId, machineId: mid
+            locId: locId, machineId: mid,
+            products: [] // 나중에 채워짐
           };
+          // 각 자판기 products 로드
+          appDataPromises.push(
+            db.ref('users/'+currentUser.uid+'/locations/'+locId+'/machines/'+mid+'/appData/products').once('value').then(function(ps){
+              var prods = ps.val();
+              if(prods){
+                // Firebase 배열 → JS 배열
+                if(!Array.isArray(prods)) prods = Object.keys(prods).sort(function(a,b){return parseInt(a)-parseInt(b);}).map(function(k){return prods[k];});
+                flatMachines[key].products = prods;
+              }
+            })
+          );
         });
       });
     }
-    _doParseSalesRows(rows, headers, colDate, colItem, colNum, colState, colTxId, colMachine, colMachineCode, flatMachines);
+    Promise.all(appDataPromises).then(function(){
+      _doParseSalesRows(rows, headers, colDate, colItem, colNum, colState, colTxId, colMachine, colMachineCode, flatMachines);
+    });
   });
 }
 
@@ -2826,7 +2841,22 @@ function _doParseSalesRows(rows, headers, colDate, colItem, colNum, colState, co
     seenKeys[dupKey] = true;
 
     var dateStr = dateRaw.length>=10 ? dateRaw.slice(0,10) : dateRaw;
-    var prod = findProductByColumn(colVal);
+    // 해당 자판기 products에서 먼저 찾고, 없으면 현재 D에서 찾기
+    var prod = null;
+    if(targetMachineId && machines[targetMachineId] && machines[targetMachineId].products && machines[targetMachineId].products.length){
+      var mProds = machines[targetMachineId].products;
+      prod = mProds.find(function(p){
+        var cols = Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
+        return cols.some(function(c){
+          c = String(c).trim();
+          if(c === colVal) return true;
+          var rm = c.match(/^(\d+)~(\d+)$/);
+          if(rm){ var n=parseInt(colVal); return n>=parseInt(rm[1])&&n<=parseInt(rm[2]); }
+          return false;
+        });
+      });
+    }
+    if(!prod) prod = findProductByColumn(colVal);
     var hour = dateRaw.length>=13 ? parseInt(dateRaw.slice(11,13)) : -1;
 
     // targetMachineId 포함해서 저장
@@ -3008,34 +3038,24 @@ function resetCsvModal(){
 // 가로: 0~7 (8칸), 세로: 층
 
 function parseCol(col){
+  // 컬럼 배치 그리드 표시 전용 (11 → 1층 1번 슬롯)
+  // 매칭/비교는 숫자 그대로 사용
   if(!col) return null;
   col = String(col).trim();
   // 범위형: "45~46"
   var rangeMatch = col.match(/^(\d+)~(\d+)$/);
   if(rangeMatch){
     var a = rangeMatch[1], b = rangeMatch[2];
-    var floorA, slotA, slotB;
-    if(a.length >= 2){
-      floorA = parseInt(a.slice(0,-1)); slotA = parseInt(a.slice(-1));
-    } else {
-      floorA = 0; slotA = parseInt(a);
-    }
-    if(b.length >= 2){
-      slotB = parseInt(b.slice(-1));
-    } else {
-      slotB = parseInt(b);
-    }
+    if(a.length < 2) return {floor:1, slot:parseInt(a), span:parseInt(b)-parseInt(a)+1, label:col};
+    var floorA = parseInt(a.slice(0,-1)), slotA = parseInt(a.slice(-1));
+    var slotB = parseInt(b.slice(-1));
     if(isNaN(floorA)||isNaN(slotA)||isNaN(slotB)) return null;
     return {floor:floorA, slot:slotA, span:slotB-slotA+1, label:col};
   }
-  // 단일형
+  // 단일형 - 2자리 이상만 층/슬롯으로 분리
   var n = parseInt(col);
   if(isNaN(n)) return null;
-  if(col.length === 1){
-    // 1자리: 층=0, 슬롯=숫자 (예: "1" → floor:0, slot:1)
-    return {floor:0, slot:n, span:1, label:col};
-  }
-  // 2자리 이상: 앞자리=층, 마지막1자리=슬롯 (예: "47" → floor:4, slot:7)
+  if(col.length < 2) return null; // 1자리는 그리드에 표시 안 함
   var f = parseInt(col.slice(0,-1));
   var s = parseInt(col.slice(-1));
   if(isNaN(f)||isNaN(s)) return null;
