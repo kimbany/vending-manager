@@ -4316,6 +4316,8 @@ function fetchTodaySales(isAuto){
           if(m.name) machineByName[m.name] = key;
         });
       });
+      console.log('[수집] machineByCode:', JSON.stringify(machineByCode));
+      console.log('[수집] machineByName:', JSON.stringify(machineByName));
 
       // 행을 자판기별로 분류
       var rowsByMachine = {}; // key = locId+'|'+machineId
