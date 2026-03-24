@@ -255,7 +255,6 @@ input[type=date]{color-scheme:dark;}
     <!-- 위치 선택 -->
     <div id="machine-selector" style="display:none">
       <select id="location-select" onchange="onLocationSelect()" style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:4px 8px;color:var(--gold);font-size:11px;font-weight:700;font-family:inherit;max-width:130px"></select>
-      <select id="machine-select" style="display:none"></select>
     </div>
     <button onclick="doLogout()" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:5px 8px;color:var(--text2);font-size:11px;cursor:pointer;font-family:inherit;margin-left:6px;flex-shrink:0">로그아웃</button>
   </div>
@@ -2015,20 +2014,9 @@ function onLocationSelect(autoLoad){
   currentLocationId=locSel.value;
   if(!currentLocationId) return;
   db.ref('users/'+currentUser.uid+'/locations/'+currentLocationId+'/machines').once('value').then(function(snap){
-    var machSel=document.getElementById('machine-select');
-    if(!snap.exists()||!snap.val()){ machSel.style.display='none'; return; }
+    if(!snap.exists()||!snap.val()) return;
     var machines=snap.val(); var keys=Object.keys(machines);
-    if(keys.length>1){
-      machSel.style.display='block';
-      machSel.innerHTML=keys.map(function(mid){
-        return '<option value="'+mid+'">🏪 '+machines[mid].name+'</option>';
-      }).join('');
-      if(currentMachineId && machines[currentMachineId]) machSel.value=currentMachineId;
-      else machSel.value=keys[0];
-    } else {
-      machSel.style.display='none';
-    }
-    currentMachineId=machSel.style.display!=='none' ? machSel.value : keys[0];
+    currentMachineId = keys[0]; // 첫 번째 자판기를 기본으로
     if(autoLoad !== false) loadMachineData(currentLocationId, currentMachineId);
   });
 }
@@ -2471,9 +2459,41 @@ function getFilteredSales(){
 function renderSales(){ renderSalesStats(); } // 하위 호환
 
 function renderSalesStats(){
-  var filtered = getFilteredSales();
   var panel = document.getElementById('sales-stats-panel');
   if(!panel) return;
+  var range = getSalesDateRange();
+
+  // 위치의 모든 자판기 salesData 합산
+  if(!currentUser || !currentLocationId){
+    _doRenderSalesStats([{sales: D.salesData, prods: D.products, inv: D.inventory, name:'', devno:''}], range, panel);
+    return;
+  }
+  db.ref('users/'+currentUser.uid+'/locations/'+currentLocationId+'/machines').once('value').then(function(snap){
+    if(!snap.exists()){ _doRenderSalesStats([{sales:D.salesData,prods:D.products,inv:D.inventory,name:'',devno:''}], range, panel); return; }
+    var machines = snap.val();
+    var promises = Object.keys(machines).map(function(mid){
+      var m = machines[mid];
+      var devnos = Array.isArray(m.deviceNos)?m.deviceNos:(m.deviceNo?[m.deviceNo]:[]);
+      return db.ref('users/'+currentUser.uid+'/locations/'+currentLocationId+'/machines/'+mid+'/appData').once('value').then(function(as){
+        var val = as.val()||{};
+        return {sales: val.salesData||[], prods: val.products||[], inv: val.inventory||[], name: m.name||mid, devno: devnos[0]||mid};
+      });
+    });
+    Promise.all(promises).then(function(machineDataList){
+      _doRenderSalesStats(machineDataList, range, panel);
+    });
+  });
+}
+
+function _doRenderSalesStats(machineDataList, range, panel){
+  // 전체 합산 필터
+  var allFiltered = [];
+  machineDataList.forEach(function(md){
+    var f = (md.sales||[]).filter(function(s){ return s.date>=range.from && s.date<=range.to && !s.cancelled; });
+    f.forEach(function(s){ s._machineName = md.name; s._devno = md.devno; s._prods = md.prods; s._inv = md.inv; });
+    allFiltered = allFiltered.concat(f);
+  });
+  var filtered = allFiltered;
 
   if(!filtered.length){
     panel.innerHTML='<div class="empty" style="margin-top:20px"><div class="ei">📊</div><div class="et">해당 기간 판매 데이터 없어요</div></div>';
@@ -2485,20 +2505,21 @@ function renderSalesStats(){
   var prodMap={}, priceMap={}, hourMap={};
 
   filtered.forEach(function(s){
-    var p = gp(s.productId); if(!p) return;
+    // 각 자판기 products에서 제품 찾기
+    var p = null;
+    if(s._prods) p = s._prods.find(function(x){return x.id===s.productId;});
+    if(!p) p = gp(s.productId);
+    if(!p) return;
     totalQty += s.qty;
-    totalAmt += s.qty * p.sellPrice;
+    totalAmt += s.qty * (p.sellPrice||0);
 
-    // 제품별
-    if(!prodMap[p.id]) prodMap[p.id]={name:p.name, qty:0, amt:0, price:p.sellPrice};
+    if(!prodMap[p.id]) prodMap[p.id]={name:p.name, qty:0, amt:0, price:p.sellPrice||0};
     prodMap[p.id].qty += s.qty;
-    prodMap[p.id].amt += s.qty * p.sellPrice;
+    prodMap[p.id].amt += s.qty * (p.sellPrice||0);
 
-    // 금액대별
-    var tier = s.qty > 0 ? getPriceTier(p.sellPrice) : null;
+    var tier = s.qty > 0 ? getPriceTier(p.sellPrice||0) : null;
     if(tier){ priceMap[tier]=(priceMap[tier]||0)+s.qty; }
 
-    // 시간대별 (txId나 date에서 시간 추출)
     var hour = s.hour !== undefined ? s.hour : -1;
     if(hour>=0){ hourMap[hour]=(hourMap[hour]||0)+s.qty; }
   });
@@ -2629,6 +2650,37 @@ function renderSalesStats(){
       });
     }
     html += '</div></div>';
+  }
+
+  // 자판기별 세부 섹션 (자판기 2개 이상일 때만)
+  if(machineDataList.length > 1){
+    machineDataList.forEach(function(md){
+      var mFiltered = (md.sales||[]).filter(function(s){ return s.date>=range.from && s.date<=range.to && !s.cancelled; });
+      if(!mFiltered.length) return;
+      var mQty=0, mAmt=0, mProdMap={};
+      mFiltered.forEach(function(s){
+        var p = (md.prods||[]).find(function(x){return x.id===s.productId;});
+        if(!p) return;
+        mQty += s.qty;
+        mAmt += s.qty*(p.sellPrice||0);
+        if(!mProdMap[p.id]) mProdMap[p.id]={name:p.name, qty:0};
+        mProdMap[p.id].qty += s.qty;
+      });
+      var mRank = Object.values(mProdMap).sort(function(a,b){return b.qty-a.qty;});
+      html += '<div class="card" style="margin-bottom:12px">';
+      html += '<div class="ch"><div class="ca" style="background:var(--blue)"></div><div>';
+      html += '<div class="ct">📟 '+(md.name||md.devno)+'</div>';
+      html += '<div style="font-size:11px;color:var(--text3)">단말기: '+md.devno+' · '+mQty+'개 · '+fmtK(mAmt)+'</div>';
+      html += '</div></div><div class="cb">';
+      mRank.forEach(function(item, i){
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)">';
+        html += '<span style="font-size:12px;color:var(--text3);min-width:24px">#'+(i+1)+'</span>';
+        html += '<span style="font-size:13px;flex:1">'+item.name+'</span>';
+        html += '<span style="font-size:13px;font-weight:700;color:var(--blue)">'+item.qty+'개</span>';
+        html += '</div>';
+      });
+      html += '</div></div>';
+    });
   }
 
   panel.innerHTML = html;
