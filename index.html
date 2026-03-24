@@ -4259,6 +4259,25 @@ function fetchTodaySales(isAuto){
     var colMachineCode = headers.indexOf('머신기코드');
     var colDevno = headers.indexOf('단말기번호');
 
+    // 헤더가 실제 rows와 불일치하는 경우 rows 첫 행으로 재탐색
+    if(val.rows && val.rows.length > 0){
+      var r0 = val.rows[0];
+      // rows에서 직접 헤더 필드 위치 찾기
+      for(var ci=0; ci<r0.length; ci++){
+        var v = String(r0[ci]||'').trim();
+        if(v==='거래일시' && colDate<0) colDate=ci;
+        if(v==='판매항목' && colItem<0) colItem=ci;
+        if(v==='컬럼' && colNum<0) colNum=ci;
+        if((v==='상태'||v==='진행상태') && colState<0) colState=ci;
+        if((v==='일련번호'||v==='거래고유번호') && colTxId<0) colTxId=ci;
+        if((v==='판매가'||v==='금액') && colAmt<0) colAmt=ci;
+        if(v==='단말기명' && colMachine<0) colMachine=ci;
+        if(v==='머신기코드' && colMachineCode<0) colMachineCode=ci;
+        if(v==='단말기번호' && colDevno<0) colDevno=ci;
+      }
+    }
+    console.log('[수집] 컬럼인덱스 재확인 - 날짜:'+colDate+' 항목:'+colItem+' 컬럼:'+colNum+' 단말기번호:'+colDevno+' 머신기코드:'+colMachineCode);
+
     // 헤더-rows 불일치 자동 보정:
     // 첫 번째 row로 컬럼 번호 위치를 실제로 찾기
     if(val.rows && val.rows.length > 0){
