@@ -4044,26 +4044,58 @@ function previewSalesDel(){
   el.innerHTML = html;
 }
 
-// 기간 삭제 + 재고 원복
+// 기간 삭제 + 재고 원복 (위치의 모든 자판기)
 function confirmSalesDel(){
   var range = getDelRange(); if(!range) return;
-  var rows = D.salesData.filter(function(s){ return s.date>=range.from && s.date<=range.to && !s.cancelled; });
-  if(!rows.length){ showToast('❌ 삭제할 데이터가 없어요'); return; }
   var rangeLabel = range.from===range.to ? range.from : range.from+' ~ '+range.to;
-  if(!confirm(rangeLabel+' 판매 데이터 '+rows.length+'건을 삭제하고 재고를 원복할까요?')) return;
-  var qtyMap = {};
-  rows.forEach(function(s){
-    qtyMap[s.productId] = (qtyMap[s.productId]||0) + s.qty;
+
+  if(!currentUser || !currentLocationId){
+    // fallback: 현재 D만 삭제
+    var rows = D.salesData.filter(function(s){ return s.date>=range.from && s.date<=range.to && !s.cancelled; });
+    if(!rows.length){ showToast('❌ 삭제할 데이터가 없어요'); return; }
+    if(!confirm(rangeLabel+' '+rows.length+'건 삭제할까요?')) return;
+    D.salesData = D.salesData.filter(function(s){ return !(s.date>=range.from && s.date<=range.to); });
+    save(); renderAll(); closeModal('sales-edit-modal');
+    showToast('✅ '+rows.length+'건 삭제 완료'); return;
+  }
+
+  db.ref('users/'+currentUser.uid+'/locations/'+currentLocationId+'/machines').once('value').then(function(snap){
+    if(!snap.exists()){ showToast('❌ 자판기 없음'); return; }
+    var machines = snap.val();
+    var totalRows = 0;
+
+    // 먼저 전체 카운트
+    var promises = Object.keys(machines).map(function(mid){
+      return db.ref('users/'+currentUser.uid+'/locations/'+currentLocationId+'/machines/'+mid+'/appData').once('value').then(function(as){
+        var val = as.val()||{};
+        var sales = val.salesData||[];
+        var rows = sales.filter(function(s){ return s.date>=range.from && s.date<=range.to; });
+        totalRows += rows.length;
+        return {mid:mid, val:val, rows:rows};
+      });
+    });
+
+    Promise.all(promises).then(function(results){
+      if(!totalRows){ showToast('❌ 삭제할 데이터가 없어요'); return; }
+      if(!confirm(rangeLabel+' 전체 '+totalRows+'건을 삭제할까요?')) return;
+
+      var savePromises = results.map(function(r){
+        if(!r.rows.length) return Promise.resolve();
+        var newSales = (r.val.salesData||[]).filter(function(s){ return !(s.date>=range.from && s.date<=range.to); });
+        var appRef = db.ref('users/'+currentUser.uid+'/locations/'+currentLocationId+'/machines/'+r.mid+'/appData');
+        // 현재 자판기면 D도 업데이트
+        if(r.mid === currentMachineId){ D.salesData = newSales; }
+        return appRef.update({salesData: newSales});
+      });
+
+      Promise.all(savePromises).then(function(){
+        closeModal('sales-edit-modal');
+        document.getElementById('sales-del-preview').innerHTML='';
+        showToast('✅ '+totalRows+'건 삭제 완료');
+        renderAll();
+      });
+    });
   });
-  Object.keys(qtyMap).forEach(function(pid){
-    applyInventoryChange(pid, qtyMap[pid], rangeLabel+' 판매삭제 재고원복');
-  });
-  D.salesData = D.salesData.filter(function(s){ return !(s.date>=range.from && s.date<=range.to); });
-  save();
-  closeModal('sales-edit-modal');
-  document.getElementById('sales-del-preview').innerHTML = '';
-  showToast('✅ '+rows.length+'건 삭제 · 재고 원복 완료');
-  renderAll();
 }
 
 // 건별 환불/환불취소 토글
