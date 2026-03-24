@@ -2748,6 +2748,7 @@ function parseSalesRows(rows){
   var colTxId        = headers.indexOf('거래고유번호');
   var colMachine     = headers.indexOf('단말기명');
   var colMachineCode = headers.indexOf('머신기코드');
+  var colDevno       = headers.indexOf('단말기번호');  // D열 - 괄호 없는 순수 번호
 
   if(colNum<0){ showToast('❌ 컬럼 필드가 없어요'); return; }
 
@@ -2782,12 +2783,13 @@ function parseSalesRows(rows){
       });
     }
     Promise.all(appDataPromises).then(function(){
-      _doParseSalesRows(rows, headers, colDate, colItem, colNum, colState, colTxId, colMachine, colMachineCode, flatMachines);
+      _doParseSalesRows(rows, headers, colDate, colItem, colNum, colState, colTxId, colMachine, colMachineCode, flatMachines, colDevno);
     });
   });
 }
 
-function _doParseSalesRows(rows, headers, colDate, colItem, colNum, colState, colTxId, colMachine, colMachineCode, machines){
+function _doParseSalesRows(rows, headers, colDate, colItem, colNum, colState, colTxId, colMachine, colMachineCode, machines, colDevno){
+  colDevno = colDevno || -1;
   // machines: {machineId: {name, deviceNo, ...}} 전체 자판기 맵
   var headerIdx = 0;
   for(var i=0;i<Math.min(10,rows.length);i++){
@@ -2827,14 +2829,18 @@ function _doParseSalesRows(rows, headers, colDate, colItem, colNum, colState, co
     var colVal     = String(row[colNum] ||'').trim();
     var state      = colState>=0 ? String(row[colState]||'').trim() : '';
     var txId       = colTxId>=0  ? String(row[colTxId] ||'').trim() : '';
-    var rowMachine = colMachine>=0     ? String(row[colMachine]||'').trim()     : '';
-    var rowCode    = colMachineCode>=0 ? String(row[colMachineCode]||'').trim() : '';
+    var rowMachine = colMachine>=0 ? String(row[colMachine]||'').trim() : '';
+    // 단말기번호(D열) 우선, 없으면 머신기코드에서 괄호 제거
+    var rowCodeRaw = colDevno>=0 ? String(row[colDevno]||'').trim()
+                   : colMachineCode>=0 ? String(row[colMachineCode]||'').trim() : '';
+    var rowCode = rowCodeRaw.replace(/\(.*\)/, '').trim();
+    var rowCodeClean = rowCode;
 
     if(!dateRaw||!colVal) continue;
     if(state && (state==='취소'||state==='취소완료'||state==='환불')) continue;
 
     // 이 행이 어느 자판기 데이터인지 판별 (locId|machineId 형태)
-    var targetMachineId = machineByName[rowMachine] || machineByCode[rowCode] || (currentLocationId&&currentMachineId ? currentLocationId+'|'+currentMachineId : null);
+    var targetMachineId = machineByName[rowMachine] || machineByCode[rowCode] || machineByCode[rowCodeClean] || (currentLocationId&&currentMachineId ? currentLocationId+'|'+currentMachineId : null);
 
     var dupKey = makeDupKey(dateRaw, itemName);
     if(existingKeys[dupKey] || seenKeys[dupKey]){ dupCount++; continue; }
@@ -4231,7 +4237,7 @@ function fetchTodaySales(isAuto){
       val.rows.forEach(function(row){
         var rowMach = colMachine>=0 ? String(row[colMachine]||'').trim() : '';
         var rowCode = colMachineCode>=0 ? String(row[colMachineCode]||'').trim() : '';
-        var key = machineByCode[rowCode] || machineByName[rowMach] || (currentLocationId&&currentMachineId ? currentLocationId+'|'+currentMachineId : null);
+        var key = machineByCode[rowCode] || machineByCode[rowCodeClean] || machineByName[rowMach] || (currentLocationId&&currentMachineId ? currentLocationId+'|'+currentMachineId : null);
         if(!key) return;
         if(!rowsByMachine[key]) rowsByMachine[key]=[];
         rowsByMachine[key].push(row);
