@@ -4338,7 +4338,14 @@ function updateAutoCollectStatus(){
   el.textContent = '자동수집: 매일 12:00 · 19:00' + (last ? ' · 마지막: '+last : '');
 }
 
+var _fetchInProgress = false; // 중복 실행 방지
+
 function fetchTodaySales(isAuto){
+  if(_fetchInProgress){ 
+    if(!isAuto) showToast('⏳ 수집이 이미 진행 중이에요');
+    return; 
+  }
+  _fetchInProgress = true;
   var btn = document.getElementById('crawl-btn');
   if(btn){ btn.textContent='⏳ 수집 중...'; btn.disabled=true; }
 
@@ -4346,7 +4353,7 @@ function fetchTodaySales(isAuto){
   console.log('[수집] 시작, today='+today+', CRAWL_REF=', CRAWL_REF ? CRAWL_REF.toString() : 'null');
 
   if(!CRAWL_REF){
-    if(btn){ btn.textContent='🔄 오늘 데이터 수집'; btn.disabled=false; }
+    if(btn){ btn.textContent='🔄 오늘 데이터 수집'; btn.disabled=false; } _fetchInProgress=false;
     showToast('❌ 로그인 후 사용해주세요');
     return;
   }
@@ -4359,7 +4366,7 @@ function fetchTodaySales(isAuto){
   }).then(function(snap){
     var val = snap.val();
     console.log('[수집] 최종 val:', val ? '있음 total='+val.total_count : 'null');
-    if(btn){ btn.textContent='🔄 오늘 데이터 수집'; btn.disabled=false; }
+    if(btn){ btn.textContent='🔄 오늘 데이터 수집'; btn.disabled=false; } _fetchInProgress=false;
     if(!val){
       if(!isAuto) showToast('📭 오늘('+today+') 수집 데이터 없음. 크롤러를 실행해주세요');
       return;
@@ -4499,7 +4506,7 @@ function fetchTodaySales(isAuto){
           if(!isAuto) showToast('⚠️ 단말기번호 미매칭 → 현재 자판기에 저장');
         } else {
           if(!isAuto) showToast('📭 등록된 자판기와 일치하는 데이터 없음\n설정에서 단말기번호를 확인해주세요');
-          if(btn){ btn.textContent='🔄 오늘 데이터 수집'; btn.disabled=false; }
+          if(btn){ btn.textContent='🔄 오늘 데이터 수집'; btn.disabled=false; } _fetchInProgress=false;
           return;
         }
       }
@@ -4572,7 +4579,7 @@ function fetchTodaySales(isAuto){
       });
 
       Promise.all(promises).then(function(){
-        if(btn){ btn.textContent='🔄 오늘 데이터 수집'; btn.disabled=false; }
+        if(btn){ btn.textContent='🔄 오늘 데이터 수집'; btn.disabled=false; } _fetchInProgress=false;
         if(added>0){
           var msg=(isAuto?'🤖 자동수집':'✅ 수집')+' '+added+'건 반영';
           if(dup>0) msg+=' · 중복 '+dup+'건 제외';
@@ -4586,7 +4593,7 @@ function fetchTodaySales(isAuto){
       });
     });
   }).catch(function(e){
-    if(btn){ btn.textContent='🔄 오늘 데이터 수집'; btn.disabled=false; }
+    if(btn){ btn.textContent='🔄 오늘 데이터 수집'; btn.disabled=false; } _fetchInProgress=false;
     if(!isAuto) showToast('❌ 수집 실패: '+e.message);
   });
 }
