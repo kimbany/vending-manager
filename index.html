@@ -4421,7 +4421,8 @@ function fetchTodaySales(isAuto){
         if(v==='단말기번호' && colDevno<0) colDevno=ci;
       }
     }
-    console.log('[수집] 컬럼인덱스 재확인 - 날짜:'+colDate+' 항목:'+colItem+' 컬럼:'+colNum+' 단말기번호:'+colDevno+' 머신기코드:'+colMachineCode);
+    console.log('[수집] 컬럼인덱스 재확인 - 날짜:'+colDate+' 항목:'+colItem+' 컬럼:'+colNum+' 단말기번호:'+colDevno+' 머신기코드:'+colMachineCode+' 금액:'+colAmt);
+    if(val.rows && val.rows.length > 1) console.log('[수집] 첫행 샘플 - 판매가raw:', val.rows[1][colAmt], 'type:', typeof val.rows[1][colAmt]);
 
     // 헤더-rows 불일치 자동 보정:
     // 첫 번째 row로 컬럼 번호 위치를 실제로 찾기
@@ -4605,11 +4606,8 @@ function fetchTodaySales(isAuto){
         if(btn){ btn.textContent='🔄 오늘 데이터 수집'; btn.disabled=false; } _fetchInProgress=false;
         if(added>0){
           var msg=(isAuto?'🤖 자동수집':'✅ 수집')+' '+added+'건 반영';
-          if(dup>0) msg+=' · 중복 '+dup+'건 제외';
-          var totalRows = val.rows ? val.rows.length : 0;
-          var notMatched = totalRows - added - dup;
-          if(notMatched>0) msg+=' · 미매칭 '+notMatched+'건';
-          console.log('[수집결과] 전체rows:'+totalRows+' 반영:'+added+' 중복:'+dup+' 미매칭:'+notMatched);
+          // 중복은 내부에서 자동 제거됨 - 토스트에 표시 안 함
+          console.log('[수집결과] 전체rows:'+(val.rows?val.rows.length:0)+' 반영:'+added+' 중복:'+dup);
           showToast(msg);
           localStorage.setItem('lastAutoCollect', today+' '+new Date().toTimeString().slice(0,5));
           updateAutoCollectStatus();
