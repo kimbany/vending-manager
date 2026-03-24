@@ -4547,7 +4547,11 @@ function fetchTodaySales(isAuto){
 
             var dt = dateRaw.length>=19 ? dateRaw.slice(0,19) : dateRaw;
             var dupKey = dt+'|'+itemName.trim();
-            if(existingKeysM[dupKey]){ dup++; return; }
+            if(existingKeysM[dupKey]){ 
+              dup++; 
+              console.log('[중복]', dupKey.slice(0,30));
+              return; 
+            }
             existingKeysM[dupKey]=true;
 
             var dateStr = dateRaw.length>=10 ? dateRaw.slice(0,10) : dateRaw;
@@ -4583,6 +4587,10 @@ function fetchTodaySales(isAuto){
         if(added>0){
           var msg=(isAuto?'🤖 자동수집':'✅ 수집')+' '+added+'건 반영';
           if(dup>0) msg+=' · 중복 '+dup+'건 제외';
+          var totalRows = val.rows ? val.rows.length : 0;
+          var notMatched = totalRows - added - dup;
+          if(notMatched>0) msg+=' · 미매칭 '+notMatched+'건';
+          console.log('[수집결과] 전체rows:'+totalRows+' 반영:'+added+' 중복:'+dup+' 미매칭:'+notMatched);
           showToast(msg);
           localStorage.setItem('lastAutoCollect', today+' '+new Date().toTimeString().slice(0,5));
           updateAutoCollectStatus();
