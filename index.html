@@ -2519,7 +2519,7 @@ function _doRenderSalesStats(machineDataList, range, panel){
     if(s._prods) p = s._prods.find(function(x){return x.id===s.productId;});
     if(!p && s.productId) p = gp(s.productId);
 
-    var sAmt = s.amt || (p ? s.qty*(p.sellPrice||0) : 0);
+    var sAmt = (s.amt && s.amt > 0) ? s.amt : (p ? s.qty*(p.sellPrice||0) : 0);
     totalQty += s.qty;
     totalAmt += sAmt;
 
@@ -2935,7 +2935,7 @@ function _doParseSalesRows(rows, headers, colDate, colItem, colNum, colState, co
     var colVal     = String(row[colNum] ||'').trim();
     var state      = colState>=0 ? String(row[colState]||'').trim() : '';
     var txId       = colTxId>=0  ? String(row[colTxId] ||'').trim() : '';
-    var amt        = colAmt>=0    ? parseFloat(row[colAmt]||0)||0    : 0;
+    var amt        = colAmt>=0    ? parseFloat(String(row[colAmt]||0).replace(/,/g,''))||0 : 0;
     var rowMachine = colMachine>=0 ? String(row[colMachine]||'').trim() : '';
     // 단말기번호(D열) 우선, 없으면 머신기코드에서 괄호 제거
     var rowCodeRaw = colDevno>=0 ? String(row[colDevno]||'').trim()
