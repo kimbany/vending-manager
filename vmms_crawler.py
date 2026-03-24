@@ -1,8 +1,7 @@
 """
-VMMS 거래내역 크롤러 (GitHub Actions용) - 개인화 버전
+VMMS 거래내역 크롤러 (GitHub Actions용)
 - Firebase에 저장된 유저별 VMMS 계정으로 크롤링
 - 수집 데이터를 users/{uid}/crawledSales/{날짜} 에 저장
-- VMMS 계정 없는 유저는 환경변수 계정 사용 (기존 방식)
 """
 
 import asyncio
@@ -10,23 +9,39 @@ import json
 import os
 import base64
 from datetime import datetime
-from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeout
+from playwright.async_api import async_playwright
 import firebase_admin
 from firebase_admin import credentials, db as rtdb
 
 # ── 설정 ──────────────────────────────────────────────────────────────────────
-# 기본 계정 (환경변수) - VMMS 계정 미등록 유저용
-DEFAULT_ID = os.environ.get("VMMS_ID", "")
-DEFAULT_PW = os.environ.get("VMMS_PW", "")
+DEFAULT_ID   = os.environ.get("VMMS_ID", "")
+DEFAULT_PW   = os.environ.get("VMMS_PW", "")
 DATABASE_URL = "https://vending-manager-2d64e-default-rtdb.asia-southeast1.firebasedatabase.app"
 
+# XPath 상수 (알려주신 정확한 경로)
+XPATH_ID_INPUT   = '//*[@id="id"]'
+XPATH_PW_INPUT   = '//*[@id="pass"]'
+XPATH_LOGIN_BTN  = '//*[@id="loginBtn"]'
+XPATH_POPUP_HIDE = '//*[@id="bottomImage"]/div[1]/button'
+XPATH_MENU_MAIN  = '//*[@id="main-menu-navigation"]/li[3]/a'
+XPATH_MENU_TXN   = '//*[@id="main-menu-navigation"]/li[3]/ul/li[1]/a'
+XPATH_BTN_TODAY  = '//*[@id="hide"]/div/div[1]/div[3]/div[4]'
+XPATH_BTN_SEARCH = '//*[@id="hide"]/div/div[2]/button'
+XPATH_TABLE      = '//*[@id="main"]/div/div/div/div/div[1]/table'
+XPATH_PAGINATION = '//*[@id="main"]/div/div/div/div/div[2]/ul'
+
+FIXED_HEADERS = ['순번','거래일시','조직루트','단말기명','단말기번호','머신기코드',
+                 '판매항목','컬럼','판매가','수단','입력','상태','카드번호',
+                 '승인번호','일련번호','카드사','매입사','사업자번호','상점ID',
+                 '마감일시','입금일','취소일']
+
+# ── Firebase ──────────────────────────────────────────────────────────────────
 def init_firebase():
     if firebase_admin._apps:
         return
     key_json = os.environ.get("FIREBASE_KEY", "")
     if key_json:
-        key_dict = json.loads(key_json)
-        cred = credentials.Certificate(key_dict)
+        cred = credentials.Certificate(json.loads(key_json))
     elif os.path.exists("firebase_key.json"):
         cred = credentials.Certificate("firebase_key.json")
     else:
@@ -34,197 +49,190 @@ def init_firebase():
     firebase_admin.initialize_app(cred, {'databaseURL': DATABASE_URL})
 
 def get_all_user_vmms():
-    """Firebase에서 VMMS 계정 등록한 유저 목록 가져오기"""
     users = []
     try:
-        users_ref = rtdb.reference('users')
-        snap = users_ref.get()
+        snap = rtdb.reference('users').get()
         if not snap:
             return users
         for uid, data in snap.items():
-            if isinstance(data, dict) and 'vmms' in data:
-                vmms = data['vmms']
-                if vmms.get('id') and vmms.get('pw'):
-                    try:
-                        vmms_id = base64.b64decode(vmms['id']).decode('utf-8')
-                        vmms_pw = base64.b64decode(vmms['pw']).decode('utf-8')
-                        users.append({'uid': uid, 'id': vmms_id, 'pw': vmms_pw})
-                        print(f"  유저 {uid[:8]}... VMMS 계정 발견")
-                    except Exception as e:
-                        print(f"  유저 {uid[:8]}... VMMS 계정 디코딩 실패: {e}")
+            if not isinstance(data, dict):
+                continue
+            vmms = data.get('vmms', {})
+            if vmms.get('id') and vmms.get('pw'):
+                try:
+                    vmms_id = base64.b64decode(vmms['id']).decode('utf-8')
+                    vmms_pw = base64.b64decode(vmms['pw']).decode('utf-8')
+                    users.append({'uid': uid, 'id': vmms_id, 'pw': vmms_pw})
+                    print(f"  유저 {uid[:8]}... VMMS 계정 발견")
+                except Exception as e:
+                    print(f"  유저 {uid[:8]}... 디코딩 실패: {e}")
     except Exception as e:
         print(f"  유저 목록 조회 실패: {e}")
     return users
 
-async def get_table_data(page):
-    rows = await page.locator(
-        'xpath=/html/body/div[4]/div/div[5]/div/div/div/div/div/div[1]/table//tbody//tr'
-    ).all()
-    data = []
-    for row in rows:
-        cells = await row.locator('td').all()
-        row_data = [(await cell.inner_text()).strip() for cell in cells]
-        if any(row_data):
-            data.append(row_data)
-    return data
-
-async def close_popup(page):
+# ── 테이블 수집 ───────────────────────────────────────────────────────────────
+async def get_table_rows(page):
+    rows = []
     try:
-        btn = page.locator('text=닫기').first
-        if await btn.is_visible(timeout=3000):
-            await btn.click()
-            print("  팝업 닫기 완료")
-            await page.wait_for_timeout(500)
-            return
-    except Exception:
-        pass
-    try:
-        btn = page.locator('.modal-close, .popup-close, [class*="close"]').first
-        if await btn.is_visible(timeout=2000):
-            await btn.click()
-            await page.wait_for_timeout(500)
-    except Exception:
-        pass
+        tr_list = await page.locator(f'xpath={XPATH_TABLE}//tbody//tr').all()
+        for tr in tr_list:
+            cells = await tr.locator('td').all()
+            row = [(await cell.inner_text()).strip() for cell in cells]
+            if any(row):
+                rows.append(row)
+    except Exception as e:
+        print(f"  테이블 수집 오류: {e}")
+    return rows
 
+async def get_table_headers(page):
+    try:
+        ths = await page.locator(f'xpath={XPATH_TABLE}//thead//th').all()
+        headers = [(await th.inner_text()).strip() for th in ths]
+        if headers and len(headers) > 3:
+            return headers
+    except:
+        pass
+    return FIXED_HEADERS
+
+async def get_page_numbers(page):
+    nums = []
+    try:
+        lis = await page.locator(f'xpath={XPATH_PAGINATION}/li').all()
+        for li in lis:
+            a = li.locator('a')
+            if await a.count() > 0:
+                txt = (await a.inner_text()).strip()
+                if txt.isdigit():
+                    nums.append(int(txt))
+    except:
+        pass
+    return nums
+
+async def click_page(page, page_num):
+    try:
+        btn = page.locator(f'xpath={XPATH_PAGINATION}/li/a[text()="{page_num}"]')
+        if await btn.count() > 0:
+            await btn.click()
+            await page.wait_for_load_state("networkidle")
+            await page.wait_for_timeout(800)
+            return True
+    except:
+        pass
+    return False
+
+# ── 메인 크롤링 ───────────────────────────────────────────────────────────────
 async def crawl_for_user(vmms_id, vmms_pw, save_path):
-    """특정 VMMS 계정으로 크롤링 후 save_path에 저장"""
-    today = datetime.now().strftime("%Y-%m-%d")
+    today   = datetime.now().strftime("%Y-%m-%d")
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"  크롤링 시작 (계정: {vmms_id[:3]}***)")
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             headless=True,
-            args=['--no-sandbox', '--disable-dev-shm-usage', '--disable-blink-features=AutomationControlled']
+            args=['--no-sandbox', '--disable-dev-shm-usage',
+                  '--disable-blink-features=AutomationControlled']
         )
         context = await browser.new_context(
-            viewport={'width': 1280, 'height': 720},
-            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            viewport={'width': 1280, 'height': 800},
+            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                       'AppleWebKit/537.36 (KHTML, like Gecko) '
+                       'Chrome/120.0.0.0 Safari/537.36'
         )
         page = await context.new_page()
-        page.set_default_timeout(60000)
+        page.set_default_timeout(30000)
 
         try:
+            # 1. 로그인
+            print("  [1] 로그인")
             await page.goto("https://vmms.ubcn.co.kr/login", wait_until="domcontentloaded")
-            await page.wait_for_timeout(3000)
-
-            # 디버깅용 스크린샷
-            await page.screenshot(path="login_page.png")
-            html_preview = await page.content()
-            print(f"  페이지 HTML 일부: {html_preview[:300]}")
-
-            await page.locator('#id').fill(vmms_id)
-            await page.wait_for_timeout(500)
-            await page.locator('#pass').fill(vmms_pw)
-            await page.wait_for_timeout(500)
-            await page.locator('#loginBtn').click()
-
+            await page.wait_for_timeout(2000)
+            await page.locator(f'xpath={XPATH_ID_INPUT}').fill(vmms_id)
+            await page.wait_for_timeout(300)
+            await page.locator(f'xpath={XPATH_PW_INPUT}').fill(vmms_pw)
+            await page.wait_for_timeout(300)
+            await page.locator(f'xpath={XPATH_LOGIN_BTN}').click()
             try:
-                await page.wait_for_url("**/main**", timeout=15000)
-            except Exception:
-                await page.wait_for_load_state("networkidle", timeout=15000)
-            await page.wait_for_timeout(2000)
-            print(f"  로그인 완료. URL: {page.url}")
+                await page.wait_for_url("**/index**", timeout=12000)
+            except:
+                await page.wait_for_load_state("networkidle", timeout=12000)
+            await page.wait_for_timeout(1500)
+            print(f"  [1] 로그인 완료. URL: {page.url}")
 
-            await close_popup(page)
-
-            await page.locator('xpath=/html/body/div[2]/div[1]/div/ul/li[3]/a').click()
-            await page.wait_for_timeout(1000)
-            await page.locator('xpath=/html/body/div[2]/div[1]/div/ul/li[3]/ul/li[1]/a').click()
-            await page.wait_for_load_state("networkidle")
-            await page.wait_for_timeout(2000)
-            await close_popup(page)
-
-            await page.locator('xpath=/html/body/div[4]/div/div[4]/div/div/div/div/form/div/div[2]/div/div[1]/div[3]/div[4]/div/button[1]').click()
-            await page.wait_for_timeout(1000)
-            await page.locator('xpath=/html/body/div[4]/div/div[4]/div/div/div/div/form/div/div[2]/div/div[2]/button').click()
-            await page.wait_for_load_state("networkidle")
-            await page.wait_for_timeout(2000)
-
-            header_cells = await page.locator(
-                'xpath=/html/body/div[4]/div/div[5]/div/div/div/div/div/div[1]/table//thead//th'
-            ).all()
-            headers = [(await c.inner_text()).strip() for c in header_cells]
-            print(f"  헤더: {headers}")
-
-            # 페이지당 100개로 변경 시도
+            # 2. 팝업 닫기
             try:
-                size_sel = page.locator('select[name="pageSize"], select.page-size, select[name="size"]').first
-                if await size_sel.count() > 0:
-                    await size_sel.select_option('100')
-                    await page.wait_for_load_state("networkidle")
-                    await page.wait_for_timeout(1500)
-                    print("  페이지당 100개로 변경")
-            except Exception:
+                popup = page.locator(f'xpath={XPATH_POPUP_HIDE}')
+                if await popup.is_visible(timeout=3000):
+                    await popup.click()
+                    await page.wait_for_timeout(500)
+                    print("  [2] 팝업 닫기 완료")
+                else:
+                    print("  [2] 팝업 없음")
+            except:
+                print("  [2] 팝업 없음 (skip)")
+
+            # 3. 거래내역 메뉴
+            print("  [3] 거래내역 메뉴")
+            await page.locator(f'xpath={XPATH_MENU_MAIN}').click()
+            await page.wait_for_timeout(800)
+            await page.locator(f'xpath={XPATH_MENU_TXN}').click()
+            await page.wait_for_load_state("networkidle")
+            await page.wait_for_timeout(1500)
+
+            # 메뉴 이동 후 팝업 재확인
+            try:
+                popup2 = page.locator(f'xpath={XPATH_POPUP_HIDE}')
+                if await popup2.is_visible(timeout=2000):
+                    await popup2.click()
+                    await page.wait_for_timeout(500)
+            except:
                 pass
 
+            # 4. 오늘 버튼
+            print("  [4] 오늘 버튼 클릭")
+            await page.locator(f'xpath={XPATH_BTN_TODAY}').click()
+            await page.wait_for_timeout(800)
+
+            # 5. 조회
+            print("  [5] 조회 버튼 클릭")
+            await page.locator(f'xpath={XPATH_BTN_SEARCH}').click()
+            await page.wait_for_load_state("networkidle")
+            await page.wait_for_timeout(1500)
+
+            # 6. 헤더
+            headers = await get_table_headers(page)
+            print(f"  [6] 헤더 ({len(headers)}개): {headers[:8]}...")
+
+            # 7. 전체 데이터 수집
             all_rows = []
-            first_rows = await get_table_data(page)
-            all_rows.extend(first_rows)
-            print(f"  1페이지: {len(first_rows)}건")
+            first = await get_table_rows(page)
+            all_rows.extend(first)
+            print(f"  [7] 1페이지: {len(first)}건")
 
-            # 페이지네이션 - 다음 페이지 버튼 방식
-            max_pages = 50  # 무한루프 방지
-            current_page = 1
-            while current_page < max_pages:
-                try:
-                    # 다음 페이지 버튼 찾기 (여러 방식 시도)
-                    next_clicked = False
-
-                    # 방식 1: 현재 페이지+1 번호 버튼
-                    next_num_btn = page.locator(
-                        f'xpath=/html/body/div[4]/div/div[5]/div/div/div/div/div/div[2]/ul/li/a[text()="{current_page+1}"]'
-                    )
-                    if await next_num_btn.count() > 0:
-                        await next_num_btn.click()
-                        next_clicked = True
-                    else:
-                        # 방식 2: > 또는 다음 버튼
-                        next_arrow = page.locator(
-                            'xpath=/html/body/div[4]/div/div[5]/div/div/div/div/div/div[2]/ul/li/a[contains(text(),"다음") or contains(@class,"next")]'
-                        ).first
-                        if await next_arrow.count() > 0 and await next_arrow.is_visible():
-                            await next_arrow.click()
-                            next_clicked = True
-                        else:
-                            # 방식 3: li 순서로 접근
-                            li_btn = page.locator(
-                                f'xpath=/html/body/div[4]/div/div[5]/div/div/div/div/div/div[2]/ul/li[{current_page+2}]/a'
-                            )
-                            if await li_btn.count() > 0:
-                                txt = (await li_btn.inner_text()).strip()
-                                if txt.isdigit() and int(txt) == current_page + 1:
-                                    await li_btn.click()
-                                    next_clicked = True
-
-                    if not next_clicked:
-                        print(f"  마지막 페이지 ({current_page}페이지)")
-                        break
-
-                    await page.wait_for_load_state("networkidle")
-                    await page.wait_for_timeout(1000)
-                    new_rows = await get_table_data(page)
-                    if not new_rows:
-                        print(f"  {current_page+1}페이지: 데이터 없음, 종료")
-                        break
-                    all_rows.extend(new_rows)
-                    current_page += 1
-                    print(f"  {current_page}페이지: {len(new_rows)}건 추가 (누계: {len(all_rows)}건)")
-
-                except Exception as e:
-                    print(f"  페이지네이션 오류: {e}")
+            # 페이지네이션
+            for next_pg in range(2, 200):
+                available = await get_page_numbers(page)
+                if next_pg not in available:
+                    print(f"  [7] {next_pg}페이지 없음 → 수집 완료")
                     break
+                if not await click_page(page, next_pg):
+                    print(f"  [7] {next_pg}페이지 클릭 실패 → 종료")
+                    break
+                rows = await get_table_rows(page)
+                if not rows:
+                    print(f"  [7] {next_pg}페이지 데이터 없음 → 종료")
+                    break
+                all_rows.extend(rows)
+                print(f"  [7] {next_pg}페이지: {len(rows)}건 (누계: {len(all_rows)}건)")
 
             print(f"  총 {len(all_rows)}건 수집 완료")
 
-            # Firebase 저장 (개인 경로)
-            ref = rtdb.reference(f'{save_path}/{today}')
-            ref.set({
-                'date': today,
-                'updated_at': now_str,
+            # 8. Firebase 저장
+            rtdb.reference(f'{save_path}/{today}').set({
+                'date':        today,
+                'updated_at':  now_str,
                 'total_count': len(all_rows),
-                'headers': headers,
-                'rows': all_rows
+                'headers':     headers,
+                'rows':        all_rows
             })
             print(f"  Firebase 저장 완료 ({save_path}/{today}) ✅")
             return len(all_rows)
@@ -239,39 +247,35 @@ async def crawl_for_user(vmms_id, vmms_pw, save_path):
         finally:
             await browser.close()
 
-
+# ── 진입점 ────────────────────────────────────────────────────────────────────
 def main():
     init_firebase()
-    today = datetime.now().strftime("%Y-%m-%d")
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[{now_str}] VMMS 개인화 크롤러 시작")
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] VMMS 크롤러 시작")
 
-    # Firebase에서 VMMS 계정 등록한 유저 목록
     users = get_all_user_vmms()
-
     if users:
-        # 유저별 개인 계정으로 크롤링
         for user in users:
             print(f"\n유저 {user['uid'][:8]}... 크롤링 시작")
-            save_path = f"users/{user['uid']}/crawledSales"
             try:
-                count = asyncio.run(crawl_for_user(user['id'], user['pw'], save_path))
+                count = asyncio.run(crawl_for_user(
+                    user['id'], user['pw'],
+                    f"users/{user['uid']}/crawledSales"
+                ))
                 print(f"  완료: {count}건")
             except Exception as e:
                 print(f"  실패: {e}")
     else:
-        # 등록된 VMMS 계정 없음 → 환경변수 기본 계정 사용 (공용 경로)
         print("\nVMMS 개인 계정 없음 → 기본 계정 사용")
         if DEFAULT_ID and DEFAULT_PW:
-            save_path = "vendingApp/crawledSales"
             try:
-                count = asyncio.run(crawl_for_user(DEFAULT_ID, DEFAULT_PW, save_path))
+                count = asyncio.run(crawl_for_user(
+                    DEFAULT_ID, DEFAULT_PW, "vendingApp/crawledSales"
+                ))
                 print(f"  완료: {count}건")
             except Exception as e:
                 print(f"  실패: {e}")
         else:
-            print("  기본 VMMS 계정도 없음. 환경변수 VMMS_ID, VMMS_PW를 설정하거나 앱에서 VMMS 계정을 등록해주세요.")
-
+            print("  VMMS 계정 없음. 설정 > VMMS에서 계정을 등록해주세요.")
 
 if __name__ == "__main__":
     main()
