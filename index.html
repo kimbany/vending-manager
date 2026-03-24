@@ -4321,7 +4321,10 @@ function fetchTodaySales(isAuto){
       val.rows.forEach(function(row){
         var rowMach = colMachine>=0 ? String(row[colMachine]||'').trim() : '';
         var rowCode = colMachineCode>=0 ? String(row[colMachineCode]||'').trim() : '';
-        var key = machineByCode[rowCode] || machineByCode[rowCodeClean] || machineByName[rowMach] || (currentLocationId&&currentMachineId ? currentLocationId+'|'+currentMachineId : null);
+        var rowCodeClean = rowCode.replace(/\(.*\)/, '').trim();
+        // 단말기번호 D열 우선
+        if(colDevno>=0 && row[colDevno]) rowCodeClean = String(row[colDevno]).trim();
+        var key = machineByCode[rowCodeClean] || machineByCode[rowCode] || machineByName[rowMach] || (currentLocationId&&currentMachineId ? currentLocationId+'|'+currentMachineId : null);
         if(!key) return;
         if(!rowsByMachine[key]) rowsByMachine[key]=[];
         rowsByMachine[key].push(row);
