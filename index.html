@@ -2511,18 +2511,32 @@ function _doRenderSalesStats(machineDataList, range, panel){
   var totalQty=0, totalAmt=0;
   var prodMap={}, priceMap={}, hourMap={};
 
+  var unmatchedQty = 0; // 매칭 안 된 수량
+
   filtered.forEach(function(s){
     // 각 자판기 products에서 제품 찾기
     var p = null;
     if(s._prods) p = s._prods.find(function(x){return x.id===s.productId;});
-    if(!p) p = gp(s.productId);
-    if(!p) return;
+    if(!p && s.productId) p = gp(s.productId);
+
+    var sAmt = s.amt || (p ? s.qty*(p.sellPrice||0) : 0);
     totalQty += s.qty;
-    totalAmt += s.qty * (p.sellPrice||0);
+    totalAmt += sAmt;
+
+    // 매칭 안 된 경우 - itemName으로 집계
+    if(!p){
+      unmatchedQty += s.qty;
+      var uname = s.itemName || ('컬럼 '+s.colVal) || '미매칭';
+      var uid = 'unmatched_'+uname;
+      if(!prodMap[uid]) prodMap[uid]={name:'[미매칭] '+uname, qty:0, amt:0, price:0, unmatched:true};
+      prodMap[uid].qty += s.qty;
+      prodMap[uid].amt += sAmt;
+      return;
+    }
 
     if(!prodMap[p.id]) prodMap[p.id]={name:p.name, qty:0, amt:0, price:p.sellPrice||0};
     prodMap[p.id].qty += s.qty;
-    prodMap[p.id].amt += s.qty * (p.sellPrice||0);
+    prodMap[p.id].amt += sAmt;
 
     var tier = s.qty > 0 ? getPriceTier(p.sellPrice||0) : null;
     if(tier){ priceMap[tier]=(priceMap[tier]||0)+s.qty; }
@@ -2542,7 +2556,14 @@ function _doRenderSalesStats(machineDataList, range, panel){
   html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">';
   html += '<div style="text-align:center"><div style="font-size:11px;color:var(--text2);margin-bottom:3px">총 판매량</div><div style="font-size:22px;font-weight:800;color:var(--blue)">'+fmt(totalQty)+'<span style="font-size:12px;font-weight:400">개</span></div></div>';
   html += '<div style="text-align:center"><div style="font-size:11px;color:var(--text2);margin-bottom:3px">총 매출</div><div style="font-size:22px;font-weight:800;color:var(--green)">'+fmtK(totalAmt)+'</div></div>';
-  html += '</div></div>';
+  html += '</div>';
+  if(unmatchedQty > 0){
+    html += '<div style="margin-top:10px;padding:8px 10px;background:rgba(224,88,88,.1);border:1px solid rgba(224,88,88,.3);border-radius:8px;display:flex;align-items:center;justify-content:space-between">';
+    html += '<span style="font-size:12px;color:var(--text2)">⚠️ 제품 미매칭 판매</span>';
+    html += '<span style="font-size:13px;font-weight:700;color:var(--red)">'+unmatchedQty+'개 (금액 미집계)</span>';
+    html += '</div>';
+  }
+  html += '</div>';
 
   // 제품 판매 순위
   if(prodRank.length){
@@ -2554,7 +2575,7 @@ function _doRenderSalesStats(machineDataList, range, panel){
     prodRank.forEach(function(item, i){
       if(!showAll && i >= 10) return;
       var pct = Math.round(item.qty / maxQ * 100);
-      var color = i===0 ? 'var(--gold)' : i===1 ? '#b0b0c0' : i===2 ? '#c87941' : 'var(--blue)';
+      var color = item.unmatched ? 'var(--text3)' : i===0 ? 'var(--gold)' : i===1 ? '#b0b0c0' : i===2 ? '#c87941' : 'var(--blue)';
       html += '<div style="margin-bottom:10px">';
       html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">';
       html += '<span style="font-size:11px;color:var(--text3);min-width:20px;font-weight:700">#'+(i+1)+'</span>';
@@ -2711,25 +2732,51 @@ function setSalesSort(s,el){
 }
 
 // 컬럼 번호로 제품 찾기 (25 → "25" 포함 여부 체크)
-function findProductByColumn(colStr){
-  var col = String(colStr).trim();
-  return D.products.find(function(p){
-    var cols = Array.isArray(p.column) ? p.column : (p.column ? [p.column] : []);
-    return cols.some(function(c){
-      // 단일 "25" 또는 범위 "25~26" 에서 25 포함 체크
-      c = c.trim();
-      if(c === col) return true;
-      var rm = c.match(/^(\d+)~(\d+)$/);
-      if(rm){
-        // 범위형: 앞숫자만 같으면 포함
-        var a = parseInt(rm[1]), b = parseInt(rm[2]);
-        var n = parseInt(col);
-        return n >= a && n <= b;
-      }
-      return false;
-    });
+function colMatch(p, col){
+  var cols = Array.isArray(p.column) ? p.column : (p.column ? [p.column] : []);
+  return cols.some(function(c){
+    c = String(c).trim();
+    if(c === col) return true;
+    var rm = c.match(/^(\d+)~(\d+)$/);
+    if(rm){ var n=parseInt(col); return n>=parseInt(rm[1])&&n<=parseInt(rm[2]); }
+    return false;
   });
 }
+
+function nameMatch(p, itemName){
+  if(!itemName) return false;
+  var pn = (p.name||'').trim();
+  var it = itemName.trim();
+  return pn === it || pn.indexOf(it) >= 0 || it.indexOf(pn) >= 0;
+}
+
+// 상품명 + 컬럼 복합 매칭
+// 1순위: 상품명 일치 + 컬럼 일치
+// 2순위: 상품명만 일치
+// 3순위: 컬럼만 일치 (fallback)
+function findProduct(colStr, itemName, prods){
+  prods = prods || D.products;
+  var col = String(colStr||'').trim();
+
+  // 1순위: 상품명 + 컬럼 둘 다 일치
+  if(itemName && col){
+    var both = prods.find(function(p){ return nameMatch(p, itemName) && colMatch(p, col); });
+    if(both) return both;
+  }
+  // 2순위: 상품명만 일치
+  if(itemName){
+    var byName = prods.find(function(p){ return nameMatch(p, itemName); });
+    if(byName) return byName;
+  }
+  // 3순위: 컬럼만 일치
+  if(col){
+    var byCol = prods.find(function(p){ return colMatch(p, col); });
+    if(byCol) return byCol;
+  }
+  return null;
+}
+
+function findProductByColumn(colStr){ return findProduct(colStr, '', D.products); }
 
 var salesPreviewRows = []; // 파싱된 행 임시 저장
 
@@ -2905,28 +2952,17 @@ function _doParseSalesRows(rows, headers, colDate, colItem, colNum, colState, co
     seenKeys[dupKey] = true;
 
     var dateStr = dateRaw.length>=10 ? dateRaw.slice(0,10) : dateRaw;
-    // 해당 자판기 products에서 먼저 찾고, 없으면 현재 D에서 찾기
+    // 해당 자판기 products에서 상품명+컬럼 복합 매칭
     var prod = null;
-    if(targetMachineId && machines[targetMachineId] && machines[targetMachineId].products && machines[targetMachineId].products.length){
-      var mProds = machines[targetMachineId].products;
-      prod = mProds.find(function(p){
-        var cols = Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
-        return cols.some(function(c){
-          c = String(c).trim();
-          if(c === colVal) return true;
-          var rm = c.match(/^(\d+)~(\d+)$/);
-          if(rm){ var n=parseInt(colVal); return n>=parseInt(rm[1])&&n<=parseInt(rm[2]); }
-          return false;
-        });
-      });
-    }
-    if(!prod) prod = findProductByColumn(colVal);
+    var mProds = (targetMachineId && machines[targetMachineId] && machines[targetMachineId].products)
+      ? machines[targetMachineId].products : D.products;
+    prod = findProduct(colVal, itemName, mProds);
     var hour = dateRaw.length>=13 ? parseInt(dateRaw.slice(11,13)) : -1;
 
     // targetMachineId 포함해서 저장
     salesPreviewRows.push({
       date:dateStr, hour:hour, itemName:itemName, colVal:colVal,
-      prod:prod, qty:1, txId:txId, dupKey:dupKey,
+      prod:prod, qty:1, txId:txId, dupKey:dupKey, amt:amt,
       machineId: targetMachineId,
       machineName: rowMachine || ''
     });
@@ -3025,24 +3061,16 @@ function importSalesData(){
       var mSales  = mData.salesData     || [];
 
       // 해당 자판기 제품 찾기
-      function findProd(colVal){
-        return mProds.find(function(p){
-          var cols = Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
-          return cols.some(function(c){
-            c = String(c).trim();
-            if(c===colVal) return true;
-            var rm = c.match(/^(\d+)~(\d+)$/);
-            if(rm){ var n=parseInt(colVal); return n>=parseInt(rm[1])&&n<=parseInt(rm[2]); }
-            return false;
-          });
-        });
-      }
-
       var qtyMapByDate = {};
       rows.forEach(function(r){
-        var prod = r.prod || findProd(r.colVal);
-        if(!prod){ noMatch++; return; }
-        mSales.push({id:Date.now().toString()+Math.random(), txId:r.txId, dupKey:r.dupKey||'', date:r.date, hour:r.hour||-1, productId:prod.id, qty:r.qty});
+        var prod = r.prod || findProduct(r.colVal, r.itemName, mProds);
+        var saleAmt = r.amt || (prod ? prod.sellPrice * r.qty : 0);
+        if(!prod){
+          // 미매칭도 저장 (itemName, amt 보존)
+          mSales.push({id:Date.now().toString()+Math.random(), txId:r.txId, dupKey:r.dupKey||'', date:r.date, hour:r.hour||-1, productId:null, itemName:r.itemName||'', colVal:r.colVal||'', qty:r.qty, amt:saleAmt});
+          noMatch++; return;
+        }
+        mSales.push({id:Date.now().toString()+Math.random(), txId:r.txId, dupKey:r.dupKey||'', date:r.date, hour:r.hour||-1, productId:prod.id, itemName:r.itemName||prod.name, colVal:r.colVal||'', qty:r.qty, amt:saleAmt});
         if(!qtyMapByDate[prod.id]) qtyMapByDate[prod.id]={};
         qtyMapByDate[prod.id][r.date] = (qtyMapByDate[prod.id][r.date]||0)+r.qty;
         added++;
@@ -4434,18 +4462,7 @@ function fetchTodaySales(isAuto){
           var qtyMap = {};
           var machineAdded = 0;
 
-          function findProd(colVal){
-            return mProds.find(function(p){
-              var cols=Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
-              return cols.some(function(c){
-                c=String(c).trim();
-                if(c===colVal) return true;
-                var rm=c.match(/^(\d+)~(\d+)$/);
-                if(rm){ var n=parseInt(colVal); return n>=parseInt(rm[1])&&n<=parseInt(rm[2]); }
-                return false;
-              });
-            });
-          }
+          function findProd(colVal, name){ return findProduct(colVal, name, mProds); }
 
           (rowsByMachine[key]||[]).forEach(function(row){
             var dateRaw = String(row[colDate]||'').trim();
@@ -4465,10 +4482,10 @@ function fetchTodaySales(isAuto){
 
             var dateStr = dateRaw.length>=10 ? dateRaw.slice(0,10) : dateRaw;
             var hour = dateRaw.length>=13 ? parseInt(dateRaw.slice(11,13)) : -1;
-            var prod = findProd(colVal);
-            if(!prod) return;
+            var prod = findProd(colVal, itemName);
+            // 미매칭도 저장 (itemName, amt 보존)
 
-            mSales.push({id:Date.now().toString()+Math.random(), txId:txId, dupKey:dupKey, date:dateStr, hour:hour, productId:prod.id, qty:1, amt:amt});
+            mSales.push({id:Date.now().toString()+Math.random(), txId:txId, dupKey:dupKey, date:dateStr, hour:hour, productId:prod?prod.id:null, itemName:itemName, colVal:colVal, qty:1, amt:amt});
             qtyMap[prod.id]=(qtyMap[prod.id]||0)+1;
             machineAdded++;
             added++;
