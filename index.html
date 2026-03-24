@@ -2895,6 +2895,7 @@ function parseSalesRows(rows){
 
 function _doParseSalesRows(rows, headers, colDate, colItem, colNum, colState, colTxId, colMachine, colMachineCode, machines, colDevno){
   colDevno = colDevno || -1;
+  var colAmt = headers.indexOf('금액'); if(colAmt<0) colAmt = headers.indexOf('판매가');
   // machines: {machineId: {name, deviceNo, ...}} 전체 자판기 맵
   var headerIdx = 0;
   for(var i=0;i<Math.min(10,rows.length);i++){
