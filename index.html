@@ -4497,6 +4497,25 @@ function fetchTodaySales(isAuto){
         rowsByMachine[key].push(row);
       });
 
+      // rows 내부 중복 체크 (크롤러 중복 수집 감지)
+      var globalSeen = {};
+      Object.keys(rowsByMachine).forEach(function(k){
+        var deduped = [];
+        rowsByMachine[k].forEach(function(row){
+          var dateRaw = String(row[colDate]||'').trim();
+          var itemName = String(row[colItem]||'').trim();
+          if(!dateRaw) return;
+          var dt = dateRaw.length>=19 ? dateRaw.slice(0,19) : dateRaw;
+          var dk = dt+'|'+itemName;
+          if(globalSeen[dk]) return; // 전체 중복 제거
+          globalSeen[dk] = true;
+          deduped.push(row);
+        });
+        rowsByMachine[k] = deduped;
+      });
+      var totalAfterDedup = Object.values(rowsByMachine).reduce(function(s,r){return s+r.length;},0);
+      console.log('[수집] 중복제거 후 rows:', totalAfterDedup, '/ 원본:', val.rows.length);
+
       var keys = Object.keys(rowsByMachine);
       if(!keys.length){
         // 매칭된 자판기 없음 → 현재 선택 자판기에 저장 (fallback)
