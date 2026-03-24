@@ -3588,15 +3588,19 @@ function handleBulkCSV(input){
     text = text.replace(/\r\n/g,'\n').replace(/\r/g,'\n');
     var lines = text.trim().split('\n');
     if(lines.length < 2){ showToast('❌ 데이터가 없어요'); return; }
-    // 헤더: 따옴표·공백·\r 제거
-    var headers = lines[0].split(',').map(function(h){return h.trim().replace(/["\r]/g,'');});
+    // 헤더 행 자동 탐색 (유의사항 등 앞 줄 건너뜀)
+    var headerLineIdx = 0;
+    for(var hi=0; hi<lines.length; hi++){
+      var hl = lines[hi].replace(/["\r]/g,'');
+      if(hl.indexOf('제품명')>=0 && hl.indexOf('구매가')>=0){ headerLineIdx=hi; break; }
+    }
+    var headers = lines[headerLineIdx].split(',').map(function(h){return h.trim().replace(/["\r]/g,'');});
     var required = ['제품명','구매가','초기총수량','판매가'];
-    // 총수량도 허용 (구버전 호환)
     if(headers.indexOf('초기총수량')<0 && headers.indexOf('총수량')>=0) headers=headers.map(function(h){return h==='총수량'?'초기총수량':h;});
     var missing = required.filter(function(r){return headers.indexOf(r)<0;});
     if(missing.length){ showToast('❌ 필수 컬럼 없음: '+missing.join(', ')); return; }
     bulkRows = [];
-    for(var i=1;i<lines.length;i++){
+    for(var i=headerLineIdx+1;i<lines.length;i++){
       var line = lines[i].trim().replace(/\r/g,''); if(!line) continue;
       var cells = parseCSVLine(line);
       var row = {};
