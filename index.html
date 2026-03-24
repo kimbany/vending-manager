@@ -846,6 +846,13 @@ input[type=date]{color-scheme:dark;}
       </select>
     </div>
     <div class="fr"><label class="lbl">컬럼 위치 <span style="color:var(--text3);font-weight:400;font-size:11px">· 쉼표=여러위치, ~=두칸차지</span></label><input type="text" id="p-col" placeholder="예) 47  /  45,47  /  45~46"/></div>
+    <label style="display:flex;align-items:center;gap:10px;padding:10px 0;cursor:pointer;border-top:1px solid var(--border);margin-top:4px">
+      <input type="checkbox" id="p-discontinued" style="width:18px;height:18px;accent-color:var(--red)"/>
+      <div>
+        <div style="font-size:13px;font-weight:600;color:var(--red)">🚫 판매 중단</div>
+        <div style="font-size:11px;color:var(--text3)">체크 시 제품 목록에서 중단 표시 · 매출 매칭에서 제외</div>
+      </div>
+    </label>
     <button class="btn-p" style="margin-bottom:0" id="p-save-btn" onclick="saveProduct()">등록 완료</button>
   </div>
 </div>
@@ -3395,10 +3402,11 @@ function renderProds(){
   function renderProdCard(p){
     var cols=Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
     var colLabel=cols.length?cols.join(', '):'미배정';
-    var cbHtml=editMode?'<input type="checkbox" class="prod-cb" value="'+p.id+'" onchange="updateSelectedCount()" style="width:20px;height:20px;accent-color:var(--gold);flex-shrink:0;cursor:pointer"/>'  :'';
+    var cbHtml=editMode?'<input type="checkbox" class="prod-cb" value="'+p.id+'" onclick="event.stopPropagation()" onchange="updateSelectedCount()" style="width:20px;height:20px;accent-color:var(--gold);flex-shrink:0;cursor:pointer"/>'  :'';
+    var discBadge=p.discontinued?'<span style="background:rgba(224,88,88,.2);border:1px solid rgba(224,88,88,.4);border-radius:4px;padding:1px 6px;font-size:10px;color:var(--red);font-weight:700">판매중단</span>':'';
     var btnHtml=editMode?'':'<div style="display:flex;gap:6px"><button class="btn-sm" style="background:#1a2a4a;color:var(--blue)" onclick="editProd(\'' +p.id+ '\')">수정</button><button class="btn-sm" style="background:#2a1a1a;color:var(--red)" onclick="delProd(\'' +p.id+ '\')">삭제</button></div>';
     var clickFn=editMode?'var cb=this.querySelector(\'.prod-cb\');cb.checked=!cb.checked;updateSelectedCount()':'';
-    return '<div class="pc" style="'+(editMode?'cursor:pointer':'')+'" onclick="'+clickFn+'"><div class="pch"><div style="display:flex;align-items:center;gap:10px">'+cbHtml+'<div><div class="in">'+p.name+'</div><div class="is">컬럼: '+colLabel+'</div></div></div>'+btnHtml+'</div><div class="pm">'+[['구매가',fmt(p.buyPrice)+'원'],['낱개가',fmt(p.unitPrice)+'원'],['판매가',fmt(p.sellPrice)+'원'],['마진가',fmt(p.marginAmt)+'원'],['마진율',(p.marginRate||0)+'%'],['총수량',p.totalQty+'개']].map(function(lv){return '<div class="pmb"><div class="pml">'+lv[0]+'</div><div class="pmv">'+lv[1]+'</div></div>';}).join('')+'</div></div>';
+    return '<div class="pc" style="'+(editMode?'cursor:pointer':'')+'" onclick="'+clickFn+'"><div class="pch"><div style="display:flex;align-items:center;gap:10px">'+cbHtml+'<div><div class="in">'+p.name+' '+discBadge+'</div><div class="is">컬럼: '+colLabel+'</div></div></div>'+btnHtml+'</div><div class="pm">'+[['구매가',fmt(p.buyPrice)+'원'],['낱개가',fmt(p.unitPrice)+'원'],['판매가',fmt(p.sellPrice)+'원'],['마진가',fmt(p.marginAmt)+'원'],['마진율',(p.marginRate||0)+'%'],['총수량',p.totalQty+'개']].map(function(lv){return '<div class="pmb"><div class="pml">'+lv[0]+'</div><div class="pmv">'+lv[1]+'</div></div>';}).join('')+'</div></div>';
   }
 
   // 단말기번호별 그룹화
@@ -3440,6 +3448,8 @@ function openProductModal(){
   document.getElementById('prod-modal-title').textContent='제품 등록';
   document.getElementById('p-save-btn').textContent='등록 완료';
   ['p-name','p-buy','p-total','p-sell','p-col'].forEach(function(id){document.getElementById(id).value='';});
+  var discontinuedEl = document.getElementById('p-discontinued');
+  if(discontinuedEl) discontinuedEl.checked = false;
   document.getElementById('p-unit').textContent='구매가 ÷ 총수량';
   document.getElementById('p-ma').textContent='-';
   document.getElementById('p-mr').textContent='-';
@@ -3483,6 +3493,8 @@ function editProd(id){
   loadDevnoOptions('p-devno', p.deviceNo||null);
   var cols=Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
   document.getElementById('p-col').value=cols.join(', ');
+  var discEl=document.getElementById('p-discontinued');
+  if(discEl) discEl.checked=p.discontinued||false;
   calcProduct();
   openModal('prod-modal');
 }
@@ -3500,6 +3512,7 @@ function saveProduct(){
   var col=colRaw.split(',').map(function(c){return c.trim();}).filter(function(c){return c.length>0;});
   // 단말기번호 - locId|machineId|devno 형태
   var devnoVal = document.getElementById('p-devno').value;
+  var discontinuedVal = document.getElementById('p-discontinued') ? document.getElementById('p-discontinued').checked : false;
   var devno = devnoVal ? devnoVal.split('|')[2]||'' : '';
   var eid=document.getElementById('p-eid').value;
   // 중복 위치 체크: 다른 제품이 이미 사용 중인 컬럼인지 확인
