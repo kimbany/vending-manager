@@ -131,9 +131,10 @@ function _doRenderSalesStats(machineDataList, range, panel){
       return;
     }
 
-    if(!prodMap[p.id]) prodMap[p.id]={name:p.name, qty:0, amt:0, price:p.sellPrice||0};
-    prodMap[p.id].qty += s.qty;
-    prodMap[p.id].amt += sAmt;
+    var prodKey = p.name;
+    if(!prodMap[prodKey]) prodMap[prodKey]={name:p.name, qty:0, amt:0, price:p.sellPrice||0};
+    prodMap[prodKey].qty += s.qty;
+    prodMap[prodKey].amt += sAmt;
 
     var tier = s.qty > 0 ? getPriceTier(p.sellPrice||0) : null;
     if(tier){ priceMap[tier]=(priceMap[tier]||0)+s.qty; }
@@ -166,8 +167,9 @@ function _doRenderSalesStats(machineDataList, range, panel){
     html += '<span style="font-size:12px;font-weight:700;color:var(--red)">'+cancelledQty+'개 · '+fmt(cancelledAmt)+'원</span>';
     html += '</div>';
   }
-  // 재고 차감 버튼 (오늘은 자동 차감되므로 제외)
-  if(totalQty > 0 && salesPeriod !== 'today'){
+  // 재고 차감 버튼 (오늘만 보는 경우 제외 - 오늘은 자동 차감)
+  var isOnlyToday = (range.from === td() && range.to === td());
+  if(totalQty > 0 && !isOnlyToday){
     html += '<button onclick="deductInventoryForPeriod()" style="width:100%;margin-top:10px;background:rgba(224,88,88,.12);border:1px solid rgba(224,88,88,.3);border-radius:8px;padding:10px;font-size:13px;font-weight:700;color:var(--red);cursor:pointer;font-family:inherit">📦 이 기간 재고 차감 ('+fmt(totalQty)+'개)</button>';
   }
   html += '</div>';
