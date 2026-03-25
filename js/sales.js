@@ -166,6 +166,10 @@ function _doRenderSalesStats(machineDataList, range, panel){
     html += '<span style="font-size:12px;font-weight:700;color:var(--red)">'+cancelledQty+'개 · '+fmt(cancelledAmt)+'원</span>';
     html += '</div>';
   }
+  // 재고 차감 버튼 (해당 기간 판매량만큼 재고 차감)
+  if(totalQty > 0){
+    html += '<button onclick="deductInventoryForPeriod()" style="width:100%;margin-top:10px;background:rgba(224,88,88,.12);border:1px solid rgba(224,88,88,.3);border-radius:8px;padding:10px;font-size:13px;font-weight:700;color:var(--red);cursor:pointer;font-family:inherit">📦 이 기간 재고 차감 ('+fmt(totalQty)+'개)</button>';
+  }
   html += '</div>';
 
   // 제품 판매 순위
@@ -320,6 +324,73 @@ function _doRenderSalesStats(machineDataList, range, panel){
   }
 
   panel.innerHTML = html;
+}
+
+// 현재 조회 기간의 판매량만큼 재고 차감
+function deductInventoryForPeriod(){
+  var range = getSalesDateRange();
+  var periodLabel = range.from===range.to ? range.from : range.from+' ~ '+range.to;
+
+  if(!currentUser || !currentLocationId){
+    // fallback: 현재 D에서 차감
+    var sales = D.salesData.filter(function(s){ return s.date>=range.from && s.date<=range.to && !s.cancelled; });
+    if(!sales.length){ showToast('❌ 차감할 데이터가 없어요'); return; }
+    var qtyMap = {};
+    sales.forEach(function(s){ if(s.productId) qtyMap[s.productId]=(qtyMap[s.productId]||0)+s.qty; });
+    var totalQty = Object.values(qtyMap).reduce(function(a,b){return a+b;},0);
+    if(!confirm(periodLabel+' 판매 '+totalQty+'개를 재고에서 차감할까요?')) return;
+    Object.keys(qtyMap).forEach(function(pid){
+      applyInventoryChange(pid, -qtyMap[pid], periodLabel+' 판매분 재고차감');
+    });
+    save(); renderAll();
+    showToast('✅ '+totalQty+'개 재고 차감 완료');
+    return;
+  }
+
+  // 모든 자판기에서 해당 기간 판매 데이터 로드
+  db.ref('users/'+currentUser.uid+'/locations/'+currentLocationId+'/machines').once('value').then(function(snap){
+    if(!snap.exists()){ showToast('❌ 자판기 없음'); return; }
+    var machines = snap.val();
+    var promises = Object.keys(machines).map(function(mid){
+      return db.ref('users/'+currentUser.uid+'/locations/'+currentLocationId+'/machines/'+mid+'/appData').once('value').then(function(as){
+        return {mid:mid, val:as.val()||{}};
+      });
+    });
+
+    Promise.all(promises).then(function(results){
+      var grandTotal = 0;
+      results.forEach(function(r){
+        var sales = (r.val.salesData||[]).filter(function(s){ return s.date>=range.from && s.date<=range.to && !s.cancelled && s.productId; });
+        sales.forEach(function(s){ grandTotal += s.qty; });
+      });
+      if(!grandTotal){ showToast('❌ 차감할 데이터가 없어요'); return; }
+      if(!confirm(periodLabel+' 판매 '+grandTotal+'개를 재고에서 차감할까요?')) return;
+
+      var savePromises = results.map(function(r){
+        var sales = (r.val.salesData||[]).filter(function(s){ return s.date>=range.from && s.date<=range.to && !s.cancelled && s.productId; });
+        if(!sales.length) return Promise.resolve();
+        var qtyMap = {};
+        sales.forEach(function(s){ qtyMap[s.productId]=(qtyMap[s.productId]||0)+s.qty; });
+        var mInv = r.val.inventory||[];
+        var mLogs = r.val.inventoryLogs||[];
+        Object.keys(qtyMap).forEach(function(pid){
+          var qty = qtyMap[pid];
+          var idx = mInv.findIndex(function(i){return i.productId===pid;});
+          if(idx>=0) mInv[idx].qty = Math.max(0, mInv[idx].qty - qty);
+          else mInv.push({productId:pid, qty:0});
+          mLogs.push({id:Date.now().toString()+Math.random(), productId:pid, delta:-qty, memo:periodLabel+' 판매분 재고차감', date:range.to});
+        });
+        var appRef = db.ref('users/'+currentUser.uid+'/locations/'+currentLocationId+'/machines/'+r.mid+'/appData');
+        if(r.mid === currentMachineId){ D.inventory = mInv; D.inventoryLogs = mLogs; }
+        return appRef.update({inventory:mInv, inventoryLogs:mLogs});
+      });
+
+      Promise.all(savePromises).then(function(){
+        showToast('✅ '+grandTotal+'개 재고 차감 완료');
+        renderAll();
+      });
+    });
+  });
 }
 
 function getPriceTier(price){
