@@ -251,7 +251,7 @@ function fetchTodaySales(isAuto){
             if(state&&(state==='취소'||state==='취소완료'||state==='환불')) return;
 
             var dt = dateRaw.length>=19 ? dateRaw.slice(0,19) : dateRaw;
-            var dupKey = dt+'|'+itemName.trim();
+            var dupKey = dt+'|'+itemName.trim()+'|'+amt;
             if(existingKeysM[dupKey]){
               dup++;
               console.log('[중복]', dupKey.slice(0,30));
@@ -261,10 +261,11 @@ function fetchTodaySales(isAuto){
 
             var dateStr = dateRaw.length>=10 ? dateRaw.slice(0,10) : dateRaw;
             var hour = dateRaw.length>=13 ? parseInt(dateRaw.slice(11,13)) : -1;
+            var minute = dateRaw.length>=16 ? parseInt(dateRaw.slice(14,16)) : -1;
             var prod = findProd(colVal, itemName);
             // 미매칭도 저장 (itemName, amt 보존)
 
-            mSales.push({id:Date.now().toString()+Math.random(), txId:txId, dupKey:dupKey, date:dateStr, hour:hour, productId:prod?prod.id:null, itemName:itemName, colVal:colVal, qty:1, amt:amt, cancelled:false});
+            mSales.push({id:Date.now().toString()+Math.random(), txId:txId, dupKey:dupKey, date:dateStr, hour:hour, minute:minute, productId:prod?prod.id:null, itemName:itemName, colVal:colVal, qty:1, amt:amt, cancelled:false});
             if(prod) qtyMap[prod.id]=(qtyMap[prod.id]||0)+1;
             machineAdded++;
             added++;
