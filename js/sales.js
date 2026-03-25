@@ -82,10 +82,10 @@ function renderSalesStats(){
 }
 
 function _doRenderSalesStats(machineDataList, range, panel){
-  // 전체 합산 필터
+  // 전체 합산 필터 (환불 포함 - 건별 내역 표시용)
   var allFiltered = [];
   machineDataList.forEach(function(md){
-    var f = (md.sales||[]).filter(function(s){ return s.date>=range.from && s.date<=range.to && !s.cancelled; });
+    var f = (md.sales||[]).filter(function(s){ return s.date>=range.from && s.date<=range.to; });
     f.forEach(function(s){ s._machineName = md.name; s._devno = md.devno; s._prods = md.prods; s._inv = md.inv; });
     allFiltered = allFiltered.concat(f);
   });
