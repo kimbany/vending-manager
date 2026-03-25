@@ -187,10 +187,41 @@ async def crawl_for_user(vmms_id, vmms_pw, save_path):
             except:
                 pass
 
-            # 4. 오늘 버튼
-            print("  [4] 오늘 버튼 클릭")
-            await page.locator(f'xpath={XPATH_BTN_TODAY}').click()
-            await page.wait_for_timeout(800)
+            # 4. 오늘 날짜 직접 입력 (오늘 버튼이 안 먹히는 계정 대응)
+            print(f"  [4] 오늘 날짜 직접 입력: {today}")
+            try:
+                # 오늘 버튼 먼저 시도
+                today_btn = page.locator(f'xpath={XPATH_BTN_TODAY}')
+                if await today_btn.count() > 0:
+                    await today_btn.click()
+                    await page.wait_for_timeout(800)
+                    print("  [4] 오늘 버튼 클릭 완료")
+            except:
+                print("  [4] 오늘 버튼 실패 → 날짜 직접 입력")
+            # 날짜 입력 필드에 오늘 날짜 강제 설정
+            date_inputs = await page.locator('input[type="text"]').all()
+            date_set = False
+            for inp in date_inputs:
+                val = (await inp.input_value()).strip()
+                # 날짜 형식(YYYY-MM-DD 또는 YYYY-MM)인 필드 찾기
+                if len(val) >= 7 and val[:4].isdigit() and val[4] == '-':
+                    await inp.fill(today)
+                    date_set = True
+                    print(f"  [4] 날짜 필드 변경: {val} → {today}")
+            if not date_set:
+                # JavaScript로 직접 설정
+                await page.evaluate(f'''() => {{
+                    var inputs = document.querySelectorAll('input');
+                    inputs.forEach(function(inp) {{
+                        if(inp.value && inp.value.match(/^\\d{{4}}-\\d{{2}}/)) {{
+                            inp.value = "{today}";
+                            inp.dispatchEvent(new Event("input", {{bubbles:true}}));
+                            inp.dispatchEvent(new Event("change", {{bubbles:true}}));
+                        }}
+                    }});
+                }}''')
+                print("  [4] JavaScript로 날짜 강제 설정")
+            await page.wait_for_timeout(500)
 
             # 5. 조회
             print("  [5] 조회 버튼 클릭")
