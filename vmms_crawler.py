@@ -196,7 +196,28 @@ async def crawl_for_user(vmms_id, vmms_pw, save_path):
             print("  [5] 조회 버튼 클릭")
             await page.locator(f'xpath={XPATH_BTN_SEARCH}').click()
             await page.wait_for_load_state("networkidle")
-            await page.wait_for_timeout(1500)
+            await page.wait_for_timeout(2000)
+
+            # 5-1. 디버깅: 조회 후 스크린샷 + 페이지 상태 확인
+            safe_id = vmms_id[:3].replace('/', '_')
+            await page.screenshot(path=f"after_search_{safe_id}.png")
+            print(f"  [5-1] 스크린샷 저장: after_search_{safe_id}.png")
+            print(f"  [5-1] 현재 URL: {page.url}")
+            # 테이블 존재 여부 확인
+            table_count = await page.locator(f'xpath={XPATH_TABLE}').count()
+            print(f"  [5-1] 테이블 발견: {table_count}개")
+            if table_count > 0:
+                tbody_rows = await page.locator(f'xpath={XPATH_TABLE}//tbody//tr').count()
+                print(f"  [5-1] tbody tr 수: {tbody_rows}")
+            # 검색결과 텍스트 확인
+            try:
+                body_text = await page.inner_text('body')
+                for line in body_text.split('\n'):
+                    if '검색결과' in line or '건' in line:
+                        print(f"  [5-1] 검색결과: {line.strip()[:80]}")
+                        break
+            except:
+                pass
 
             # 6. 헤더
             headers = await get_table_headers(page)

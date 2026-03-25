@@ -35,8 +35,8 @@ jobs:
           VMMS_PW: ${{ secrets.VMMS_PW }}
         run: python vmms_crawler.py
 
-      - name: 스크린샷 업로드 (오류 시 확인용)
-        if: failure()
+      - name: 스크린샷 업로드 (디버깅용)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: debug-screenshots
