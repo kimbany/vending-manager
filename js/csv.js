@@ -146,9 +146,9 @@ function _doParseSalesRows(rows, headers, colDate, colItem, colNum, colState, co
     devnos.forEach(function(d){ if(d) machineByCode[d] = key; });
   });
 
-  function makeDupKey(dateRaw, itemName){
+  function makeDupKey(dateRaw, itemName, amt){
     var dt = dateRaw.length>=19 ? dateRaw.slice(0,19) : dateRaw;
-    return dt + '|' + (itemName||'').trim();
+    return dt + '|' + (itemName||'').trim() + '|' + (amt||0);
   }
 
   // 현재 자판기 기존 중복키
@@ -185,7 +185,7 @@ function _doParseSalesRows(rows, headers, colDate, colItem, colNum, colState, co
     // 이 행이 어느 자판기 데이터인지 판별 (locId|machineId 형태)
     var targetMachineId = machineByName[rowMachine] || machineByCode[rowCode] || machineByCode[rowCodeClean] || (currentLocationId&&currentMachineId ? currentLocationId+'|'+currentMachineId : null);
 
-    var dupKey = makeDupKey(dateRaw, itemName);
+    var dupKey = makeDupKey(dateRaw, itemName, amt);
     if(existingKeys[dupKey] || seenKeys[dupKey]){ dupCount++; continue; }
     seenKeys[dupKey] = true;
 
@@ -196,10 +196,11 @@ function _doParseSalesRows(rows, headers, colDate, colItem, colNum, colState, co
       ? machines[targetMachineId].products : D.products;
     prod = findProduct(colVal, itemName, mProds);
     var hour = dateRaw.length>=13 ? parseInt(dateRaw.slice(11,13)) : -1;
+    var minute = dateRaw.length>=16 ? parseInt(dateRaw.slice(14,16)) : -1;
 
     // targetMachineId 포함해서 저장
     salesPreviewRows.push({
-      date:dateStr, hour:hour, itemName:itemName, colVal:colVal,
+      date:dateStr, hour:hour, minute:minute, itemName:itemName, colVal:colVal,
       prod:prod, qty:1, txId:txId, dupKey:dupKey, amt:amt,
       machineId: targetMachineId, machineName: rowMachine || '',
       cancelled: isThisCancel, cancelDate: cancelDate||''
@@ -323,7 +324,7 @@ function importSalesData(){
         var salesEntry = {
           id: Date.now().toString()+Math.random(),
           txId: r.txId, dupKey: r.dupKey||'',
-          date: r.date, hour: r.hour||-1,
+          date: r.date, hour: r.hour||-1, minute: r.minute!==undefined?r.minute:-1,
           productId: prod ? prod.id : null,
           itemName: r.itemName || (prod ? prod.name : ''),
           colVal: r.colVal||'', qty: r.qty, amt: saleAmt,
