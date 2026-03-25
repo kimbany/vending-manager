@@ -598,6 +598,8 @@ function toggleSaleCancel(id, locId, machineId){
   if(idx>=0){
     var s = D.salesData[idx];
     var p = gp(s.productId); if(!p) return;
+    var action = s.cancelled ? '복구' : '환불';
+    if(!confirm(p.name+' '+s.date+'\n\n'+action+' 처리할까요?')) return;
     if(!s.cancelled){
       D.salesData[idx].cancelled = true;
       applyInventoryChange(s.productId, s.qty, s.date+' 환불처리 재고원복');
@@ -625,6 +627,8 @@ function toggleSaleCancel(id, locId, machineId){
     var s = mSales[si];
     var mProds = val.products||[];
     var p = mProds.find(function(x){return x.id===s.productId;});
+    var action2 = s.cancelled ? '복구' : '환불';
+    if(!confirm((p?p.name:'제품')+' '+s.date+'\n\n'+action2+' 처리할까요?')) return;
     if(!s.cancelled){
       mSales[si].cancelled = true;
       if(p){
