@@ -559,27 +559,61 @@ function confirmSalesDel(){
   });
 }
 
-// 건별 환불/환불취소 토글
-function toggleSaleCancel(id){
+// 건별 환불/복구 토글
+function toggleSaleCancel(id, locId, machineId){
+  // 현재 자판기 데이터에서 먼저 찾기
   var idx = D.salesData.findIndex(function(s){ return s.id===id; });
-  if(idx<0) return;
-  var s = D.salesData[idx];
-  var p = gp(s.productId); if(!p) return;
-
-  if(!s.cancelled){
-    // 환불 처리 → 재고 +1 원복
-    D.salesData[idx].cancelled = true;
-    applyInventoryChange(s.productId, s.qty, s.date+' 환불처리 재고원복');
-    showToast('↩️ '+p.name+' 환불 처리 · 재고 +'+s.qty);
-  } else {
-    // 환불 취소 → 재고 다시 차감
-    D.salesData[idx].cancelled = false;
-    applyInventoryChange(s.productId, -s.qty, s.date+' 환불취소 재고차감');
-    showToast('✅ '+p.name+' 환불 취소 · 재고 -'+s.qty);
+  if(idx>=0){
+    var s = D.salesData[idx];
+    var p = gp(s.productId); if(!p) return;
+    if(!s.cancelled){
+      D.salesData[idx].cancelled = true;
+      applyInventoryChange(s.productId, s.qty, s.date+' 환불처리 재고원복');
+      showToast('↩️ '+p.name+' 환불 처리 · 재고 +'+s.qty);
+    } else {
+      D.salesData[idx].cancelled = false;
+      applyInventoryChange(s.productId, -s.qty, s.date+' 환불취소 재고차감');
+      showToast('✅ '+p.name+' 복구 완료 · 재고 -'+s.qty);
+    }
+    save();
+    renderSalesStats();
+    renderInv();
+    return;
   }
-  save();
-  renderSalesStats();
-  renderInv();
+  // 다른 자판기 데이터인 경우 Firebase에서 직접 수정
+  if(!locId || !machineId || !currentUser) return;
+  var appRef = db.ref('users/'+currentUser.uid+'/locations/'+locId+'/machines/'+machineId+'/appData');
+  appRef.once('value').then(function(snap){
+    var val = snap.val()||{};
+    var mSales = val.salesData||[];
+    var mInv = val.inventory||[];
+    var mLogs = val.inventoryLogs||[];
+    var si = mSales.findIndex(function(s){ return s.id===id; });
+    if(si<0){ showToast('❌ 데이터를 찾을 수 없어요'); return; }
+    var s = mSales[si];
+    var mProds = val.products||[];
+    var p = mProds.find(function(x){return x.id===s.productId;});
+    if(!s.cancelled){
+      mSales[si].cancelled = true;
+      if(p){
+        var ii = mInv.findIndex(function(i){return i.productId===s.productId;});
+        if(ii>=0) mInv[ii].qty = Math.max(0, mInv[ii].qty + s.qty);
+        mLogs.push({id:Date.now().toString()+Math.random(), productId:s.productId, delta:s.qty, memo:s.date+' 환불처리 재고원복', date:s.date});
+      }
+      showToast('↩️ '+(p?p.name:'제품')+' 환불 처리');
+    } else {
+      mSales[si].cancelled = false;
+      if(p){
+        var ii2 = mInv.findIndex(function(i){return i.productId===s.productId;});
+        if(ii2>=0) mInv[ii2].qty = Math.max(0, mInv[ii2].qty - s.qty);
+        mLogs.push({id:Date.now().toString()+Math.random(), productId:s.productId, delta:-s.qty, memo:s.date+' 환불취소 재고차감', date:s.date});
+      }
+      showToast('✅ '+(p?p.name:'제품')+' 복구 완료');
+    }
+    appRef.set({products:mProds, inventory:mInv, inventoryLogs:mLogs, salesData:mSales}).then(function(){
+      renderSalesStats();
+    });
+  });
 }
 
 // ─── 제품 상세 팝업 ────────────────────────────────────────────────────────────
