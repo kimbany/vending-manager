@@ -72,7 +72,7 @@ function renderSalesStats(){
       var devnos = Array.isArray(m.deviceNos)?m.deviceNos:(m.deviceNo?[m.deviceNo]:[]);
       return db.ref('users/'+currentUser.uid+'/locations/'+currentLocationId+'/machines/'+mid+'/appData').once('value').then(function(as){
         var val = as.val()||{};
-        return {sales: val.salesData||[], prods: val.products||[], inv: val.inventory||[], name: m.name||mid, devno: devnos[0]||mid};
+        return {sales: val.salesData||[], prods: val.products||[], inv: val.inventory||[], name: m.name||mid, devno: devnos[0]||mid, locId: currentLocationId, machineId: mid};
       });
     });
     Promise.all(promises).then(function(machineDataList){
@@ -86,7 +86,7 @@ function _doRenderSalesStats(machineDataList, range, panel){
   var allFiltered = [];
   machineDataList.forEach(function(md){
     var f = (md.sales||[]).filter(function(s){ return s.date>=range.from && s.date<=range.to; });
-    f.forEach(function(s){ s._machineName = md.name; s._devno = md.devno; s._prods = md.prods; s._inv = md.inv; });
+    f.forEach(function(s){ s._machineName = md.name; s._devno = md.devno; s._prods = md.prods; s._inv = md.inv; s._locId = md.locId||''; s._machineId = md.machineId||''; });
     allFiltered = allFiltered.concat(f);
   });
   var filtered = allFiltered;
@@ -281,7 +281,8 @@ function _doRenderSalesStats(machineDataList, range, panel){
       var btnColor = isCancelled ? 'var(--green)' : 'var(--red)';
       var btnBorder = isCancelled ? 'rgba(122,218,154,.3)' : 'rgba(224,88,88,.3)';
       var btnLabel = isCancelled ? '복구' : '환불';
-      html += '<button onclick="toggleSaleCancel(this.dataset.id)" data-id="'+s.id+'" style="background:'+btnBg+';color:'+btnColor+';border:1px solid '+btnBorder+';border-radius:6px;padding:4px 8px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">'+btnLabel+'</button>';
+      var sMachineKey = (s._machineName||'')+'|'+(s._devno||'');
+      html += '<button onclick="toggleSaleCancel(this.dataset.id,this.dataset.loc,this.dataset.mid)" data-id="'+s.id+'" data-loc="'+(s._locId||currentLocationId||'')+'" data-mid="'+(s._machineId||currentMachineId||'')+'" style="background:'+btnBg+';color:'+btnColor+';border:1px solid '+btnBorder+';border-radius:6px;padding:4px 8px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">'+btnLabel+'</button>';
       html += '</div>';
     });
   }
