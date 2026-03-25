@@ -149,13 +149,9 @@ function fetchTodaySales(isAuto){
       var machineDataMap = {}; // key = locId+'|'+machineId
 
       if(!locSnap.exists()){
-        // locations 없으면 현재 D에 직접 저장
-        doFetchToTarget(val.rows, null, D, function(){
-          save(); renderAll();
-          var msg = (isAuto?'🤖 자동수집':'✅ 수집')+' '+added+'건 반영';
-          if(dup>0) msg += ' · 중복 '+dup+'건 제외';
-          showToast(msg);
-        });
+        // locations 없으면 현재 자판기에 직접 저장 (fallback)
+        if(btn){ btn.textContent='🔄 오늘 데이터 수집'; btn.disabled=false; } _fetchInProgress=false;
+        if(!isAuto) showToast('📭 위치/자판기를 먼저 등록해주세요');
         return;
       }
 
@@ -268,7 +264,7 @@ function fetchTodaySales(isAuto){
             // 미매칭도 저장 (itemName, amt 보존)
 
             mSales.push({id:Date.now().toString()+Math.random(), txId:txId, dupKey:dupKey, date:dateStr, hour:hour, productId:prod?prod.id:null, itemName:itemName, colVal:colVal, qty:1, amt:amt, cancelled:false});
-            qtyMap[prod.id]=(qtyMap[prod.id]||0)+1;
+            if(prod) qtyMap[prod.id]=(qtyMap[prod.id]||0)+1;
             machineAdded++;
             added++;
           });
