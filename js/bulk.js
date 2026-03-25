@@ -540,19 +540,51 @@ function confirmSalesDel(){
       if(!totalRows){ showToast('❌ 삭제할 데이터가 없어요'); return; }
       if(!confirm(rangeLabel+' 전체 '+totalRows+'건을 삭제할까요?')) return;
 
+      // 오늘 날짜가 포함된 경우 재고 복구 여부 확인
+      var today = td();
+      var hasTodayData = (today >= range.from && today <= range.to);
+      var doRestore = false;
+      if(hasTodayData){
+        doRestore = confirm('오늘('+today+') 데이터가 포함되어 있어요.\n\n오늘 판매분의 재고를 복구할까요?\n\n[확인] 재고 복구   [취소] 재고 유지');
+      }
+
       var savePromises = results.map(function(r){
         if(!r.rows.length) return Promise.resolve();
+        var mInv = r.val.inventory||[];
+        var mLogs = r.val.inventoryLogs||[];
+        var mProds = r.val.products||[];
+
+        // 오늘 데이터 재고 복구
+        if(doRestore){
+          var todayRows = r.rows.filter(function(s){ return s.date===today && !s.cancelled; });
+          var restoreMap = {};
+          todayRows.forEach(function(s){
+            if(s.productId) restoreMap[s.productId] = (restoreMap[s.productId]||0) + (s.qty||1);
+          });
+          Object.keys(restoreMap).forEach(function(pid){
+            var qty = restoreMap[pid];
+            var idx = mInv.findIndex(function(i){return i.productId===pid;});
+            if(idx>=0) mInv[idx].qty += qty;
+            mLogs.push({id:Date.now().toString()+Math.random(), productId:pid, delta:qty, memo:'판매삭제 재고복구 '+today, date:today});
+          });
+        }
+
         var newSales = (r.val.salesData||[]).filter(function(s){ return !(s.date>=range.from && s.date<=range.to); });
         var appRef = db.ref('users/'+currentUser.uid+'/locations/'+currentLocationId+'/machines/'+r.mid+'/appData');
         // 현재 자판기면 D도 업데이트
-        if(r.mid === currentMachineId){ D.salesData = newSales; }
-        return appRef.update({salesData: newSales});
+        if(r.mid === currentMachineId){
+          D.salesData = newSales;
+          if(doRestore){ D.inventory = mInv; D.inventoryLogs = mLogs; }
+        }
+        var updateData = {salesData: newSales};
+        if(doRestore){ updateData.inventory = mInv; updateData.inventoryLogs = mLogs; }
+        return appRef.update(updateData);
       });
 
       Promise.all(savePromises).then(function(){
         closeModal('sales-edit-modal');
         document.getElementById('sales-del-preview').innerHTML='';
-        showToast('✅ '+totalRows+'건 삭제 완료');
+        showToast('✅ '+totalRows+'건 삭제 완료'+(doRestore?' · 오늘 재고 복구됨':''));
         renderAll();
       });
     });

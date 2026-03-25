@@ -281,13 +281,8 @@ function showSalesPreview(matched, unmatched, dupCount){
 function importSalesData(){
   var added=0, noMatch=0;
 
-  // 과거 데이터 재고차감 여부 확인
+  // 오늘 데이터만 재고 차감 (과거 데이터는 재고 안 빼기)
   var today = td();
-  var hasPastData = salesPreviewRows.some(function(r){ return r.date < today; });
-  var doDeduct = true;
-  if(hasPastData){
-    doDeduct = confirm('과거 날짜 데이터가 포함되어 있어요.\n\n재고를 차감할까요?\n\n[확인] 차감   [취소] 차감 안 함');
-  }
 
   // 자판기별로 행 분류
   var byMachine = {}; // {machineId: [rows]}
@@ -334,25 +329,26 @@ function importSalesData(){
         mSales.push(salesEntry);
         if(!prod){ noMatch++; return; }
         if(r.cancelled) return; // 취소건 재고 차감 제외
-        if(!qtyMapByDate[prod.id]) qtyMapByDate[prod.id]={};
-        qtyMapByDate[prod.id][r.date] = (qtyMapByDate[prod.id][r.date]||0)+r.qty;
+        // 오늘 데이터만 재고 차감 대상
+        if(r.date === today){
+          if(!qtyMapByDate[prod.id]) qtyMapByDate[prod.id]={};
+          qtyMapByDate[prod.id][r.date] = (qtyMapByDate[prod.id][r.date]||0)+r.qty;
+        }
         added++;
       });
 
-      // 재고 차감 + 로그 (doDeduct true일 때만)
-      if(doDeduct){
-        Object.keys(qtyMapByDate).forEach(function(pid){
-          var dateMap = qtyMapByDate[pid];
-          var total=0;
-          Object.keys(dateMap).sort().forEach(function(date){
-            var qty=dateMap[date]; total+=qty;
-            mLogs.push({id:Date.now().toString()+Math.random(), productId:pid, delta:-qty, memo:'판매데이터 자동차감', date:date});
-          });
-          var idx=mInv.findIndex(function(i){return i.productId===pid;});
-          if(idx>=0) mInv[idx].qty=Math.max(0,mInv[idx].qty-total);
-          else mInv.push({productId:pid,qty:0});
+      // 재고 차감 (오늘 데이터만)
+      Object.keys(qtyMapByDate).forEach(function(pid){
+        var dateMap = qtyMapByDate[pid];
+        var total=0;
+        Object.keys(dateMap).sort().forEach(function(date){
+          var qty=dateMap[date]; total+=qty;
+          mLogs.push({id:Date.now().toString()+Math.random(), productId:pid, delta:-qty, memo:'판매데이터 자동차감', date:date});
         });
-      }
+        var idx=mInv.findIndex(function(i){return i.productId===pid;});
+        if(idx>=0) mInv[idx].qty=Math.max(0,mInv[idx].qty-total);
+        else mInv.push({productId:pid,qty:0});
+      });
 
       // 해당 자판기에 저장
       var saveData = {products:mProds, inventory:mInv, inventoryLogs:mLogs, salesData:mSales};
