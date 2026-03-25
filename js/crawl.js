@@ -47,8 +47,9 @@ function fetchTodaySales(isAuto){
   }
 
   CRAWL_REF.child(today).once('value').then(function(snap){
-    console.log('[수집] 개인경로 snap exists:', snap.exists(), 'val:', JSON.stringify(snap.val())&&JSON.stringify(snap.val()).slice(0,100));
-    if(snap.exists() && snap.val() && snap.val().rows) return snap;
+    var snapVal = snap.val();
+    console.log('[수집] 개인경로 snap exists:', snap.exists(), 'keys:', snapVal ? Object.keys(snapVal) : 'null', 'total_count:', snapVal ? snapVal.total_count : '-');
+    if(snap.exists() && snapVal && (snapVal.rows || snapVal.total_count > 0)) return snap;
     console.log('[수집] 공용경로 fallback');
     return db.ref('vendingApp/crawledSales/'+today).once('value');
   }).then(function(snap){
