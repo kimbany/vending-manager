@@ -16,6 +16,8 @@ function startApp(){
   }
   checkMigrationV2();
   loadMachineDropdown();
+  // URL 해시에서 이전 탭 복원
+  setTimeout(restoreTab, 100);
 }
 
 function loadUserData(){
