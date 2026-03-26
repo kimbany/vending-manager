@@ -109,29 +109,31 @@ input[type=date]{color-scheme:dark;}
   .pmb{background:var(--bg3);}
   .sb{background:var(--bg3);}
   /* PC 사이드 배너 라이트 모드 */
-  .pc-side-banner{background:linear-gradient(180deg,#f0e8d8,#fff8ee);color:#3a2a10;}
+  .pc-side-banner.left{background:linear-gradient(180deg,#f8f4ee,#fff8ee);}
   .pc-side-banner h2{color:#c87d20;}
-  .pc-side-banner .side-feature{background:rgba(200,125,32,.08);border-color:rgba(200,125,32,.2);}
+  .pc-side-banner p{color:#6a5a4a;}
+  .pc-side-banner .side-feature{background:rgba(200,125,32,.06);border-color:rgba(200,125,32,.15);}
+  .pc-side-banner .side-feature .sf-title{color:#b06a10;}
+  .pc-side-banner .side-feature .sf-desc{color:#8a7a6a;}
 }
 
 /* ─── PC 사이드 배너 (768px 이상) ─── */
 .pc-side-banner{display:none;}
 @media(min-width:768px){
-  body{display:flex;justify-content:center;align-items:flex-start;gap:0;}
-  .pc-side-banner{display:flex;flex-direction:column;align-items:center;justify-content:center;position:fixed;top:0;bottom:0;width:calc((100vw - 480px) / 2);padding:40px 30px;text-align:center;background:linear-gradient(180deg,#1a1424,#0d0d12);color:var(--text);overflow:hidden;}
-  .pc-side-banner.left{left:0;}
-  .pc-side-banner.right{right:0;}
+  body{display:flex;justify-content:flex-end;align-items:flex-start;gap:0;}
+  .pc-side-banner{display:none;}
+  .pc-side-banner.left{display:flex;flex-direction:column;align-items:center;justify-content:center;position:fixed;top:0;bottom:0;left:0;width:calc(100vw - 480px);padding:40px 30px;text-align:center;background:linear-gradient(180deg,#1a1424,#0d0d12);color:var(--text);overflow:hidden;}
+  .pc-side-banner.right{display:none;}
   .pc-side-banner h2{font-size:28px;font-weight:800;color:var(--gold);margin-bottom:12px;letter-spacing:-1px;}
   .pc-side-banner p{font-size:14px;color:var(--text2);line-height:1.7;margin-bottom:24px;}
   .pc-side-banner .side-icon{font-size:64px;margin-bottom:20px;}
-  .pc-side-banner .side-features{display:flex;flex-direction:column;gap:10px;width:100%;max-width:260px;}
+  .pc-side-banner .side-features{display:flex;flex-direction:column;gap:10px;width:100%;max-width:280px;}
   .pc-side-banner .side-feature{background:rgba(232,184,109,.08);border:1px solid rgba(232,184,109,.2);border-radius:12px;padding:14px;text-align:left;}
   .pc-side-banner .side-feature .sf-icon{font-size:20px;margin-bottom:6px;}
   .pc-side-banner .side-feature .sf-title{font-size:13px;font-weight:700;color:var(--gold);margin-bottom:3px;}
   .pc-side-banner .side-feature .sf-desc{font-size:11px;color:var(--text3);line-height:1.5;}
-  #app{box-shadow:0 0 40px rgba(0,0,0,.3);border-left:1px solid var(--border);border-right:1px solid var(--border);}
+  #app{box-shadow:0 0 40px rgba(0,0,0,.3);border-left:1px solid var(--border);border-right:1px solid var(--border);margin-right:0;margin-left:auto;}
 }
 @media(min-width:768px) and (max-width:1023px){
-  .pc-side-banner.left{display:none;}
-  .pc-side-banner.right{display:flex;width:calc(100vw - 480px);}
+  .pc-side-banner.left{display:flex;width:calc(100vw - 480px);}
 }
