@@ -69,20 +69,26 @@ function renderAllMachineLowStock(){
       });
     });
     Promise.all(promises).then(function(results){
-      var html=''; var totalLow=0;
+      var totalLow=0;
+      var cards=[];
       results.forEach(function(md){
         var inv=md.data.inventory||[]; var prods=md.data.products||[];
         function getP(pid){ return prods.find(function(p){return p.id===pid;}); }
         var low=inv.filter(function(i){return i.qty<=5;}).map(function(i){return {i:i,p:getP(i.productId)};}).filter(function(x){return x.p;});
         if(!low.length) return;
         totalLow+=low.length;
-        html+='<div style="font-size:11px;font-weight:700;color:var(--gold);padding:8px 0 4px;border-top:1px solid var(--border);margin-top:4px">📍 '+md.locName+' · 🏪 '+md.machineName+'</div>';
+        var itemsHtml='';
         low.forEach(function(x){
           var cl=Array.isArray(x.p.column)?x.p.column.join(', '):(x.p.column||'-');
-          html+='<div class="li"><div><div class="in">'+x.p.name+'</div><div class="is">컬럼: '+cl+'</div></div><span class="badge '+(x.i.qty===0?'br':'bo')+'">'+x.i.qty+'개</span></div>';
+          itemsHtml+='<div class="li"><div><div class="in">'+x.p.name+'</div><div class="is">컬럼: '+cl+'</div></div><span class="badge '+(x.i.qty===0?'br':'bo')+'">'+x.i.qty+'개</span></div>';
         });
+        cards.push('<div class="low-stock-card"><div style="font-size:11px;font-weight:700;color:var(--gold);padding:0 0 6px">📍 '+md.locName+' · 🏪 '+md.machineName+' <span style="color:var(--red)">('+low.length+')</span></div>'+itemsHtml+'</div>');
       });
-      el.innerHTML=totalLow ? html : '<div class="empty"><div class="ei">✅</div><div class="et">모든 자판기 재고 부족 없음</div></div>';
+      if(!totalLow){
+        el.innerHTML='<div class="empty"><div class="ei">✅</div><div class="et">모든 자판기 재고 부족 없음</div></div>';
+      } else {
+        el.innerHTML='<div class="low-stock-grid">'+cards.join('')+'</div>';
+      }
     });
   });
 }
