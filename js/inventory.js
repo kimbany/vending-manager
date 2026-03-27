@@ -27,21 +27,26 @@ function renderPurchase(){
   el.innerHTML = lowProds.map(function(p){
     var q = gq(p.id);
     var cols = Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
-    return '<div onclick="openCoupang(this.dataset.name)" data-name="'+p.name+'" style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(224,88,88,.15);cursor:pointer">'+
-      '<div style="flex:1">'+
+    return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(224,88,88,.15)">'+
+      '<div style="flex:1;cursor:pointer" onclick="openCoupangSearch(this.dataset.name)" data-name="'+p.name+'">'+
         '<div style="font-size:13px;font-weight:600">'+p.name+'</div>'+
         '<div style="font-size:11px;color:var(--text3);margin-top:2px">컬럼: '+( cols.join(', ')||'-')+'</div>'+
       '</div>'+
       '<span style="font-size:14px;font-weight:800;color:'+(q===0?'var(--red)':'var(--gold)')+'">'+q+'개</span>'+
-      '<span style="font-size:11px;background:rgba(232,184,109,.2);color:var(--gold);border:1px solid rgba(232,184,109,.4);border-radius:6px;padding:3px 8px;white-space:nowrap">쿠팡 검색 &#8594;</span>'+
+      '<span onclick="openCoupangSearch(\''+p.name.replace(/'/g,"\\'")+'\')" style="font-size:11px;background:rgba(232,184,109,.2);color:var(--gold);border:1px solid rgba(232,184,109,.4);border-radius:6px;padding:3px 8px;white-space:nowrap;cursor:pointer">쿠팡 검색 &#8594;</span>'+
     '</div>';
   }).join('');
 }
 
 function openCoupang(name){
-  var url = 'https://www.coupang.com/np/search?q=' + encodeURIComponent(name);
-  window.open(url, '_blank');
-  requestNotification('🛒 쿠팡 검색', name + ' 쿠팡 검색 페이지를 열었어요');
+  // 파트너스 키가 있으면 파트너스 링크로 열기
+  if(typeof openCoupangWithAffiliate === 'function'){
+    openCoupangWithAffiliate(name);
+  } else {
+    var url = 'https://www.coupang.com/np/search?q=' + encodeURIComponent(name);
+    window.open(url, '_blank');
+    requestNotification('🛒 쿠팡 검색', name + ' 쿠팡 검색 페이지를 열었어요');
+  }
 }
 
 function openAllCoupang(){
@@ -50,9 +55,8 @@ function openAllCoupang(){
   if(!confirm(lowProds.length+'개 제품을 순차적으로 쿠팡에서 검색할게요. 팝업 차단을 허용해주세요.')) return;
   lowProds.forEach(function(p, i){
     setTimeout(function(){
-      var url = 'https://www.coupang.com/np/search?q=' + encodeURIComponent(p.name);
-      window.open(url, '_blank');
-    }, i * 800); // 0.8초 간격
+      openCoupang(p.name);
+    }, i * 800);
   });
 }
 
