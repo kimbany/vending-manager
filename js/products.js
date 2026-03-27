@@ -1,5 +1,13 @@
 // ─── 제품 관리 ────────────────────────────────────────────────────────────────
 var editMode = false;
+var prodSort = 'name'; // 기본 정렬: 제품명
+
+function setProdSort(s, btn){
+  prodSort = s;
+  document.querySelectorAll('.stab').forEach(function(b){ if(b.id && b.id.startsWith('psort')) b.classList.remove('active'); });
+  if(btn) btn.classList.add('active');
+  renderProds();
+}
 
 // 제품 관리 탭 자판기 네비게이터
 var pmMachineList = [];
@@ -109,6 +117,23 @@ function _renderProdsFromList(products){
   document.getElementById('prod-title').textContent='등록 제품 ('+products.length+'개)';
   var el=document.getElementById('prod-list');
   if(!products.length){el.innerHTML='<div class="empty"><div class="ei">🏷️</div><div class="et">등록된 제품이 없습니다</div></div>';return;}
+
+  // 정렬 적용
+  var sorted = products.slice();
+  if(prodSort==='name'){
+    sorted.sort(function(a,b){return (a.name||'').localeCompare(b.name||'','ko');});
+  } else if(prodSort==='col'){
+    sorted.sort(function(a,b){
+      var ac=Array.isArray(a.column)?a.column:(a.column?[a.column]:[]); var av=ac.length?parseInt(ac[0])||0:999;
+      var bc=Array.isArray(b.column)?b.column:(b.column?[b.column]:[]); var bv=bc.length?parseInt(bc[0])||0:999;
+      return av-bv;
+    });
+  } else if(prodSort==='qasc'){
+    sorted.sort(function(a,b){return gq(a.id)-gq(b.id);});
+  } else if(prodSort==='qdesc'){
+    sorted.sort(function(a,b){return gq(b.id)-gq(a.id);});
+  }
+  products = sorted;
 
   function renderProdCard(p){
     var cols=Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
