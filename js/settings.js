@@ -209,9 +209,10 @@ function switchSettingsSub(sub){
   ['profile','machines','vmms'].forEach(function(s){
     document.getElementById('set-panel-'+s).style.display = s===sub ? 'block' : 'none';
     var btn = document.getElementById('set-sub-'+s);
-    btn.style.background = s===sub ? 'var(--blue)' : 'transparent';
-    btn.style.color      = s===sub ? '#fff' : 'var(--text2)';
+    btn.style.background = s===sub ? 'var(--bg2)' : 'transparent';
+    btn.style.color      = s===sub ? 'var(--text)' : 'var(--text3)';
     btn.style.fontWeight = s===sub ? '700' : '600';
+    btn.style.boxShadow  = s===sub ? '0 1px 3px rgba(0,0,0,.08)' : 'none';
   });
   if(sub==='profile'){ renderProfileInfo(); loadLowStockSetting(); }
   if(sub==='machines') renderMachinesList();

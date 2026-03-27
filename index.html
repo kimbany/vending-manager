@@ -239,17 +239,15 @@
     <!-- 재고 -->
     <div class="tab" id="tab-inventory">
       <!-- 서브탭 -->
-      <div style="display:flex;background:var(--bg2);border-radius:12px;padding:3px;margin-bottom:14px;gap:3px;border:1px solid var(--border)">
+      <div style="display:flex;background:var(--bg2);border-radius:12px;padding:3px;margin-bottom:14px;gap:0;border:1px solid var(--border)">
         <button id="inv-sub-stock" onclick="switchInvSub('stock')" style="flex:1;border:none;border-radius:9px;padding:10px;font-size:14px;font-weight:700;cursor:pointer;background:var(--bg2);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.08);font-family:inherit">재고현황</button>
+        <div style="width:1px;background:var(--border);margin:6px 0;flex-shrink:0"></div>
         <button id="inv-sub-purchase" onclick="switchInvSub('purchase')" style="flex:1;border:none;border-radius:9px;padding:10px;font-size:14px;font-weight:600;cursor:pointer;background:transparent;color:var(--text3);font-family:inherit">제품구매</button>
       </div>
 
       <!-- 재고현황 서브탭 -->
       <div id="inv-panel-stock">
-        <div style="display:flex;gap:8px;margin-bottom:10px">
-          <button class="btn-p" style="margin-bottom:0;flex:1" onclick="openModal('inv-modal')">➕ 재고 입력</button>
-          <button class="btn-p btn-b" style="margin-bottom:0;flex:1" onclick="openModal('bulk-inv-modal')">📋 일괄 입력</button>
-        </div>
+        <button class="btn-p" style="margin-bottom:10px" onclick="openModal('inv-type-modal')">➕ 재고 입력</button>
         <div class="stabs" style="margin-bottom:10px">
           <button class="stab active" id="isort-name" onclick="setInvSort('name',this)">제품명</button>
           <button class="stab" id="isort-col" onclick="setInvSort('col',this)">컬럼순</button>
@@ -288,13 +286,12 @@
 
     <!-- 판매통계 -->
     <div class="tab" id="tab-sales">
-      <!-- 데이터 수집 버튼 영역 -->
-      <div style="display:flex;gap:8px;margin-bottom:8px">
-        <button class="btn-p" style="margin-bottom:0;flex:1;background:var(--bg3);color:var(--text2)" onclick="openCsvModal()">📤 직접 업로드</button>
-        <button class="btn-p btn-b" style="margin-bottom:0;flex:1" id="crawl-btn" onclick="fetchTodaySales()">🔄 오늘 데이터 수집</button>
+      <button class="btn-p" style="margin-bottom:10px" id="crawl-btn" onclick="fetchTodaySales()">🔄 오늘 데이터 수집</button>
+      <div onclick="openCsvModal()" style="display:flex;align-items:center;justify-content:space-between;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:6px;cursor:pointer;font-size:14px;font-weight:600;color:var(--text2)">
+        <span>📤 직접 업로드</span><span style="font-size:16px;color:var(--text3)">›</span>
       </div>
-      <div style="margin-bottom:8px">
-        <button class="btn-p" style="margin-bottom:0;width:100%;background:var(--bg3);color:var(--text2)" onclick="openModal('sales-edit-modal')">✏️ 판매 편집 (날짜별 삭제)</button>
+      <div onclick="openModal('sales-edit-modal')" style="display:flex;align-items:center;justify-content:space-between;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:10px;cursor:pointer;font-size:14px;font-weight:600;color:var(--text2)">
+        <span>✏️ 판매 편집 (날짜별 삭제)</span><span style="font-size:16px;color:var(--text3)">›</span>
       </div>
       <!-- 자동수집 상태 표시 -->
       <div id="auto-collect-status" style="font-size:11px;color:var(--text3);text-align:right;margin-bottom:12px">
@@ -322,8 +319,9 @@
     <!-- 자판기 + 제품등록 통합 탭 -->
     <div class="tab" id="tab-machine">
       <!-- 서브탭 -->
-      <div style="display:flex;background:var(--bg2);border-radius:12px;padding:3px;margin-bottom:14px;gap:3px;border:1px solid var(--border)">
+      <div style="display:flex;background:var(--bg2);border-radius:12px;padding:3px;margin-bottom:14px;gap:0;border:1px solid var(--border)">
         <button id="vm-sub-status" onclick="switchVmSub('status')" style="flex:1;border:none;border-radius:9px;padding:10px;font-size:14px;font-weight:700;cursor:pointer;background:var(--bg2);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.08);font-family:inherit">자판기 현황</button>
+        <div style="width:1px;background:var(--border);margin:6px 0;flex-shrink:0"></div>
         <button id="vm-sub-products" onclick="switchVmSub('products')" style="flex:1;border:none;border-radius:9px;padding:10px;font-size:14px;font-weight:600;cursor:pointer;background:transparent;color:var(--text3);font-family:inherit">제품 관리</button>
       </div>
 
@@ -389,9 +387,11 @@
     <!-- 설정 -->
     <div class="tab" id="tab-settings">
       <!-- 서브탭 -->
-      <div style="display:flex;background:var(--bg2);border-radius:12px;padding:3px;margin-bottom:16px;gap:3px;border:1px solid var(--border)">
+      <div style="display:flex;background:var(--bg2);border-radius:12px;padding:3px;margin-bottom:16px;gap:0;border:1px solid var(--border)">
         <button id="set-sub-profile" onclick="switchSettingsSub('profile')" style="flex:1;border:none;border-radius:9px;padding:9px 4px;font-size:14px;font-weight:700;cursor:pointer;background:var(--bg2);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.08);font-family:inherit">회원정보</button>
+        <div style="width:1px;background:var(--border);margin:6px 0;flex-shrink:0"></div>
         <button id="set-sub-machines" onclick="switchSettingsSub('machines')" style="flex:1;border:none;border-radius:9px;padding:9px 4px;font-size:14px;font-weight:600;cursor:pointer;background:transparent;color:var(--text3);font-family:inherit">자판기</button>
+        <div style="width:1px;background:var(--border);margin:6px 0;flex-shrink:0"></div>
         <button id="set-sub-vmms" onclick="switchSettingsSub('vmms')" style="flex:1;border:none;border-radius:9px;padding:9px 4px;font-size:14px;font-weight:600;cursor:pointer;background:transparent;color:var(--text3);font-family:inherit">VMMS</button>
       </div>
 
@@ -664,6 +664,17 @@
     <div id="csm-loading" style="display:none;text-align:center;padding:20px;color:var(--text3);font-size:13px">검색 중...</div>
     <div id="csm-results" style="max-height:400px;overflow-y:auto"></div>
     <div id="csm-msg" style="font-size:12px;margin-top:8px;text-align:center;color:var(--text3)"></div>
+  </div>
+</div>
+
+<!-- 재고 입력 타입 선택 팝업 -->
+<div class="modal-bg" id="inv-type-modal">
+  <div class="modal" style="padding-bottom:24px">
+    <div class="mh"><div class="mt">재고 입력</div><button class="mc" onclick="closeModal('inv-type-modal')">✕</button></div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="inv-type-btn" onclick="closeModal('inv-type-modal');openModal('inv-modal')" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:16px;font-size:16px;font-weight:600;color:var(--text);cursor:pointer;font-family:inherit;text-align:left;transition:background .15s">단품 입력<span style="font-size:12px;color:var(--text3);margin-left:8px">제품 하나씩 입력</span></button>
+      <button class="inv-type-btn" onclick="closeModal('inv-type-modal');openModal('bulk-inv-modal')" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:16px;font-size:16px;font-weight:600;color:var(--text);cursor:pointer;font-family:inherit;text-align:left;transition:background .15s">일괄 입력<span style="font-size:12px;color:var(--text3);margin-left:8px">CSV 파일로 한번에</span></button>
+    </div>
   </div>
 </div>
 
