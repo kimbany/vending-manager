@@ -377,6 +377,8 @@ function importSalesData(){
     showToast(msg);
     resetCsvModal();
     renderAll();
+    // 신규 상품 감지
+    if(noMatch>0 && typeof checkNewProducts === 'function') setTimeout(checkNewProducts, 500);
   }).catch(function(e){
     showToast('❌ 저장 실패: '+e.message);
   });
