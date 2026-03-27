@@ -7,11 +7,9 @@ function switchTab(name,btn){
   if(name==='settings') renderProfileInfo();
   else resetVmmsLock();
   if(name==='machine') switchVmSub('status');
-  // URL 해시에 현재 탭 저장
   history.replaceState(null, '', '#'+name);
 }
 
-// 페이지 로드 시 해시에서 탭 복원
 function restoreTab(){
   var hash = location.hash.replace('#','');
   if(!hash) return;
@@ -28,59 +26,77 @@ document.querySelectorAll('.modal-bg').forEach(function(bg){
   bg.addEventListener('click',function(e){if(e.target===bg)bg.classList.remove('open');});
 });
 
-// ─── 스크롤 최상단 버튼 (위로 스크롤할 때만 표시) ─────────────────────────
+// ─── 스크롤 최상단 버튼 (위로 스크롤 시 표시) ───────────────────────────────
 (function(){
   var content = document.getElementById('content');
   var btn = document.getElementById('scroll-top-btn');
   if(!content || !btn) return;
-  var lastScrollTop = 0;
-  var hideTimer = null;
+
+  var lastST = 0;
+  var timer = null;
+  var ticking = false;
 
   content.addEventListener('scroll', function(){
-    var st = content.scrollTop;
-    // 스크롤 위치가 200px 미만이면 항상 숨김
-    if(st < 200){
-      btn.style.display = 'none';
-      lastScrollTop = st;
-      return;
-    }
-    // 위로 스크롤 중일 때만 표시
-    if(st < lastScrollTop){
-      btn.style.display = 'flex';
-      // 3초 후 자동 숨김
-      clearTimeout(hideTimer);
-      hideTimer = setTimeout(function(){ btn.style.display = 'none'; }, 3000);
-    } else {
-      btn.style.display = 'none';
-    }
-    lastScrollTop = st;
+    if(ticking) return;
+    ticking = true;
+    requestAnimationFrame(function(){
+      var st = content.scrollTop;
+      if(st < 300){
+        btn.style.display = 'none';
+      } else if(st < lastST - 10){
+        // 위로 10px 이상 스크롤 시 표시
+        btn.style.display = 'flex';
+        clearTimeout(timer);
+        timer = setTimeout(function(){ btn.style.display = 'none'; }, 3000);
+      } else if(st > lastST + 5){
+        // 아래로 스크롤 시 숨김
+        btn.style.display = 'none';
+        clearTimeout(timer);
+      }
+      lastST = st;
+      ticking = false;
+    });
   });
 })();
 
-// ─── Pull-to-Refresh (모바일/패드) ───────────────────────────────────────────
+// ─── Pull-to-Refresh (모바일 터치 전용) ──────────────────────────────────────
 (function(){
   var content = document.getElementById('content');
   var indicator = document.getElementById('ptr-indicator');
   if(!content || !indicator) return;
 
   var startY = 0;
-  var pulling = false;
-  var threshold = 80; // 새로고침 트리거 거리(px)
+  var isPulling = false;
+  var threshold = 100;
 
   content.addEventListener('touchstart', function(e){
-    if(content.scrollTop <= 0){
+    // 스크롤이 최상단일 때만 시작
+    if(content.scrollTop === 0){
       startY = e.touches[0].clientY;
-      pulling = true;
+      isPulling = true;
+    } else {
+      isPulling = false;
     }
   }, {passive: true});
 
   content.addEventListener('touchmove', function(e){
-    if(!pulling) return;
+    if(!isPulling) return;
+    // 스크롤이 0이 아니면 취소 (위로 스크롤하다가 맨 위에 도달한 경우 방지)
+    if(content.scrollTop > 0){
+      isPulling = false;
+      indicator.style.height = '0';
+      indicator.style.padding = '0';
+      return;
+    }
     var dy = e.touches[0].clientY - startY;
-    if(dy < 0){ pulling = false; return; }
-    if(content.scrollTop > 0){ pulling = false; return; }
-
-    if(dy > 10){
+    if(dy <= 0){
+      isPulling = false;
+      indicator.style.height = '0';
+      indicator.style.padding = '0';
+      return;
+    }
+    // 최소 30px 이상 당겨야 표시
+    if(dy > 30){
       var progress = Math.min(dy / threshold, 1);
       indicator.style.height = Math.round(50 * progress) + 'px';
       indicator.style.padding = progress > 0.3 ? '12px 0' : '0';
@@ -89,22 +105,19 @@ document.querySelectorAll('.modal-bg').forEach(function(bg){
   }, {passive: true});
 
   content.addEventListener('touchend', function(){
-    if(!pulling) return;
-    pulling = false;
+    if(!isPulling){ return; }
+    isPulling = false;
 
     var h = parseInt(indicator.style.height) || 0;
     if(h >= 45){
-      // 새로고침 실행
       indicator.textContent = '새로고침 중...';
       indicator.classList.add('refreshing');
-
       // 데이터 리로드
       if(typeof loadMachineData === 'function' && currentLocationId && currentMachineId){
         loadMachineData(currentLocationId, currentMachineId);
       } else if(typeof renderAll === 'function'){
         renderAll();
       }
-
       setTimeout(function(){
         indicator.classList.remove('refreshing');
         indicator.style.height = '0';
