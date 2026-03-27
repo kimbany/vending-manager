@@ -26,36 +26,43 @@ document.querySelectorAll('.modal-bg').forEach(function(bg){
   bg.addEventListener('click',function(e){if(e.target===bg)bg.classList.remove('open');});
 });
 
-// ─── 스크롤 최상단 버튼 (위로 스크롤 시 표시) ───────────────────────────────
+// ─── 스크롤 최상단 버튼 ─────────────────────────────────────────────────────
 (function(){
   var content = document.getElementById('content');
   var btn = document.getElementById('scroll-top-btn');
   if(!content || !btn) return;
 
+  // 초기 상태 확실히 숨김
+  btn.style.opacity = '0';
+  btn.style.pointerEvents = 'none';
+  btn.style.display = 'flex';  // display는 항상 flex, opacity로 제어
+
   var lastST = 0;
   var timer = null;
-  var ticking = false;
+
+  function showBtn(){
+    btn.style.opacity = '1';
+    btn.style.pointerEvents = 'auto';
+    clearTimeout(timer);
+    timer = setTimeout(hideBtn, 3000);
+  }
+  function hideBtn(){
+    btn.style.opacity = '0';
+    btn.style.pointerEvents = 'none';
+  }
 
   content.addEventListener('scroll', function(){
-    if(ticking) return;
-    ticking = true;
-    requestAnimationFrame(function(){
-      var st = content.scrollTop;
-      if(st < 300){
-        btn.style.display = 'none';
-      } else if(st < lastST - 10){
-        // 위로 10px 이상 스크롤 시 표시
-        btn.style.display = 'flex';
-        clearTimeout(timer);
-        timer = setTimeout(function(){ btn.style.display = 'none'; }, 3000);
-      } else if(st > lastST + 5){
-        // 아래로 스크롤 시 숨김
-        btn.style.display = 'none';
-        clearTimeout(timer);
-      }
-      lastST = st;
-      ticking = false;
-    });
+    var st = content.scrollTop;
+    if(st < 300){
+      hideBtn();
+    } else if(st < lastST - 15){
+      // 위로 15px 이상 스크롤 → 표시
+      showBtn();
+    } else if(st > lastST + 5){
+      // 아래로 스크롤 → 숨김
+      hideBtn();
+    }
+    lastST = st;
   });
 })();
 
@@ -67,37 +74,44 @@ document.querySelectorAll('.modal-bg').forEach(function(bg){
 
   var startY = 0;
   var isPulling = false;
-  var threshold = 100;
+  var wasAtTop = false;
+  var movedDown = false;
+  var threshold = 120;
 
   content.addEventListener('touchstart', function(e){
-    // 스크롤이 최상단일 때만 시작
-    if(content.scrollTop === 0){
+    // 터치 시작할 때 scrollTop이 정확히 0이어야 함
+    wasAtTop = (content.scrollTop <= 0);
+    if(wasAtTop){
       startY = e.touches[0].clientY;
-      isPulling = true;
-    } else {
-      isPulling = false;
+      isPulling = false;  // 아직 시작 아님 - 첫 움직임 방향 확인 후 결정
+      movedDown = false;
     }
   }, {passive: true});
 
   content.addEventListener('touchmove', function(e){
-    if(!isPulling) return;
-    // 스크롤이 0이 아니면 취소 (위로 스크롤하다가 맨 위에 도달한 경우 방지)
-    if(content.scrollTop > 0){
-      isPulling = false;
-      indicator.style.height = '0';
-      indicator.style.padding = '0';
-      return;
-    }
+    if(!wasAtTop) return;
+
     var dy = e.touches[0].clientY - startY;
-    if(dy <= 0){
+
+    // 스크롤이 0이 아니면 취소 (관성 스크롤로 맨 위 도달한 경우)
+    if(content.scrollTop > 0){
+      wasAtTop = false;
       isPulling = false;
-      indicator.style.height = '0';
-      indicator.style.padding = '0';
+      _resetPtr();
       return;
     }
-    // 최소 30px 이상 당겨야 표시
-    if(dy > 30){
-      var progress = Math.min(dy / threshold, 1);
+
+    // 첫 움직임이 위쪽이면 일반 스크롤 → 무시
+    if(!movedDown && dy < 0){
+      wasAtTop = false;
+      return;
+    }
+
+    // 아래쪽으로 50px 이상 움직여야 PTR 시작
+    if(dy > 50){
+      movedDown = true;
+      isPulling = true;
+      var progress = Math.min((dy - 50) / (threshold - 50), 1);
       indicator.style.height = Math.round(50 * progress) + 'px';
       indicator.style.padding = progress > 0.3 ? '12px 0' : '0';
       indicator.textContent = dy >= threshold ? '↑ 놓으면 새로고침' : '↓ 당겨서 새로고침';
@@ -105,31 +119,37 @@ document.querySelectorAll('.modal-bg').forEach(function(bg){
   }, {passive: true});
 
   content.addEventListener('touchend', function(){
-    if(!isPulling){ return; }
-    isPulling = false;
+    if(!isPulling){
+      _resetPtr();
+      wasAtTop = false;
+      return;
+    }
 
     var h = parseInt(indicator.style.height) || 0;
-    if(h >= 45){
+    isPulling = false;
+    wasAtTop = false;
+
+    if(h >= 40){
       indicator.textContent = '새로고침 중...';
-      indicator.classList.add('refreshing');
-      // 데이터 리로드
       if(typeof loadMachineData === 'function' && currentLocationId && currentMachineId){
         loadMachineData(currentLocationId, currentMachineId);
       } else if(typeof renderAll === 'function'){
         renderAll();
       }
       setTimeout(function(){
-        indicator.classList.remove('refreshing');
-        indicator.style.height = '0';
-        indicator.style.padding = '0';
-        indicator.textContent = '↓ 당겨서 새로고침';
+        _resetPtr();
         showToast('✅ 새로고침 완료');
       }, 800);
     } else {
-      indicator.style.height = '0';
-      indicator.style.padding = '0';
+      _resetPtr();
     }
   });
+
+  function _resetPtr(){
+    indicator.style.height = '0';
+    indicator.style.padding = '0';
+    indicator.textContent = '↓ 당겨서 새로고침';
+  }
 })();
 
 // load()는 onAuthStateChanged에서 자동 호출됨
