@@ -84,7 +84,7 @@ function renderAllMachineLowStock(){
           var cl=Array.isArray(x.p.column)?x.p.column.join(', '):(x.p.column||'-');
           itemsHtml+='<div class="li"><div><div class="in">'+x.p.name+'</div><div class="is">컬럼: '+cl+'</div></div><span class="badge '+(x.i.qty===0?'br':'bo')+'">'+x.i.qty+'개</span></div>';
         });
-        cards.push('<div class="low-stock-card"><div style="font-size:11px;font-weight:700;color:var(--gold);padding:0 0 6px">📍 '+md.locName+' · 🏪 '+md.machineName+' <span style="color:var(--red)">('+low.length+')</span></div>'+itemsHtml+'</div>');
+        cards.push('<div class="low-stock-card"><div style="font-size:11px;font-weight:700;color:var(--blue);padding:0 0 6px">📍 '+md.locName+' · 🏪 '+md.machineName+' <span style="color:var(--red)">('+low.length+')</span></div>'+itemsHtml+'</div>');
       });
       if(!totalLow){
         el.innerHTML='<div class="empty"><div class="ei">✅</div><div class="et">모든 자판기 재고 부족 없음</div></div>';

@@ -51,9 +51,9 @@ function switchAuthTab(tab){
   // 탭 버튼 스타일
   var isLogin  = tab === 'login';
   var isSignup = tab === 'signup';
-  document.getElementById('auth-tab-login').style.background  = isLogin  ? 'var(--gold)' : 'transparent';
+  document.getElementById('auth-tab-login').style.background  = isLogin  ? 'var(--blue)' : 'transparent';
   document.getElementById('auth-tab-login').style.color       = isLogin  ? '#1a1208' : 'var(--text2)';
-  document.getElementById('auth-tab-signup').style.background = isSignup ? 'var(--gold)' : 'transparent';
+  document.getElementById('auth-tab-signup').style.background = isSignup ? 'var(--blue)' : 'transparent';
   document.getElementById('auth-tab-signup').style.color      = isSignup ? '#1a1208' : 'var(--text2)';
 }
 
@@ -103,7 +103,7 @@ function doFindId(){
     });
     if(found){
       msg.style.color='var(--green)';
-      msg.innerHTML = '✅ 아이디: <b style="font-size:16px;color:var(--gold)">' + found + '</b>';
+      msg.innerHTML = '✅ 아이디: <b style="font-size:16px;color:var(--blue)">' + found + '</b>';
     } else {
       msg.style.color='var(--red)'; msg.textContent='일치하는 계정을 찾을 수 없어요';
     }

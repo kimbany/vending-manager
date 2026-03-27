@@ -233,7 +233,7 @@ function renderVmList(mc, prods, inv){
     ? listItems.map(function(item){
         var q=item.q;
         var tagHtml=item.labels.map(function(l){
-          return '<span style="background:rgba(232,184,109,.15);border:1px solid rgba(232,184,109,.4);border-radius:6px;padding:2px 7px;font-size:11px;font-weight:700;color:var(--gold)">'+l+'</span>';
+          return '<span style="background:rgba(232,184,109,.15);border:1px solid rgba(232,184,109,.4);border-radius:6px;padding:2px 7px;font-size:11px;font-weight:700;color:var(--blue)">'+l+'</span>';
         }).join(' ');
         return '<div class="item" style="flex-wrap:wrap;gap:6px;cursor:pointer" onclick="openProdDetail(this.dataset.pid)" data-pid="'+item.id+'">'+
           '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;flex:1">'+tagHtml+
