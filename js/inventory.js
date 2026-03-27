@@ -21,22 +21,72 @@ function switchInvSub(sub){
 
 function renderPurchase(){
   var lt = getLowStockThreshold();
-  var lowProds = D.products.filter(function(p){ return gq(p.id) <= lt; });
   var el = document.getElementById('purchase-low-list');
+
+  // 모든 자판기에서 재고 부족 제품 수집
+  if(!currentUser || !currentLocationId){
+    _renderPurchaseList(el, D.products, D.inventory, lt);
+    return;
+  }
+  db.ref('users/'+currentUser.uid+'/locations').once('value').then(function(snap){
+    if(!snap.exists()||!snap.val()){
+      _renderPurchaseList(el, D.products, D.inventory, lt);
+      return;
+    }
+    var locs = snap.val();
+    var allLow = [];
+    Object.keys(locs).forEach(function(locId){
+      var loc = locs[locId];
+      Object.keys(loc.machines||{}).forEach(function(mid){
+        var m = loc.machines[mid];
+        var appData = m.appData||{};
+        var prods = appData.products||[];
+        if(!Array.isArray(prods)) prods = Object.values(prods);
+        prods = prods.filter(function(p){ return p && p.name; });
+        var inv = appData.inventory||[];
+        if(!Array.isArray(inv)) inv = Object.values(inv);
+        prods.forEach(function(p){
+          var qi = inv.find(function(x){return x.productId===p.id;});
+          var q = qi ? qi.qty : 0;
+          if(q <= lt) allLow.push({p:p, q:q, machineName:m.name});
+        });
+      });
+    });
+    if(!allLow.length){
+      el.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text3);font-size:14px">✅ 재고 부족 제품 없음</div>';
+      return;
+    }
+    el.innerHTML = allLow.map(function(x){
+      var cols = Array.isArray(x.p.column)?x.p.column:(x.p.column?[x.p.column]:[]);
+      return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,90,95,.1)">'+
+        '<div style="flex:1;cursor:pointer" onclick="openCoupangSearch(this.dataset.name)" data-name="'+x.p.name+'">'+
+          '<div style="font-size:14px;font-weight:600">'+x.p.name+'</div>'+
+          '<div style="font-size:12px;color:var(--text3);margin-top:2px">'+x.machineName+(cols.length?' · 컬럼: '+cols.join(', '):'')+'</div>'+
+        '</div>'+
+        '<span style="font-size:14px;font-weight:800;color:'+(x.q===0?'var(--red)':'#E88B00')+'">'+x.q+'개</span>'+
+        '<span onclick="openCoupangSearch(\''+x.p.name.replace(/'/g,"\\'")+'\')" style="font-size:12px;background:rgba(0,100,255,.06);color:var(--blue);border:1px solid rgba(0,100,255,.15);border-radius:6px;padding:3px 8px;white-space:nowrap;cursor:pointer">쿠팡 검색 →</span>'+
+      '</div>';
+    }).join('');
+  });
+}
+
+function _renderPurchaseList(el, prods, inv, lt){
+  function getQ(pid){ var i=inv.find(function(x){return x.productId===pid;}); return i?i.qty:0; }
+  var lowProds = prods.filter(function(p){ return getQ(p.id) <= lt; });
   if(!lowProds.length){
-    el.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text3);font-size:13px">✅ 재고 부족 제품 없음</div>';
+    el.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text3);font-size:14px">✅ 재고 부족 제품 없음</div>';
     return;
   }
   el.innerHTML = lowProds.map(function(p){
-    var q = gq(p.id);
+    var q = getQ(p.id);
     var cols = Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
-    return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(224,88,88,.15)">'+
+    return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,90,95,.1)">'+
       '<div style="flex:1;cursor:pointer" onclick="openCoupangSearch(this.dataset.name)" data-name="'+p.name+'">'+
-        '<div style="font-size:13px;font-weight:600">'+p.name+'</div>'+
-        '<div style="font-size:11px;color:var(--text3);margin-top:2px">컬럼: '+( cols.join(', ')||'-')+'</div>'+
+        '<div style="font-size:14px;font-weight:600">'+p.name+'</div>'+
+        '<div style="font-size:12px;color:var(--text3);margin-top:2px">컬럼: '+(cols.join(', ')||'-')+'</div>'+
       '</div>'+
-      '<span style="font-size:14px;font-weight:800;color:'+(q===0?'var(--red)':'var(--gold)')+'">'+q+'개</span>'+
-      '<span onclick="openCoupangSearch(\''+p.name.replace(/'/g,"\\'")+'\')" style="font-size:11px;background:rgba(232,184,109,.2);color:var(--gold);border:1px solid rgba(232,184,109,.4);border-radius:6px;padding:3px 8px;white-space:nowrap;cursor:pointer">쿠팡 검색 &#8594;</span>'+
+      '<span style="font-size:14px;font-weight:800;color:'+(q===0?'var(--red)':'#E88B00')+'">'+q+'개</span>'+
+      '<span onclick="openCoupangSearch(\''+p.name.replace(/'/g,"\\'")+'\')" style="font-size:12px;background:rgba(0,100,255,.06);color:var(--blue);border:1px solid rgba(0,100,255,.15);border-radius:6px;padding:3px 8px;white-space:nowrap;cursor:pointer">쿠팡 검색 →</span>'+
     '</div>';
   }).join('');
 }
