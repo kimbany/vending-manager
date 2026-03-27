@@ -52,7 +52,7 @@ select option{background:var(--bg2);}
 .f2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
 .stabs{display:flex;background:var(--bg3);border-radius:12px;padding:4px;margin-bottom:14px;}
 .stab{flex:1;padding:8px 4px;border:none;border-radius:9px;cursor:pointer;font-size:14px;font-family:inherit;font-weight:600;background:transparent;color:var(--text3);}
-.stab.active{background:var(--blue);color:#fff;}
+.stab.active{background:var(--bg2);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.08);}
 .dbtns{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
 .dbtn{padding:12px;border-radius:10px;border:none;cursor:pointer;font-family:inherit;font-size:16px;font-weight:600;background:var(--bg3);color:var(--text3);}
 .dbtn.plus.active{background:#E8F7EF;color:var(--green);}
