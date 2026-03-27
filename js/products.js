@@ -67,16 +67,13 @@ function toggleEditMode(){
   var btn = document.getElementById('edit-mode-btn');
   var toolbar = document.getElementById('edit-toolbar');
   if(editMode){
-    btn.textContent = '✕ 취소';
-    btn.style.background = 'var(--bg3)';
-    btn.style.color = 'var(--red)';
+    btn.innerHTML = '<span style="color:var(--red)">✕ 편집 취소</span><span style="font-size:16px;color:var(--text3);line-height:1">›</span>';
+    btn.style.borderColor = 'rgba(255,90,95,.3)';
     toolbar.style.display = 'block';
   } else {
-    btn.textContent = '✏️ 편집';
-    btn.style.background = 'var(--bg3)';
-    btn.style.color = 'var(--text2)';
+    btn.innerHTML = '<span>✏️ 편집</span><span style="font-size:16px;color:var(--text3);line-height:1">›</span>';
+    btn.style.borderColor = 'var(--border)';
     toolbar.style.display = 'none';
-    // 체크박스 초기화
     document.getElementById('select-all-cb').checked = false;
   }
   renderProds();

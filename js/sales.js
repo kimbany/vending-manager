@@ -184,7 +184,7 @@ function _doRenderSalesStats(machineDataList, range, panel){
     prodRank.forEach(function(item, i){
       if(!showAll && i >= 10) return;
       var pct = Math.round(item.qty / maxQ * 100);
-      var color = item.unmatched ? 'var(--text3)' : i===0 ? 'var(--gold)' : i===1 ? '#b0b0c0' : i===2 ? '#c87941' : 'var(--blue)';
+      var color = item.unmatched ? 'var(--text3)' : i===0 ? '#F5A623' : i===1 ? '#8B95A1' : i===2 ? '#CD7F32' : 'var(--blue)';
       html += '<div style="margin-bottom:10px">';
       html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">';
       html += '<span style="font-size:11px;color:var(--text3);min-width:20px;font-weight:700">#'+(i+1)+'</span>';

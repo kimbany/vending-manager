@@ -287,11 +287,11 @@
     <!-- 판매통계 -->
     <div class="tab" id="tab-sales">
       <button class="btn-p" style="margin-bottom:10px" id="crawl-btn" onclick="fetchTodaySales()">🔄 오늘 데이터 수집</button>
-      <div onclick="openCsvModal()" style="display:flex;align-items:center;justify-content:space-between;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:6px;cursor:pointer;font-size:14px;font-weight:600;color:var(--text2)">
-        <span>📤 직접 업로드</span><span style="font-size:16px;color:var(--text3)">›</span>
+      <div onclick="openCsvModal()" style="display:flex;align-items:center;justify-content:space-between;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:6px;cursor:pointer;font-size:14px;font-weight:600;color:var(--text2);line-height:1">
+        <span style="display:flex;align-items:center;gap:6px">📤 직접 업로드</span><span style="font-size:16px;color:var(--text3);line-height:1">›</span>
       </div>
-      <div onclick="openModal('sales-edit-modal')" style="display:flex;align-items:center;justify-content:space-between;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:10px;cursor:pointer;font-size:14px;font-weight:600;color:var(--text2)">
-        <span>✏️ 판매 편집 (날짜별 삭제)</span><span style="font-size:16px;color:var(--text3)">›</span>
+      <div onclick="openModal('sales-edit-modal')" style="display:flex;align-items:center;justify-content:space-between;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px;cursor:pointer;font-size:14px;font-weight:600;color:var(--text2);line-height:1">
+        <span style="display:flex;align-items:center;gap:6px">✏️ 판매 편집 (날짜별 삭제)</span><span style="font-size:16px;color:var(--text3);line-height:1">›</span>
       </div>
       <!-- 자동수집 상태 표시 -->
       <div id="auto-collect-status" style="font-size:11px;color:var(--text3);text-align:right;margin-bottom:12px">
@@ -328,13 +328,13 @@
       <!-- 자판기 현황 서브패널 -->
       <div id="vm-panel-status">
         <!-- 단말기 네비게이터 -->
-        <div id="vm-machine-nav" style="display:none;align-items:center;justify-content:space-between;background:var(--bg3);border-radius:10px;padding:8px 12px;margin-bottom:10px">
-          <button onclick="navMachine(-1)" style="background:none;border:1px solid var(--border);border-radius:6px;padding:4px 10px;color:var(--text2);cursor:pointer;font-size:14px">‹</button>
+        <div id="vm-machine-nav" style="display:none;align-items:center;justify-content:space-between;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:10px;box-shadow:0 1px 2px rgba(0,0,0,.03)">
+          <button onclick="navMachine(-1)" style="background:none;border:1px solid var(--border);border-radius:8px;padding:6px 12px;color:var(--text2);cursor:pointer;font-size:16px">‹</button>
           <div style="text-align:center">
-            <div id="vm-machine-name" style="font-size:13px;font-weight:700;color:var(--gold)"></div>
-            <div id="vm-machine-devno" style="font-size:11px;color:var(--text3)"></div>
+            <div id="vm-machine-name" style="font-size:14px;font-weight:700;color:var(--text)"></div>
+            <div id="vm-machine-devno" style="font-size:12px;color:var(--text3)"></div>
           </div>
-          <button onclick="navMachine(1)" style="background:none;border:1px solid var(--border);border-radius:6px;padding:4px 10px;color:var(--text2);cursor:pointer;font-size:14px">›</button>
+          <button onclick="navMachine(1)" style="background:none;border:1px solid var(--border);border-radius:8px;padding:6px 12px;color:var(--text2);cursor:pointer;font-size:16px">›</button>
         </div>
         <div class="vmw" id="vm-grid"></div>
         <div class="card" style="margin-top:14px">
@@ -345,19 +345,18 @@
 
       <!-- 제품 관리 서브패널 -->
       <div id="vm-panel-products" style="display:none">
-        <div style="display:flex;gap:8px;margin-bottom:10px">
-          <button class="btn-p" style="margin-bottom:0;flex:1" onclick="openProductModal()">➕ 제품 등록</button>
-          <button class="btn-p" style="margin-bottom:0;width:80px;background:var(--bg3);color:var(--text2)" id="edit-mode-btn" onclick="toggleEditMode()">✏️ 편집</button>
+        <button class="btn-p" style="margin-bottom:10px" onclick="openModal('prod-type-modal')">➕ 제품 등록</button>
+        <div onclick="toggleEditMode()" id="edit-mode-btn" style="display:flex;align-items:center;justify-content:space-between;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:10px;cursor:pointer;font-size:14px;font-weight:600;color:var(--text2)">
+          <span>✏️ 편집</span><span style="font-size:16px;color:var(--text3)">›</span>
         </div>
-        <button class="btn-p btn-b" style="margin-bottom:10px" onclick="openModal('bulk-modal')">📋 일괄 등록 (CSV)</button>
         <!-- 자판기 네비게이터 (제품 관리용) -->
-        <div id="pm-machine-nav" style="display:none;align-items:center;justify-content:space-between;background:var(--bg3);border-radius:10px;padding:8px 12px;margin-bottom:10px">
-          <button onclick="navProdMachine(-1)" style="background:none;border:1px solid var(--border);border-radius:6px;padding:4px 10px;color:var(--text2);cursor:pointer;font-size:14px">‹</button>
+        <div id="pm-machine-nav" style="display:none;align-items:center;justify-content:space-between;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:10px;box-shadow:0 1px 2px rgba(0,0,0,.03)">
+          <button onclick="navProdMachine(-1)" style="background:none;border:1px solid var(--border);border-radius:8px;padding:6px 12px;color:var(--text2);cursor:pointer;font-size:16px">‹</button>
           <div style="text-align:center">
-            <div id="pm-machine-name" style="font-size:14px;font-weight:700;color:var(--gold)"></div>
+            <div id="pm-machine-name" style="font-size:14px;font-weight:700;color:var(--text)"></div>
             <div id="pm-machine-devno" style="font-size:12px;color:var(--text3)"></div>
           </div>
-          <button onclick="navProdMachine(1)" style="background:none;border:1px solid var(--border);border-radius:6px;padding:4px 10px;color:var(--text2);cursor:pointer;font-size:14px">›</button>
+          <button onclick="navProdMachine(1)" style="background:none;border:1px solid var(--border);border-radius:8px;padding:6px 12px;color:var(--text2);cursor:pointer;font-size:16px">›</button>
         </div>
         <div id="edit-toolbar" style="display:none;background:var(--bg3);border-radius:10px;padding:10px 14px;margin-bottom:12px">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
@@ -664,6 +663,17 @@
     <div id="csm-loading" style="display:none;text-align:center;padding:20px;color:var(--text3);font-size:13px">검색 중...</div>
     <div id="csm-results" style="max-height:400px;overflow-y:auto"></div>
     <div id="csm-msg" style="font-size:12px;margin-top:8px;text-align:center;color:var(--text3)"></div>
+  </div>
+</div>
+
+<!-- 제품 등록 타입 선택 팝업 -->
+<div class="modal-bg" id="prod-type-modal">
+  <div class="modal" style="padding-bottom:24px">
+    <div class="mh"><div class="mt">제품 등록</div><button class="mc" onclick="closeModal('prod-type-modal')">✕</button></div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="inv-type-btn" onclick="closeModal('prod-type-modal');openProductModal()" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:16px;font-size:16px;font-weight:600;color:var(--text);cursor:pointer;font-family:inherit;text-align:left;transition:background .15s">단품 등록<span style="font-size:12px;color:var(--text3);margin-left:8px">제품 하나씩 등록</span></button>
+      <button class="inv-type-btn" onclick="closeModal('prod-type-modal');openModal('bulk-modal')" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:16px;font-size:16px;font-weight:600;color:var(--text);cursor:pointer;font-family:inherit;text-align:left;transition:background .15s">일괄 등록<span style="font-size:12px;color:var(--text3);margin-left:8px">CSV 파일로 한번에</span></button>
+    </div>
   </div>
 </div>
 

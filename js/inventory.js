@@ -20,7 +20,8 @@ function switchInvSub(sub){
 }
 
 function renderPurchase(){
-  var lowProds = D.products.filter(function(p){ return gq(p.id) <= 5; });
+  var lt = getLowStockThreshold();
+  var lowProds = D.products.filter(function(p){ return gq(p.id) <= lt; });
   var el = document.getElementById('purchase-low-list');
   if(!lowProds.length){
     el.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text3);font-size:13px">✅ 재고 부족 제품 없음</div>';

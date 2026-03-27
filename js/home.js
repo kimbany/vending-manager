@@ -28,9 +28,9 @@ function renderHome(){
   var byP = {};
   ds.forEach(function(s){ byP[s.productId]=(byP[s.productId]||0)+s.qty; });
   var top3 = Object.keys(byP).map(function(id){ return {p:gp(id),q:byP[id]}; }).filter(function(x){return x.p;}).sort(function(a,b){return b.q-a.q;}).slice(0,3);
-  var em=['🥇','🥈','🥉'], co=['var(--gold)','#b0b0c0','#c87941'];
+  var em=['🥇','🥈','🥉'];
   document.getElementById('home-top3').innerHTML = top3.length
-    ? top3.map(function(x,i){ return '<div class="ti" style="border:1px solid '+co[i]+'33"><span style="font-size:20px">'+em[i]+'</span><div style="flex:1"><div class="in">'+x.p.name+'</div></div><span style="color:'+co[i]+';font-weight:800;font-size:15px">'+x.q+'개</span></div>'; }).join('')
+    ? top3.map(function(x,i){ return '<div class="ti" style="border:1px solid var(--border)"><span style="font-size:20px">'+em[i]+'</span><div style="flex:1"><div class="in">'+x.p.name+'</div></div><span style="font-weight:800;font-size:16px;color:var(--text)">'+x.q+'개</span></div>'; }).join('')
     : '<div class="empty"><div class="ei">📦</div><div class="et">판매 데이터 없음</div></div>';
 
   // ── 전체 자판기 재고 부족 (자판기별 각각 표시) ──
