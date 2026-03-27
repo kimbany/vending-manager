@@ -28,4 +28,15 @@ document.querySelectorAll('.modal-bg').forEach(function(bg){
   bg.addEventListener('click',function(e){if(e.target===bg)bg.classList.remove('open');});
 });
 
+// 스크롤 최상단 버튼
+(function(){
+  var content = document.getElementById('content');
+  var btn = document.getElementById('scroll-top-btn');
+  if(content && btn){
+    content.addEventListener('scroll', function(){
+      btn.style.display = content.scrollTop > 200 ? 'flex' : 'none';
+    });
+  }
+})();
+
 // load()는 onAuthStateChanged에서 자동 호출됨

@@ -43,37 +43,101 @@ function deleteSelected(){
 }
 
 function renderProds(){
-  document.getElementById('prod-title').textContent='등록 제품 ('+D.products.length+'개)';
+  // 모든 자판기 제품을 로드하여 표시
+  if(!currentUser || !currentLocationId){
+    _renderProdsFromList(D.products);
+    return;
+  }
+  db.ref('users/'+currentUser.uid+'/locations').once('value').then(function(snap){
+    if(!snap.exists()||!snap.val()){
+      _renderProdsFromList(D.products);
+      return;
+    }
+    var locs = snap.val();
+    var promises = [];
+    Object.keys(locs).forEach(function(locId){
+      var loc = locs[locId];
+      Object.keys(loc.machines||{}).forEach(function(mid){
+        var m = loc.machines[mid];
+        var devnos = Array.isArray(m.deviceNos)?m.deviceNos:(m.deviceNo?[m.deviceNo]:[]);
+        promises.push(
+          db.ref('users/'+currentUser.uid+'/locations/'+locId+'/machines/'+mid+'/appData/products').once('value').then(function(ps){
+            var prods = ps.val()||[];
+            if(!Array.isArray(prods)) prods = Object.values(prods);
+            return {locId:locId, machineId:mid, locName:loc.name, machineName:m.name, devno:devnos[0]||'', products:prods, isCurrent:(locId===currentLocationId && mid===currentMachineId)};
+          })
+        );
+      });
+    });
+    Promise.all(promises).then(function(machineDataList){
+      var totalProds = 0;
+      machineDataList.forEach(function(md){ totalProds += md.products.length; });
+      if(machineDataList.length <= 1){
+        _renderProdsFromList(machineDataList[0]?machineDataList[0].products:D.products);
+      } else {
+        _renderProdsMulti(machineDataList, totalProds);
+      }
+    });
+  });
+}
+
+function _renderProdsFromList(products){
+  document.getElementById('prod-title').textContent='등록 제품 ('+products.length+'개)';
   var el=document.getElementById('prod-list');
-  if(!D.products.length){el.innerHTML='<div class="empty"><div class="ei">🏷️</div><div class="et">등록된 제품이 없습니다</div></div>';return;}
+  if(!products.length){el.innerHTML='<div class="empty"><div class="ei">🏷️</div><div class="et">등록된 제품이 없습니다</div></div>';return;}
 
   function renderProdCard(p){
     var cols=Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
     var colLabel=cols.length?cols.join(', '):'미배정';
     var cbHtml=editMode?'<input type="checkbox" class="prod-cb" value="'+p.id+'" onclick="event.stopPropagation()" onchange="updateSelectedCount()" style="width:20px;height:20px;accent-color:var(--gold);flex-shrink:0;cursor:pointer"/>'  :'';
-    var discBadge=p.discontinued?'<span style="background:rgba(224,88,88,.2);border:1px solid rgba(224,88,88,.4);border-radius:4px;padding:1px 6px;font-size:10px;color:var(--red);font-weight:700">판매중단</span>':'';
+    var discBadge=p.discontinued?'<span style="background:rgba(224,88,88,.2);border:1px solid rgba(224,88,88,.4);border-radius:4px;padding:1px 6px;font-size:11px;color:var(--red);font-weight:700">판매중단</span>':'';
     var btnHtml=editMode?'':'<div style="display:flex;gap:6px"><button class="btn-sm" style="background:#1a2a4a;color:var(--blue)" onclick="editProd(\'' +p.id+ '\')">수정</button><button class="btn-sm" style="background:#2a1a1a;color:var(--red)" onclick="delProd(\'' +p.id+ '\')">삭제</button></div>';
     var clickFn=editMode?'var cb=this.querySelector(\'.prod-cb\');cb.checked=!cb.checked;updateSelectedCount()':'';
     return '<div class="pc" style="'+(editMode?'cursor:pointer':'')+'" onclick="'+clickFn+'"><div class="pch"><div style="display:flex;align-items:center;gap:10px">'+cbHtml+'<div><div class="in">'+p.name+' '+discBadge+'</div><div class="is">컬럼: '+colLabel+'</div></div></div>'+btnHtml+'</div><div class="pm">'+[['구매가',fmt(p.buyPrice)+'원'],['낱개가',fmt(p.unitPrice)+'원'],['판매가',fmt(p.sellPrice)+'원'],['마진가',fmt(p.marginAmt)+'원'],['마진율',(p.marginRate||0)+'%'],['총수량',p.totalQty+'개']].map(function(lv){return '<div class="pmb"><div class="pml">'+lv[0]+'</div><div class="pmv">'+lv[1]+'</div></div>';}).join('')+'</div></div>';
   }
 
-  // 단말기번호별 그룹화
   var groups={}, noDevno=[];
-  D.products.forEach(function(p){
+  products.forEach(function(p){
     if(p.deviceNo){ if(!groups[p.deviceNo]) groups[p.deviceNo]=[]; groups[p.deviceNo].push(p); }
     else noDevno.push(p);
   });
-
   var html='';
   var devnos=Object.keys(groups);
   devnos.forEach(function(devno){
-    html+='<div style="font-size:12px;font-weight:700;color:var(--gold);padding:8px 0 6px;border-top:1px solid var(--border);margin-top:4px">📟 단말기 '+devno+' ('+groups[devno].length+'개)</div>';
+    html+='<div style="font-size:13px;font-weight:700;color:var(--gold);padding:8px 0 6px;border-top:1px solid var(--border);margin-top:4px">📟 단말기 '+devno+' ('+groups[devno].length+'개)</div>';
     html+=groups[devno].map(renderProdCard).join('');
   });
   if(noDevno.length){
-    if(devnos.length) html+='<div style="font-size:12px;font-weight:700;color:var(--text2);padding:8px 0 6px;border-top:1px solid var(--border);margin-top:4px">📦 단말기 미지정 ('+noDevno.length+'개)</div>';
+    if(devnos.length) html+='<div style="font-size:13px;font-weight:700;color:var(--text2);padding:8px 0 6px;border-top:1px solid var(--border);margin-top:4px">📦 단말기 미지정 ('+noDevno.length+'개)</div>';
     html+=noDevno.map(renderProdCard).join('');
   }
+  el.innerHTML=html;
+}
+
+function _renderProdsMulti(machineDataList, totalProds){
+  document.getElementById('prod-title').textContent='등록 제품 ('+machineDataList.length+'대 · '+totalProds+'개)';
+  var el=document.getElementById('prod-list');
+  if(!totalProds){el.innerHTML='<div class="empty"><div class="ei">🏷️</div><div class="et">등록된 제품이 없습니다</div></div>';return;}
+
+  function renderProdCard(p, isCurrent){
+    var cols=Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
+    var colLabel=cols.length?cols.join(', '):'미배정';
+    var cbHtml=editMode && isCurrent?'<input type="checkbox" class="prod-cb" value="'+p.id+'" onclick="event.stopPropagation()" onchange="updateSelectedCount()" style="width:20px;height:20px;accent-color:var(--gold);flex-shrink:0;cursor:pointer"/>':'';
+    var discBadge=p.discontinued?'<span style="background:rgba(224,88,88,.2);border:1px solid rgba(224,88,88,.4);border-radius:4px;padding:1px 6px;font-size:11px;color:var(--red);font-weight:700">판매중단</span>':'';
+    var btnHtml=editMode?'':'<div style="display:flex;gap:6px"><button class="btn-sm" style="background:#1a2a4a;color:var(--blue)" onclick="editProd(\'' +p.id+ '\')">수정</button><button class="btn-sm" style="background:#2a1a1a;color:var(--red)" onclick="delProd(\'' +p.id+ '\')">삭제</button></div>';
+    var clickFn=editMode && isCurrent?'var cb=this.querySelector(\'.prod-cb\');cb.checked=!cb.checked;updateSelectedCount()':'';
+    return '<div class="pc" style="'+(editMode && isCurrent?'cursor:pointer':'')+'" onclick="'+clickFn+'"><div class="pch"><div style="display:flex;align-items:center;gap:10px">'+cbHtml+'<div><div class="in">'+p.name+' '+discBadge+'</div><div class="is">컬럼: '+colLabel+'</div></div></div>'+btnHtml+'</div><div class="pm">'+[['구매가',fmt(p.buyPrice)+'원'],['낱개가',fmt(p.unitPrice)+'원'],['판매가',fmt(p.sellPrice)+'원'],['마진가',fmt(p.marginAmt)+'원'],['마진율',(p.marginRate||0)+'%'],['총수량',p.totalQty+'개']].map(function(lv){return '<div class="pmb"><div class="pml">'+lv[0]+'</div><div class="pmv">'+lv[1]+'</div></div>';}).join('')+'</div></div>';
+  }
+
+  var html='';
+  machineDataList.forEach(function(md){
+    html+='<div style="font-size:13px;font-weight:700;color:var(--gold);padding:10px 0 6px;border-top:2px solid var(--border);margin-top:8px">📍 '+md.locName+' · 🏪 '+md.machineName+' ('+md.products.length+'개)</div>';
+    if(!md.products.length){
+      html+='<div style="text-align:center;padding:12px;color:var(--text3);font-size:13px">등록된 제품 없음</div>';
+      return;
+    }
+    md.products.forEach(function(p){ html+=renderProdCard(p, md.isCurrent); });
+  });
   el.innerHTML=html;
 }
 function calcProduct(){
@@ -175,6 +239,13 @@ function saveProduct(){
   if(conflicts.length){
     var msg=conflicts.map(function(c){return c.col+'번 ('+c.name+')';}).join(', ');
     if(!confirm('⚠️ 중복된 컬럼 위치가 있어요!\n\n'+msg+'\n\n이미 위 제품이 배정된 위치예요.\n그래도 저장할까요?')) return;
+  }
+  // 중복 제품명 체크 (신규 등록 시만)
+  if(!eid){
+    var duplicate = D.products.find(function(p){ return p.name.trim() === name; });
+    if(duplicate){
+      if(!confirm('⚠️ "'+name+'" 제품이 이미 등록되어 있습니다.\n그래도 등록할까요?')) return;
+    }
   }
   var prod={id:eid||Date.now().toString(),name:name,buyPrice:buy,totalQty:total,unitPrice:unit,sellPrice:sell,marginAmt:ma,marginRate:mr,column:col,deviceNo:devno,discontinued:discontinuedVal};
   // 다른 자판기 제품이면 해당 appData에 저장

@@ -44,6 +44,9 @@ function navMachine(dir){
     var val = snap.val()||{};
     var mProds = val.products||[];
     var mInv   = val.inventory||[];
+    // 제품/재고를 현재 컨텍스트에도 저장 (클릭 이벤트 대응)
+    mc._prods = mProds;
+    mc._inv = mInv;
     renderMachineView(mc, mProds, mInv);
   });
 }
@@ -91,9 +94,19 @@ function renderMachine(){
   });
 }
 
+// 현재 보고 있는 자판기 데이터 캐시 (openProdDetail에서 사용)
+var _vmViewProds = [];
+var _vmViewInv = [];
+
 function renderMachineView(mc, prods, inv){
+  // 현재 보고 있는 자판기의 products/inventory 캐시
+  _vmViewProds = prods || [];
+  _vmViewInv = inv || [];
+
   // 네비게이터 업데이트
   if(mc){
+    mc._prods = prods;
+    mc._inv = inv;
     var nameEl = document.getElementById('vm-machine-name');
     var devnoEl = document.getElementById('vm-machine-devno');
     if(nameEl) nameEl.textContent = (mc.name||'') + (mc.model ? ' · '+mc.model : '');

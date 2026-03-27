@@ -44,7 +44,8 @@ function renderAllMachineLowStock(){
   db.ref('users/'+currentUser.uid+'/locations').once('value').then(function(snap){
     if(!snap.exists()||!snap.val()){
       // locations 없음 → 현재 D 기준
-      var low = D.inventory.filter(function(i){return i.qty<=5;})
+      var lt = typeof getLowStockThreshold==='function' ? getLowStockThreshold() : 5;
+      var low = D.inventory.filter(function(i){return i.qty<=lt;})
         .map(function(i){return {i:i,p:gp(i.productId)};}).filter(function(x){return x.p;});
       el.innerHTML = low.length
         ? low.map(function(x){
@@ -74,7 +75,8 @@ function renderAllMachineLowStock(){
       results.forEach(function(md){
         var inv=md.data.inventory||[]; var prods=md.data.products||[];
         function getP(pid){ return prods.find(function(p){return p.id===pid;}); }
-        var low=inv.filter(function(i){return i.qty<=5;}).map(function(i){return {i:i,p:getP(i.productId)};}).filter(function(x){return x.p;});
+        var lt2 = typeof getLowStockThreshold==='function' ? getLowStockThreshold() : 5;
+        var low=inv.filter(function(i){return i.qty<=lt2;}).map(function(i){return {i:i,p:getP(i.productId)};}).filter(function(x){return x.p;});
         if(!low.length) return;
         totalLow+=low.length;
         var itemsHtml='';

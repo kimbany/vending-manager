@@ -252,47 +252,33 @@ function _doRenderSalesStats(machineDataList, range, panel){
     html += '</div></div>';
   }
 
-  // 건별 상세 카드 (모든 기간에서 표시)
+  // 건별 상세 카드 (접혀있는 상태 + 필터)
   html += '<div class="card" style="margin-bottom:12px">';
-  html += '<div class="ch"><div class="ca" style="background:var(--blue)"></div><div><div class="ct">📋 건별 판매 내역</div><div style="font-size:11px;color:var(--text3);margin-top:2px">환불/복구 처리 가능</div></div></div>';
-  html += '<div class="cb" style="padding:0">';
+  html += '<div class="ch" onclick="toggleSalesDetail()" style="cursor:pointer"><div class="ca" style="background:var(--blue)"></div><div><div class="ct">📋 건별 판매 내역 <span id="sales-detail-arrow" style="font-size:12px;color:var(--text3)">▼</span></div><div style="font-size:12px;color:var(--text3);margin-top:2px">삭제/복구 처리 가능 · 클릭하여 펼치기</div></div></div>';
+  html += '<div id="sales-detail-wrap" style="display:none">';
+  // 필터 UI
+  html += '<div style="padding:10px 14px;background:var(--bg3);border-bottom:1px solid var(--border)">';
+  html += '<div style="display:flex;gap:6px;margin-bottom:8px;align-items:center">';
+  html += '<input type="time" id="sdf-time-from" placeholder="시작" style="flex:1;font-size:13px;padding:8px"/>';
+  html += '<span style="color:var(--text3);font-size:12px">~</span>';
+  html += '<input type="time" id="sdf-time-to" placeholder="종료" style="flex:1;font-size:13px;padding:8px"/>';
+  html += '</div>';
+  html += '<div style="display:flex;gap:6px;align-items:center">';
+  html += '<input type="text" id="sdf-name" placeholder="제품명 검색" style="flex:1;font-size:13px;padding:8px"/>';
+  html += '<button onclick="filterSalesDetail()" style="background:var(--gold);border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;color:#1a1208;cursor:pointer;font-family:inherit;white-space:nowrap">검색</button>';
+  html += '</div>';
+  html += '</div>';
+  html += '<div id="sales-detail-list" style="padding:0">';
   // 날짜+시간 기준 정렬
   var sorted = filtered.slice().sort(function(a,b){
     var da = a.date+(a.hour>=0?(a.hour<10?'T0'+a.hour:'T'+a.hour):'')+(a.minute>=0?(a.minute<10?'0'+a.minute:''+a.minute):'');
     var db2 = b.date+(b.hour>=0?(b.hour<10?'T0'+b.hour:'T'+b.hour):'')+(b.minute>=0?(b.minute<10?'0'+b.minute:''+b.minute):'');
     return db2.localeCompare(da);
   });
-  if(!sorted.length){
-    html += '<div style="text-align:center;padding:16px;color:var(--text3);font-size:13px">내역 없음</div>';
-  } else {
-    sorted.forEach(function(s){
-      var p = s._prods ? s._prods.find(function(x){return x.id===s.productId;}) : null;
-      if(!p) p = gp(s.productId);
-      if(!p) return;
-      var isCancelled = s.cancelled === true;
-      var timeStr = '';
-      if(s.hour>=0){
-        timeStr = (s.hour<10?'0'+s.hour:s.hour)+':'+(s.minute>=0?(s.minute<10?'0'+s.minute:s.minute):'00');
-      }
-      var saleAmt = (s.amt && s.amt > 0) ? s.amt : p.sellPrice;
-      html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);'+(isCancelled?'opacity:0.5':'') +'">';
-      html += '<div style="flex:1;min-width:0">';
-      html += '<div style="font-size:13px;font-weight:600;color:'+(isCancelled?'var(--text3)':'var(--text1)')+'">'+p.name+(isCancelled?'<span style="font-size:10px;color:var(--red);margin-left:6px;background:rgba(224,88,88,.15);padding:1px 6px;border-radius:4px">환불</span>':'')+'</div>';
-      html += '<div style="font-size:11px;color:var(--text3);margin-top:2px">'+s.date+(timeStr?' '+timeStr:'')+'</div>';
-      html += '</div>';
-      html += '<div style="text-align:right;margin-right:8px">';
-      html += '<div style="font-size:13px;font-weight:700;color:'+(isCancelled?'var(--text3)':'var(--blue)')+'">'+fmt(saleAmt)+'원</div>';
-      html += '</div>';
-      var btnBg = isCancelled ? 'rgba(122,218,154,.15)' : 'rgba(224,88,88,.15)';
-      var btnColor = isCancelled ? 'var(--green)' : 'var(--red)';
-      var btnBorder = isCancelled ? 'rgba(122,218,154,.3)' : 'rgba(224,88,88,.3)';
-      var btnLabel = isCancelled ? '복구' : '환불';
-      var sMachineKey = (s._machineName||'')+'|'+(s._devno||'');
-      html += '<button onclick="toggleSaleCancel(this.dataset.id,this.dataset.loc,this.dataset.mid)" data-id="'+s.id+'" data-loc="'+(s._locId||currentLocationId||'')+'" data-mid="'+(s._machineId||currentMachineId||'')+'" style="background:'+btnBg+';color:'+btnColor+';border:1px solid '+btnBorder+';border-radius:6px;padding:4px 8px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">'+btnLabel+'</button>';
-      html += '</div>';
-    });
-  }
-  html += '</div></div>';
+  // 전역에 저장하여 필터에서 사용
+  window._salesDetailSorted = sorted;
+  html += renderSalesDetailItems(sorted);
+  html += '</div></div></div>';
 
   // 자판기별 세부 섹션 (자판기 2개 이상일 때만)
   if(machineDataList.length > 1){
@@ -458,5 +444,82 @@ function findProduct(colStr, itemName, prods){
 }
 
 function findProductByColumn(colStr){ return findProduct(colStr, '', D.products); }
+
+// 건별 판매 내역 토글/필터
+function toggleSalesDetail(){
+  var wrap = document.getElementById('sales-detail-wrap');
+  var arrow = document.getElementById('sales-detail-arrow');
+  if(!wrap) return;
+  var show = wrap.style.display === 'none';
+  wrap.style.display = show ? 'block' : 'none';
+  if(arrow) arrow.textContent = show ? '▲' : '▼';
+}
+
+function renderSalesDetailItems(sorted){
+  var html = '';
+  if(!sorted.length){
+    return '<div style="text-align:center;padding:16px;color:var(--text3);font-size:13px">내역 없음</div>';
+  }
+  sorted.forEach(function(s){
+    var p = s._prods ? s._prods.find(function(x){return x.id===s.productId;}) : null;
+    if(!p) p = gp(s.productId);
+    if(!p) return;
+    var isCancelled = s.cancelled === true;
+    var timeStr = '';
+    if(s.hour>=0){
+      timeStr = (s.hour<10?'0'+s.hour:s.hour)+':'+(s.minute>=0?(s.minute<10?'0'+s.minute:s.minute):'00');
+    }
+    var saleAmt = (s.amt && s.amt > 0) ? s.amt : p.sellPrice;
+    html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);'+(isCancelled?'opacity:0.5':'') +'">';
+    html += '<div style="flex:1;min-width:0">';
+    html += '<div style="font-size:14px;font-weight:600;color:'+(isCancelled?'var(--text3)':'var(--text1)')+'">'+p.name+(isCancelled?'<span style="font-size:11px;color:var(--red);margin-left:6px;background:rgba(224,88,88,.15);padding:1px 6px;border-radius:4px">삭제됨</span>':'')+'</div>';
+    html += '<div style="font-size:12px;color:var(--text3);margin-top:2px">'+s.date+(timeStr?' '+timeStr:'')+'</div>';
+    html += '</div>';
+    html += '<div style="text-align:right;margin-right:8px">';
+    html += '<div style="font-size:14px;font-weight:700;color:'+(isCancelled?'var(--text3)':'var(--blue)')+'">'+fmt(saleAmt)+'원</div>';
+    html += '</div>';
+    var btnBg = isCancelled ? 'rgba(122,218,154,.15)' : 'rgba(224,88,88,.15)';
+    var btnColor = isCancelled ? 'var(--green)' : 'var(--red)';
+    var btnBorder = isCancelled ? 'rgba(122,218,154,.3)' : 'rgba(224,88,88,.3)';
+    var btnLabel = isCancelled ? '복구' : '삭제';
+    html += '<button onclick="toggleSaleCancel(this.dataset.id,this.dataset.loc,this.dataset.mid)" data-id="'+s.id+'" data-loc="'+(s._locId||currentLocationId||'')+'" data-mid="'+(s._machineId||currentMachineId||'')+'" style="background:'+btnBg+';color:'+btnColor+';border:1px solid '+btnBorder+';border-radius:6px;padding:4px 8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">'+btnLabel+'</button>';
+    html += '</div>';
+  });
+  return html;
+}
+
+function filterSalesDetail(){
+  var sorted = window._salesDetailSorted || [];
+  var timeFrom = document.getElementById('sdf-time-from').value;
+  var timeTo = document.getElementById('sdf-time-to').value;
+  var nameFilter = (document.getElementById('sdf-name').value||'').trim().toLowerCase();
+
+  var filtered = sorted.filter(function(s){
+    // 시간 필터
+    if(timeFrom && s.hour>=0){
+      var fromH = parseInt(timeFrom.split(':')[0])||0;
+      var fromM = parseInt(timeFrom.split(':')[1])||0;
+      var sMin = s.hour*60 + (s.minute>=0?s.minute:0);
+      if(sMin < fromH*60+fromM) return false;
+    }
+    if(timeTo && s.hour>=0){
+      var toH = parseInt(timeTo.split(':')[0])||0;
+      var toM = parseInt(timeTo.split(':')[1])||0;
+      var sMin2 = s.hour*60 + (s.minute>=0?s.minute:0);
+      if(sMin2 > toH*60+toM) return false;
+    }
+    // 제품명 필터
+    if(nameFilter){
+      var p = s._prods ? s._prods.find(function(x){return x.id===s.productId;}) : null;
+      if(!p) p = gp(s.productId);
+      var pName = p ? p.name.toLowerCase() : (s.itemName||'').toLowerCase();
+      if(pName.indexOf(nameFilter)<0) return false;
+    }
+    return true;
+  });
+
+  var el = document.getElementById('sales-detail-list');
+  if(el) el.innerHTML = renderSalesDetailItems(filtered);
+}
 
 var salesPreviewRows = []; // 파싱된 행 임시 저장

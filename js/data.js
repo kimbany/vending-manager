@@ -16,6 +16,8 @@ function startApp(){
   }
   checkMigrationV2();
   loadMachineDropdown();
+  if(typeof loadLowStockThreshold === 'function') loadLowStockThreshold();
+  if(typeof loadLowStockSetting === 'function') loadLowStockSetting();
   // URL 해시에서 이전 탭 복원
   setTimeout(restoreTab, 100);
 }
