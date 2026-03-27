@@ -36,4 +36,11 @@ function doRefresh(){
   showToast('✅ 새로고침 완료');
 }
 
+// ─── 맨 위로 가기 ────────────────────────────────────────────────────────────
+function goToTop(){
+  var c = document.getElementById('content');
+  if(c) c.scrollTop = 0;
+  window.scrollTo(0, 0);
+}
+
 // load()는 onAuthStateChanged에서 자동 호출됨
