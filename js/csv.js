@@ -311,9 +311,15 @@ function importSalesData(){
       var mLogs   = mData.inventoryLogs || [];
       var mSales  = mData.salesData     || [];
 
+      // 대상 자판기 기존 dupKey로 중복 체크 (직접 업로드 + 데이터 수집 간 중복 방지)
+      var targetExistingKeys = {};
+      mSales.forEach(function(s){ if(s.dupKey) targetExistingKeys[s.dupKey]=true; });
+
       // 해당 자판기 제품 찾기
       var qtyMapByDate = {};
       rows.forEach(function(r){
+        // 대상 자판기에 이미 있는 데이터면 건너뛰기
+        if(r.dupKey && targetExistingKeys[r.dupKey]){ noMatch++; return; }
         var prod = r.prod || findProduct(r.colVal, r.itemName, mProds);
         var saleAmt = (r.amt && r.amt > 0) ? r.amt : (prod ? prod.sellPrice * r.qty : 0);
         var salesEntry = {

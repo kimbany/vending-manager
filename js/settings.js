@@ -229,15 +229,23 @@ function renderProfileInfo(){
     var p = d.profile||{};
     var el = document.getElementById('profile-info');
     if(!el) return;
-    // 자판기 대수 계산
-    var machineCount = d.machines ? Object.keys(d.machines).length : 0;
+    // 자판기 대수 계산 (locations 기반)
+    var machineCount = 0;
+    if(d.locations){
+      Object.keys(d.locations).forEach(function(locId){
+        var loc = d.locations[locId];
+        if(loc && loc.machines) machineCount += Object.keys(loc.machines).length;
+      });
+    }
+    // 구형 machines 경로도 체크
+    if(machineCount === 0 && d.machines) machineCount = Object.keys(d.machines).length;
     el.innerHTML = [
       ['아이디', p.username||'-'],
       ['이메일', p.email||currentUser.email||'-'],
       ['가입일', p.createdAt ? p.createdAt.slice(0,10) : '-'],
       ['자판기', machineCount+'대']
     ].map(function(row){
-      return '<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px">'+
+      return '<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);font-size:14px">'+
         '<span style="color:var(--text2)">'+row[0]+'</span>'+
         '<span style="font-weight:700;color:var(--text)">'+row[1]+'</span></div>';
     }).join('');
@@ -368,5 +376,57 @@ function doChangePw(){
     setTimeout(function(){ closeEditProfileModal(); }, 1500);
   }).catch(function(e){
     msg.style.color='var(--red)'; msg.textContent=e.message;
+  });
+}
+
+// ─── 재고 부족 기준 설정 ──────────────────────────────────────────────────────
+function toggleLowStockMode(){
+  var mode = document.querySelector('input[name="low-stock-mode"]:checked').value;
+  document.getElementById('ls-fixed-input').style.display = mode==='fixed' ? 'flex' : 'none';
+  document.getElementById('ls-avg-input').style.display = mode==='average' ? 'flex' : 'none';
+}
+
+function saveLowStockSetting(){
+  var mode = document.querySelector('input[name="low-stock-mode"]:checked').value;
+  var msg = document.getElementById('ls-save-msg');
+  var data = {mode: mode};
+  if(mode==='fixed'){
+    data.fixedQty = parseInt(document.getElementById('ls-fixed-qty').value)||5;
+  } else {
+    data.avgDays = parseInt(document.getElementById('ls-avg-days').value)||3;
+  }
+  msg.style.color='var(--text2)'; msg.textContent='저장 중...';
+  db.ref('users/'+currentUser.uid+'/settings/lowStock').set(data).then(function(){
+    msg.style.color='var(--green)'; msg.textContent='저장 완료';
+    if(mode==='fixed'){
+      _lowStockThreshold = data.fixedQty;
+    } else {
+      _lowStockThreshold = null;
+      _lowStockAvgDays = data.avgDays;
+    }
+    if(typeof loadLowStockThreshold === 'function') loadLowStockThreshold();
+    renderAll();
+    setTimeout(function(){ msg.textContent=''; }, 2000);
+  }).catch(function(e){
+    msg.style.color='var(--red)'; msg.textContent=e.message;
+  });
+}
+
+function loadLowStockSetting(){
+  if(!currentUser) return;
+  db.ref('users/'+currentUser.uid+'/settings/lowStock').once('value').then(function(snap){
+    var v = snap.val();
+    if(!v) return;
+    var radios = document.querySelectorAll('input[name="low-stock-mode"]');
+    radios.forEach(function(r){ r.checked = (r.value === v.mode); });
+    if(v.mode==='fixed'){
+      document.getElementById('ls-fixed-qty').value = v.fixedQty||5;
+      document.getElementById('ls-fixed-input').style.display = 'flex';
+      document.getElementById('ls-avg-input').style.display = 'none';
+    } else if(v.mode==='average'){
+      document.getElementById('ls-avg-days').value = v.avgDays||3;
+      document.getElementById('ls-fixed-input').style.display = 'none';
+      document.getElementById('ls-avg-input').style.display = 'flex';
+    }
   });
 }

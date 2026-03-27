@@ -654,28 +654,33 @@ function toggleSaleCancel(id, locId, machineId){
 
 // ─── 제품 상세 팝업 ────────────────────────────────────────────────────────────
 function openProdDetail(el){
-  var id = (typeof el === 'string') ? el : el.dataset.pid;
+  var id = (typeof el === 'string') ? el : (el && el.dataset ? el.dataset.pid : el);
+  // 현재 자판기의 D.products에서 먼저 찾고, 없으면 현재 보고 있는 자판기 데이터에서 찾기
   var p = D.products.find(function(x){return x.id===id;});
+  if(!p && typeof _vmViewProds !== 'undefined'){
+    p = _vmViewProds.find(function(x){return x.id===id;});
+  }
   if(!p) return;
   var q = gq(id);
+  // 현재 보고 있는 자판기의 재고에서도 확인
+  if(q === 0 && typeof _vmViewInv !== 'undefined'){
+    var vi = _vmViewInv.find(function(x){return x.productId===id;});
+    if(vi) q = vi.qty;
+  }
   var cols = Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
   var colLabels = cols.map(function(c){return String(c).trim();});
-
-  // 최근 판매 내역 (최근 5건)
-  var sales = D.salesData.filter(function(s){return s.productId===id;})
-    .sort(function(a,b){return b.date.localeCompare(a.date);}).slice(0,5);
 
   var html = '';
   // 컬럼 태그
   html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">';
   colLabels.forEach(function(l){
-    html += '<span style="background:rgba(232,184,109,.15);border:1px solid rgba(232,184,109,.4);border-radius:6px;padding:3px 10px;font-size:12px;font-weight:700;color:var(--gold)">'+l+'</span>';
+    html += '<span style="background:rgba(232,184,109,.15);border:1px solid rgba(232,184,109,.4);border-radius:6px;padding:3px 10px;font-size:13px;font-weight:700;color:var(--gold)">'+l+'</span>';
   });
   html += '</div>';
 
   // 재고 현황
   html += '<div style="background:'+(q<=5?'rgba(224,88,88,.08)':'rgba(122,218,154,.06)')+';border:1px solid '+(q<=5?'rgba(224,88,88,.3)':'rgba(122,218,154,.2)')+';border-radius:10px;padding:12px 14px;margin-bottom:14px">';
-  html += '<div style="font-size:12px;color:var(--text2);margin-bottom:4px">현재 재고</div>';
+  html += '<div style="font-size:13px;color:var(--text2);margin-bottom:4px">현재 재고</div>';
   html += '<div style="font-size:28px;font-weight:800;color:'+(q<=5?'var(--red)':'var(--green)')+'">'+q+'<span style="font-size:14px;font-weight:500;color:var(--text2);margin-left:4px">개</span></div>';
   html += '</div>';
 
@@ -686,16 +691,8 @@ function openProdDetail(el){
   });
   html += '</div>';
 
-  // 최근 판매
-  if(sales.length){
-    html += '<div style="font-size:12px;color:var(--text2);font-weight:600;margin-bottom:8px">📊 최근 판매</div>';
-    sales.forEach(function(s){
-      html += '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px">';
-      html += '<span style="color:var(--text2)">'+s.date+'</span>';
-      html += '<span style="font-weight:700;color:var(--blue)">'+s.qty+'개</span>';
-      html += '</div>';
-    });
-  }
+  // 스펙 수정 버튼
+  html += '<button onclick="closeModal(\'prod-detail-modal\');editProd(\''+id+'\')" style="width:100%;background:linear-gradient(135deg,var(--gold),var(--gold2));border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;color:#1a1208;cursor:pointer;font-family:inherit">✏️ 제품 수정</button>';
 
   document.getElementById('pdm-title').textContent = p.name;
   document.getElementById('pdm-body').innerHTML = html;

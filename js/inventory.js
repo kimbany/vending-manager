@@ -110,46 +110,164 @@ function getSortedProducts(){
 }
 
 function renderInv(){
-  var prods = getSortedProducts();
-  document.getElementById('inv-title').textContent='전체 재고 현황 ('+prods.length+'개)';
+  // 모든 자판기 재고를 로드하여 표시
+  if(!currentUser || !currentLocationId){
+    _renderInvSingle(D.products, D.inventory, '');
+    return;
+  }
+  db.ref('users/'+currentUser.uid+'/locations').once('value').then(function(snap){
+    if(!snap.exists()||!snap.val()){
+      _renderInvSingle(D.products, D.inventory, '');
+      return;
+    }
+    var locs = snap.val();
+    var promises = [];
+    Object.keys(locs).forEach(function(locId){
+      var loc = locs[locId];
+      Object.keys(loc.machines||{}).forEach(function(mid){
+        var m = loc.machines[mid];
+        promises.push(
+          db.ref('users/'+currentUser.uid+'/locations/'+locId+'/machines/'+mid+'/appData').once('value').then(function(ds){
+            var val = ds.val()||{};
+            return {locId:locId, machineId:mid, locName:loc.name, machineName:m.name, products:val.products||[], inventory:val.inventory||[], isCurrent:(locId===currentLocationId && mid===currentMachineId)};
+          })
+        );
+      });
+    });
+    Promise.all(promises).then(function(machineDataList){
+      if(machineDataList.length <= 1){
+        var md = machineDataList[0]||{products:D.products, inventory:D.inventory};
+        _renderInvSingle(md.products, md.inventory, md.machineName||'');
+      } else {
+        _renderInvMulti(machineDataList);
+      }
+    });
+  });
+}
+
+function _renderInvSingle(prods, inv, machineName){
+  function getQ(pid){ var i=inv.find(function(x){return x.productId===pid;}); return i?i.qty:0; }
+  var sorted = prods.slice();
+  if(invSort==='name') sorted.sort(function(a,b){return a.name.localeCompare(b.name,'ko');});
+  else if(invSort==='qasc') sorted.sort(function(a,b){return getQ(a.id)-getQ(b.id);});
+  else if(invSort==='qdesc') sorted.sort(function(a,b){return getQ(b.id)-getQ(a.id);});
+  document.getElementById('inv-title').textContent='전체 재고 현황 ('+sorted.length+'개)';
   var el=document.getElementById('inv-list');
-  // 제품 없으면 재고부족 카드도 반드시 숨김
-  if(!prods.length){
+  if(!sorted.length){
     document.getElementById('inv-low-card').style.display='none';
     document.getElementById('inv-low-list').innerHTML='';
     el.innerHTML='<div class="empty"><div class="ei">📦</div><div class="et">등록된 제품이 없습니다</div></div>';
     return;
   }
-
-  // 재고 부족 카드
-  var lowProds = prods.filter(function(p){return gq(p.id)<=5;});
+  var lowThreshold = getLowStockThreshold();
+  var lowProds = sorted.filter(function(p){return getQ(p.id)<=lowThreshold;});
   var lowCard = document.getElementById('inv-low-card');
   if(lowProds.length){
     lowCard.style.display='block';
     document.getElementById('inv-low-list').innerHTML = lowProds.map(function(p){
-      var q=gq(p.id);
+      var q=getQ(p.id);
       var cols=Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
-      return '<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(224,88,88,.15);cursor:pointer" onclick="openInvDetail(\"'+p.id+'\")">'+
-        '<div><span style="font-size:13px;font-weight:600">'+p.name+'</span>'+
-        '<span style="font-size:11px;color:var(--text3);margin-left:6px">컬럼 '+cols.join(', ')+'</span></div>'+
-        '<span style="font-size:13px;font-weight:800;color:'+(q===0?'var(--red)':'var(--gold)')+'">'+q+'개</span></div>';
+      return '<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(224,88,88,.15);cursor:pointer" onclick="openInvDetail(\''+p.id+'\')">'+
+        '<div><span style="font-size:14px;font-weight:600">'+p.name+'</span>'+
+        '<span style="font-size:12px;color:var(--text3);margin-left:6px">컬럼 '+cols.join(', ')+'</span></div>'+
+        '<span style="font-size:14px;font-weight:800;color:'+(q===0?'var(--red)':'var(--gold)')+'">'+q+'개</span></div>';
     }).join('');
   } else {
     lowCard.style.display='none';
   }
-
-  el.innerHTML=prods.map(function(p){
-    var q=gq(p.id),lw=q<=5;
+  el.innerHTML=sorted.map(function(p){
+    var q=getQ(p.id),lw=q<=lowThreshold;
     var cols=Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
     var colLabel=cols.length?cols.join(', '):'-';
     return '<div class="item" style="cursor:pointer;'+(lw?'border-color:rgba(224,88,88,.3)':'')+'" onclick="openInvDetail(this.dataset.pid)" data-pid="'+p.id+'">'+
       '<div><div class="in">'+p.name+'</div><div class="is">컬럼: '+colLabel+' | 판매가: '+fmt(p.sellPrice)+'원</div></div>'+
       '<span class="badge '+(q===0?'br':lw?'bo':'bg')+'">'+q+'개</span></div>';
   }).join('');
+  var sel=document.getElementById('inv-product');
+  sel.innerHTML='<option value="">제품 선택</option>'+D.products.map(function(p){return '<option value="'+p.id+'">'+p.name+'</option>';}).join('');
+}
+
+function _renderInvMulti(machineDataList){
+  var totalProds = 0;
+  machineDataList.forEach(function(md){ totalProds += md.products.length; });
+  document.getElementById('inv-title').textContent='전체 재고 현황 ('+machineDataList.length+'대 · '+totalProds+'개)';
+  var el=document.getElementById('inv-list');
+  var lowCard = document.getElementById('inv-low-card');
+
+  var lowThreshold = getLowStockThreshold();
+  var allLow = [];
+  machineDataList.forEach(function(md){
+    function getQ(pid){ var i=md.inventory.find(function(x){return x.productId===pid;}); return i?i.qty:0; }
+    md.products.forEach(function(p){
+      var q=getQ(p.id);
+      if(q<=lowThreshold) allLow.push({p:p, q:q, machineName:md.machineName, locName:md.locName});
+    });
+  });
+  if(allLow.length){
+    lowCard.style.display='block';
+    document.getElementById('inv-low-list').innerHTML = allLow.map(function(x){
+      var cols=Array.isArray(x.p.column)?x.p.column:(x.p.column?[x.p.column]:[]);
+      return '<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(224,88,88,.15)">'+
+        '<div><span style="font-size:14px;font-weight:600">'+x.p.name+'</span>'+
+        '<span style="font-size:12px;color:var(--text3);margin-left:6px">'+x.machineName+'</span></div>'+
+        '<span style="font-size:14px;font-weight:800;color:'+(x.q===0?'var(--red)':'var(--gold)')+'">'+x.q+'개</span></div>';
+    }).join('');
+  } else {
+    lowCard.style.display='none';
+  }
+
+  var html = '';
+  machineDataList.forEach(function(md){
+    function getQ(pid){ var i=md.inventory.find(function(x){return x.productId===pid;}); return i?i.qty:0; }
+    var sorted = md.products.slice();
+    if(invSort==='name') sorted.sort(function(a,b){return a.name.localeCompare(b.name,'ko');});
+    else if(invSort==='qasc') sorted.sort(function(a,b){return getQ(a.id)-getQ(b.id);});
+    else if(invSort==='qdesc') sorted.sort(function(a,b){return getQ(b.id)-getQ(a.id);});
+
+    html += '<div style="font-size:13px;font-weight:700;color:var(--gold);padding:10px 0 6px;border-top:1px solid var(--border);margin-top:6px">'+
+      '📍 '+md.locName+' · 🏪 '+md.machineName+' ('+sorted.length+'개)</div>';
+    if(!sorted.length){
+      html += '<div style="text-align:center;padding:12px;color:var(--text3);font-size:13px">등록된 제품 없음</div>';
+      return;
+    }
+    sorted.forEach(function(p){
+      var q=getQ(p.id), lw=q<=lowThreshold;
+      var cols=Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
+      var colLabel=cols.length?cols.join(', '):'-';
+      var isCurrent = md.isCurrent;
+      var clickAttr = isCurrent ? ' onclick="openInvDetail(this.dataset.pid)" data-pid="'+p.id+'" style="cursor:pointer;' : ' style="';
+      html += '<div class="item"'+clickAttr+(lw?'border-color:rgba(224,88,88,.3)':'')+'">'+
+        '<div><div class="in">'+p.name+'</div><div class="is">컬럼: '+colLabel+' | 판매가: '+fmt(p.sellPrice)+'원</div></div>'+
+        '<span class="badge '+(q===0?'br':lw?'bo':'bg')+'">'+q+'개</span></div>';
+    });
+  });
+  el.innerHTML = html;
 
   var sel=document.getElementById('inv-product');
   sel.innerHTML='<option value="">제품 선택</option>'+D.products.map(function(p){return '<option value="'+p.id+'">'+p.name+'</option>';}).join('');
 }
+
+function getLowStockThreshold(){
+  // 설정에서 재고 부족 기준 불러오기 (기본: 5)
+  if(typeof _lowStockThreshold !== 'undefined' && _lowStockThreshold !== null) return _lowStockThreshold;
+  return 5;
+}
+var _lowStockThreshold = null;
+function loadLowStockThreshold(){
+  if(!currentUser) return;
+  db.ref('users/'+currentUser.uid+'/settings/lowStock').once('value').then(function(snap){
+    var v = snap.val();
+    if(v && v.mode === 'fixed' && v.fixedQty !== undefined){
+      _lowStockThreshold = parseInt(v.fixedQty)||5;
+    } else if(v && v.mode === 'average' && v.avgDays !== undefined){
+      _lowStockThreshold = null; // 평균 판매량 기준은 별도 계산
+      _lowStockAvgDays = parseInt(v.avgDays)||3;
+    } else {
+      _lowStockThreshold = 5;
+    }
+  });
+}
+var _lowStockAvgDays = 3;
 
 
 function setDir(d){
