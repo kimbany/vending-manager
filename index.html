@@ -33,23 +33,17 @@
 
 <!-- 로그인 화면 -->
 <div id="auth-screen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:998;overflow-y:auto;">
-  <div id="auth-split-wrap" style="display:flex;min-height:100vh;">
-    <!-- 좌측: 광고/브랜딩 영역 (PC에서만 표시) -->
-    <div id="auth-left-panel" style="display:none;flex:1;background:#1a1a24;align-items:center;justify-content:center;position:relative;overflow:hidden">
-      <div style="max-width:420px;padding:40px 50px;text-align:left">
-        <div style="font-size:72px;margin-bottom:24px">🥤</div>
-        <div style="font-size:38px;font-weight:800;color:var(--text);line-height:1.3;margin-bottom:16px;letter-spacing:-1px">스마트한<br/>자판기 운영의 시작</div>
-        <div style="font-size:16px;color:var(--text3);line-height:1.8;margin-bottom:30px">매출 · 재고 · 자판기를<br/>한 곳에서 관리하세요</div>
-        <div style="display:flex;flex-direction:column;gap:14px">
-          <div style="display:flex;align-items:center;gap:12px"><span style="font-size:24px">📊</span><span style="font-size:14px;color:var(--text2)">실시간 매출 통계 & 분석</span></div>
-          <div style="display:flex;align-items:center;gap:12px"><span style="font-size:24px">📦</span><span style="font-size:14px;color:var(--text2)">재고 부족 알림 & 자동 관리</span></div>
-          <div style="display:flex;align-items:center;gap:12px"><span style="font-size:24px">🏪</span><span style="font-size:14px;color:var(--text2)">다중 자판기 통합 관리</span></div>
-          <div style="display:flex;align-items:center;gap:12px"><span style="font-size:24px">🛒</span><span style="font-size:14px;color:var(--text2)">쿠팡 파트너스 연동</span></div>
-        </div>
-      </div>
+  <!-- 좌측: 기존 사이드 배너와 동일한 스타일 (PC에서만 표시) -->
+  <div id="auth-left-panel" class="pc-side-banner left" style="z-index:0">
+    <div class="side-content">
+      <div style="font-size:52px;margin-bottom:20px">🥤</div>
+      <div class="side-logo">자판기 관리</div>
+      <div class="side-slogan">스마트한<br/>자판기 운영의 시작</div>
+      <div class="side-desc">매출 · 재고 · 자판기를<br/>한 곳에서 관리하세요</div>
     </div>
-    <!-- 우측: 인증 폼 영역 -->
-    <div style="width:100%;max-width:520px;margin:0 auto;overflow-y:auto;display:flex;flex-direction:column;justify-content:center">
+  </div>
+  <!-- 우측: 인증 폼 영역 (#app과 동일한 위치/너비) -->
+  <div id="auth-form-area" style="max-width:520px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;justify-content:center;position:relative;z-index:1">
   <div style="padding:40px 20px 40px;">
     <!-- 로고 -->
     <div style="text-align:center;margin-bottom:36px">
@@ -172,7 +166,6 @@
       <button onclick="doSignup()" style="width:100%;background:linear-gradient(135deg,var(--gold),var(--gold2));border:none;border-radius:10px;padding:14px;font-size:15px;font-weight:700;color:#1a1208;cursor:pointer;font-family:inherit;margin-bottom:8px">회원가입</button>
       <div id="signup-msg" style="margin-top:10px;text-align:center;font-size:13px"></div>
     </div>
-  </div>
   </div>
   </div>
 </div>
