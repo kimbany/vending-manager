@@ -26,45 +26,7 @@ document.querySelectorAll('.modal-bg').forEach(function(bg){
   bg.addEventListener('click',function(e){if(e.target===bg)bg.classList.remove('open');});
 });
 
-// ─── 스크롤 최상단 버튼 ─────────────────────────────────────────────────────
-(function(){
-  var content = document.getElementById('content');
-  var btn = document.getElementById('scroll-top-btn');
-  if(!content || !btn) return;
-
-  // 초기 상태 확실히 숨김
-  btn.style.opacity = '0';
-  btn.style.pointerEvents = 'none';
-  btn.style.display = 'flex';  // display는 항상 flex, opacity로 제어
-
-  var lastST = 0;
-  var timer = null;
-
-  function showBtn(){
-    btn.style.opacity = '1';
-    btn.style.pointerEvents = 'auto';
-    clearTimeout(timer);
-    timer = setTimeout(hideBtn, 3000);
-  }
-  function hideBtn(){
-    btn.style.opacity = '0';
-    btn.style.pointerEvents = 'none';
-  }
-
-  content.addEventListener('scroll', function(){
-    var st = content.scrollTop;
-    if(st < 300){
-      hideBtn();
-    } else if(st < lastST - 15){
-      // 위로 15px 이상 스크롤 → 표시
-      showBtn();
-    } else if(st > lastST + 5){
-      // 아래로 스크롤 → 숨김
-      hideBtn();
-    }
-    lastST = st;
-  });
-})();
+// 최상단 버튼은 항상 표시 (CSS에서 제어)
 
 // ─── Pull-to-Refresh (모바일 터치 전용) ──────────────────────────────────────
 (function(){
