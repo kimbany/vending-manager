@@ -64,6 +64,8 @@ function renderProds(){
           db.ref('users/'+currentUser.uid+'/locations/'+locId+'/machines/'+mid+'/appData/products').once('value').then(function(ps){
             var prods = ps.val()||[];
             if(!Array.isArray(prods)) prods = Object.values(prods);
+            // null/undefined/이름없는 유효하지 않은 항목 필터링
+            prods = prods.filter(function(p){ return p && p.name; });
             return {locId:locId, machineId:mid, locName:loc.name, machineName:m.name, devno:devnos[0]||'', products:prods, isCurrent:(locId===currentLocationId && mid===currentMachineId)};
           })
         );
@@ -255,18 +257,20 @@ function saveProduct(){
   var discontinuedVal = document.getElementById('p-discontinued') ? document.getElementById('p-discontinued').checked : false;
   var devno = devnoVal ? devnoVal.split('|')[2]||'' : '';
   var eid=document.getElementById('p-eid').value;
-  // 중복 위치 체크: 다른 제품이 이미 사용 중인 컬럼인지 확인
+  // 중복 위치 체크: 같은 단말기(deviceNo) 내에서만 확인
   var conflicts=[];
   col.forEach(function(c){
     D.products.forEach(function(p){
       if(p.id===eid) return; // 수정 중인 제품 자신은 제외
+      // 다른 단말기의 제품이면 컬럼 충돌 무시
+      if(devno && p.deviceNo && p.deviceNo !== devno) return;
       var pCols=Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
       if(pCols.indexOf(c)>=0) conflicts.push({col:c, name:p.name});
     });
   });
   if(conflicts.length){
     var msg=conflicts.map(function(c){return c.col+'번 ('+c.name+')';}).join(', ');
-    if(!confirm('⚠️ 중복된 컬럼 위치가 있어요!\n\n'+msg+'\n\n이미 위 제품이 배정된 위치예요.\n그래도 저장할까요?')) return;
+    if(!confirm('⚠️ 같은 자판기에 중복된 컬럼 위치가 있어요!\n\n'+msg+'\n\n이미 위 제품이 배정된 위치예요.\n그래도 저장할까요?')) return;
   }
   // 중복 제품명 체크 (신규 등록 시만)
   if(!eid){
@@ -328,8 +332,45 @@ function saveProduct(){
 
 function delProd(id){
   if(!confirm('삭제하시겠습니까?'))return;
-  D.products=D.products.filter(function(p){return p.id!==id;});
-  save();
-  showToast('✅ 삭제 완료');
-  renderAll();
+  // 현재 자판기(D.products)에 있으면 바로 삭제
+  var found = D.products.find(function(p){return p.id===id;});
+  if(found){
+    D.products=D.products.filter(function(p){return p.id!==id;});
+    save();
+    showToast('✅ 삭제 완료');
+    renderAll();
+    return;
+  }
+  // 다른 자판기에서 삭제
+  if(!currentUser) return;
+  db.ref('users/'+currentUser.uid+'/locations').once('value').then(function(snap){
+    if(!snap.exists()) return;
+    var locs = snap.val();
+    var deleted = false;
+    var promises = [];
+    Object.keys(locs).forEach(function(locId){
+      var loc = locs[locId];
+      Object.keys(loc.machines||{}).forEach(function(mid){
+        var appData = loc.machines[mid].appData;
+        if(!appData || !appData.products) return;
+        var prods = appData.products;
+        if(!Array.isArray(prods)) prods = Object.values(prods);
+        var hasIt = prods.find(function(p){return p.id===id;});
+        if(hasIt){
+          var filtered = prods.filter(function(p){return p.id!==id;});
+          promises.push(db.ref('users/'+currentUser.uid+'/locations/'+locId+'/machines/'+mid+'/appData/products').set(filtered));
+          deleted = true;
+        }
+      });
+    });
+    if(promises.length){
+      Promise.all(promises).then(function(){
+        showToast('✅ 삭제 완료');
+        renderProds();
+      });
+    } else {
+      showToast('❌ 제품을 찾을 수 없어요');
+    }
+  });
+}
 }

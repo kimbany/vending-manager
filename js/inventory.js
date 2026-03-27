@@ -129,7 +129,10 @@ function renderInv(){
         promises.push(
           db.ref('users/'+currentUser.uid+'/locations/'+locId+'/machines/'+mid+'/appData').once('value').then(function(ds){
             var val = ds.val()||{};
-            return {locId:locId, machineId:mid, locName:loc.name, machineName:m.name, products:val.products||[], inventory:val.inventory||[], isCurrent:(locId===currentLocationId && mid===currentMachineId)};
+            var prods = val.products||[];
+            if(!Array.isArray(prods)) prods = Object.values(prods);
+            prods = prods.filter(function(p){ return p && p.name; });
+            return {locId:locId, machineId:mid, locName:loc.name, machineName:m.name, products:prods, inventory:val.inventory||[], isCurrent:(locId===currentLocationId && mid===currentMachineId)};
           })
         );
       });
