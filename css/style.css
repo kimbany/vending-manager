@@ -110,14 +110,9 @@ input[type=date]{color-scheme:light;}
   .btn-p{color:#fff;}
 }
 
-/* ─── Pull-to-Refresh ─── */
-#ptr-indicator{position:fixed;top:0;left:50%;transform:translateX(-50%);width:100%;max-width:520px;text-align:center;padding:0;height:0;overflow:hidden;z-index:55;transition:height .2s,padding .2s;background:var(--bg);font-size:14px;color:var(--text3);display:flex;align-items:center;justify-content:center;}
-#ptr-indicator.active{height:50px;padding:12px 0;}
-#ptr-indicator.refreshing{height:50px;padding:12px 0;}
-
-/* ─── 최상단 이동 버튼 ─── */
-#scroll-top-btn{position:fixed;bottom:80px;right:12px;width:36px;height:36px;border-radius:50%;background:var(--text3);color:#fff;border:none;font-size:16px;font-weight:700;cursor:pointer;z-index:60;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.15);opacity:.6;}
-@media(min-width:768px){#scroll-top-btn{right:calc(50% - 520px/2 + 16px);}}
+/* ─── 플로팅 버튼 (새로고침 + 맨위로) ─── */
+#float-btns{position:fixed;bottom:80px;right:12px;z-index:60;display:flex;flex-direction:column;gap:6px;}
+@media(min-width:768px){#float-btns{right:calc(50% - 520px/2 + 12px);}}
 
 /* ─── PC 사이드 배너 (768px 이상) ─── */
 .pc-side-banner{display:none;}
