@@ -433,7 +433,7 @@ function showBulkEditPreview(){
   var html = '';
   bulkEditChanges.forEach(function(item){
     html += '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px">';
-    html += '<div style="font-size:13px;font-weight:700;color:var(--gold);margin-bottom:7px">'+item.name+'</div>';
+    html += '<div style="font-size:13px;font-weight:700;color:var(--blue);margin-bottom:7px">'+item.name+'</div>';
     item.changes.forEach(function(c){
       html += '<div style="display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:4px">';
       html += '<span style="color:var(--text3);min-width:44px">'+c.field+'</span>';
@@ -500,7 +500,7 @@ function previewSalesDel(){
     html += '<span>'+item.name+'</span>';
     html += '<span style="color:var(--red)">'+item.qty+'개 · '+fmt(item.amt)+'원</span></div>';
   });
-  html += '<div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;padding:6px 0;color:var(--gold)">';
+  html += '<div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;padding:6px 0;color:var(--blue)">';
   html += '<span>합계</span><span>'+totalQty+'개 · '+fmt(totalAmt)+'원</span></div>';
   el.innerHTML = html;
 }
@@ -674,7 +674,7 @@ function openProdDetail(el){
   // 컬럼 태그
   html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">';
   colLabels.forEach(function(l){
-    html += '<span style="background:rgba(232,184,109,.15);border:1px solid rgba(232,184,109,.4);border-radius:6px;padding:3px 10px;font-size:13px;font-weight:700;color:var(--gold)">'+l+'</span>';
+    html += '<span style="background:rgba(232,184,109,.15);border:1px solid rgba(232,184,109,.4);border-radius:6px;padding:3px 10px;font-size:13px;font-weight:700;color:var(--blue)">'+l+'</span>';
   });
   html += '</div>';
 
@@ -692,7 +692,7 @@ function openProdDetail(el){
   html += '</div>';
 
   // 스펙 수정 버튼
-  html += '<button onclick="closeModal(\'prod-detail-modal\');editProd(\''+id+'\')" style="width:100%;background:linear-gradient(135deg,var(--gold),var(--gold2));border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;color:#1a1208;cursor:pointer;font-family:inherit">✏️ 제품 수정</button>';
+  html += '<button onclick="closeModal(\'prod-detail-modal\');editProd(\''+id+'\')" style="width:100%;background:linear-gradient(135deg,var(--blue),var(--gold2));border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit">✏️ 제품 수정</button>';
 
   document.getElementById('pdm-title').textContent = p.name;
   document.getElementById('pdm-body').innerHTML = html;

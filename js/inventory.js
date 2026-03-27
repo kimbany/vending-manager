@@ -222,7 +222,7 @@ function _renderInvSingle(prods, inv, machineName){
       return '<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(224,88,88,.15);cursor:pointer" onclick="openInvDetail(\''+p.id+'\')">'+
         '<div><span style="font-size:14px;font-weight:600">'+p.name+'</span>'+
         '<span style="font-size:12px;color:var(--text3);margin-left:6px">컬럼 '+cols.join(', ')+'</span></div>'+
-        '<span style="font-size:14px;font-weight:800;color:'+(q===0?'var(--red)':'var(--gold)')+'">'+q+'개</span></div>';
+        '<span style="font-size:14px;font-weight:800;color:'+(q===0?'var(--red)':'var(--blue)')+'">'+q+'개</span></div>';
     }).join('');
   } else {
     lowCard.style.display='none';
@@ -262,7 +262,7 @@ function _renderInvMulti(machineDataList){
       return '<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(224,88,88,.15)">'+
         '<div><span style="font-size:14px;font-weight:600">'+x.p.name+'</span>'+
         '<span style="font-size:12px;color:var(--text3);margin-left:6px">'+x.machineName+'</span></div>'+
-        '<span style="font-size:14px;font-weight:800;color:'+(x.q===0?'var(--red)':'var(--gold)')+'">'+x.q+'개</span></div>';
+        '<span style="font-size:14px;font-weight:800;color:'+(x.q===0?'var(--red)':'var(--blue)')+'">'+x.q+'개</span></div>';
     }).join('');
   } else {
     lowCard.style.display='none';
@@ -276,7 +276,7 @@ function _renderInvMulti(machineDataList){
     else if(invSort==='qasc') sorted.sort(function(a,b){return getQ(a.id)-getQ(b.id);});
     else if(invSort==='qdesc') sorted.sort(function(a,b){return getQ(b.id)-getQ(a.id);});
 
-    html += '<div style="font-size:13px;font-weight:700;color:var(--gold);padding:10px 0 6px;border-top:1px solid var(--border);margin-top:6px">'+
+    html += '<div style="font-size:13px;font-weight:700;color:var(--blue);padding:10px 0 6px;border-top:1px solid var(--border);margin-top:6px">'+
       '📍 '+md.locName+' · 🏪 '+md.machineName+' ('+sorted.length+'개)</div>';
     if(!sorted.length){
       html += '<div style="text-align:center;padding:12px;color:var(--text3);font-size:13px">등록된 제품 없음</div>';

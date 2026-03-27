@@ -113,7 +113,7 @@ function _renderProdsFromList(products){
   function renderProdCard(p){
     var cols=Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
     var colLabel=cols.length?cols.join(', '):'미배정';
-    var cbHtml=editMode?'<input type="checkbox" class="prod-cb" value="'+p.id+'" onclick="event.stopPropagation()" onchange="updateSelectedCount()" style="width:20px;height:20px;accent-color:var(--gold);flex-shrink:0;cursor:pointer"/>'  :'';
+    var cbHtml=editMode?'<input type="checkbox" class="prod-cb" value="'+p.id+'" onclick="event.stopPropagation()" onchange="updateSelectedCount()" style="width:20px;height:20px;accent-color:var(--blue);flex-shrink:0;cursor:pointer"/>'  :'';
     var discBadge=p.discontinued?'<span style="background:rgba(224,88,88,.2);border:1px solid rgba(224,88,88,.4);border-radius:4px;padding:1px 6px;font-size:11px;color:var(--red);font-weight:700">판매중단</span>':'';
     var btnHtml=editMode?'':'<div style="display:flex;gap:6px"><button class="btn-sm" style="background:#1a2a4a;color:var(--blue)" onclick="editProd(\'' +p.id+ '\')">수정</button><button class="btn-sm" style="background:#2a1a1a;color:var(--red)" onclick="delProd(\'' +p.id+ '\')">삭제</button></div>';
     var clickFn=editMode?'var cb=this.querySelector(\'.prod-cb\');cb.checked=!cb.checked;updateSelectedCount()':'';
@@ -128,7 +128,7 @@ function _renderProdsFromList(products){
   var html='';
   var devnos=Object.keys(groups);
   devnos.forEach(function(devno){
-    html+='<div style="font-size:13px;font-weight:700;color:var(--gold);padding:8px 0 6px;border-top:1px solid var(--border);margin-top:4px">📟 단말기 '+devno+' ('+groups[devno].length+'개)</div>';
+    html+='<div style="font-size:13px;font-weight:700;color:var(--blue);padding:8px 0 6px;border-top:1px solid var(--border);margin-top:4px">📟 단말기 '+devno+' ('+groups[devno].length+'개)</div>';
     html+=groups[devno].map(renderProdCard).join('');
   });
   if(noDevno.length){
@@ -146,7 +146,7 @@ function _renderProdsMulti(machineDataList, totalProds){
   function renderProdCard(p, isCurrent){
     var cols=Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
     var colLabel=cols.length?cols.join(', '):'미배정';
-    var cbHtml=editMode && isCurrent?'<input type="checkbox" class="prod-cb" value="'+p.id+'" onclick="event.stopPropagation()" onchange="updateSelectedCount()" style="width:20px;height:20px;accent-color:var(--gold);flex-shrink:0;cursor:pointer"/>':'';
+    var cbHtml=editMode && isCurrent?'<input type="checkbox" class="prod-cb" value="'+p.id+'" onclick="event.stopPropagation()" onchange="updateSelectedCount()" style="width:20px;height:20px;accent-color:var(--blue);flex-shrink:0;cursor:pointer"/>':'';
     var discBadge=p.discontinued?'<span style="background:rgba(224,88,88,.2);border:1px solid rgba(224,88,88,.4);border-radius:4px;padding:1px 6px;font-size:11px;color:var(--red);font-weight:700">판매중단</span>':'';
     var btnHtml=editMode?'':'<div style="display:flex;gap:6px"><button class="btn-sm" style="background:#1a2a4a;color:var(--blue)" onclick="editProd(\'' +p.id+ '\')">수정</button><button class="btn-sm" style="background:#2a1a1a;color:var(--red)" onclick="delProd(\'' +p.id+ '\')">삭제</button></div>';
     var clickFn=editMode && isCurrent?'var cb=this.querySelector(\'.prod-cb\');cb.checked=!cb.checked;updateSelectedCount()':'';
@@ -155,7 +155,7 @@ function _renderProdsMulti(machineDataList, totalProds){
 
   var html='';
   machineDataList.forEach(function(md){
-    html+='<div style="font-size:13px;font-weight:700;color:var(--gold);padding:10px 0 6px;border-top:2px solid var(--border);margin-top:8px">📍 '+md.locName+' · 🏪 '+md.machineName+' ('+md.products.length+'개)</div>';
+    html+='<div style="font-size:13px;font-weight:700;color:var(--blue);padding:10px 0 6px;border-top:2px solid var(--border);margin-top:8px">📍 '+md.locName+' · 🏪 '+md.machineName+' ('+md.products.length+'개)</div>';
     if(!md.products.length){
       html+='<div style="text-align:center;padding:12px;color:var(--text3);font-size:13px">등록된 제품 없음</div>';
       return;
@@ -450,7 +450,7 @@ function mapToExistingProd(unknownName){
       '<div style="font-size:14px;font-weight:700;margin-bottom:8px">"'+unknownName+'"을 어느 제품에 매칭할까요?</div>'+
       '<select id="map-existing-select" style="margin-bottom:12px">'+opts+'</select>'+
       '<div style="display:flex;gap:8px">'+
-        '<button onclick="confirmMapExisting(\''+unknownName.replace(/'/g,"\\'")+'\')" style="flex:1;background:var(--gold);border:none;border-radius:8px;padding:10px;font-size:14px;font-weight:700;color:#1a1208;cursor:pointer;font-family:inherit">매칭 적용</button>'+
+        '<button onclick="confirmMapExisting(\''+unknownName.replace(/'/g,"\\'")+'\')" style="flex:1;background:var(--blue);border:none;border-radius:8px;padding:10px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit">매칭 적용</button>'+
         '<button onclick="checkNewProducts()" style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:14px;color:var(--text2);cursor:pointer;font-family:inherit">뒤로</button>'+
       '</div>'+
     '</div>';

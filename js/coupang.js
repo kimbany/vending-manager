@@ -100,10 +100,10 @@ function searchCoupangProducts(keyword){
         '<div style="flex:1;min-width:0">'+
           '<div style="font-size:13px;font-weight:600;line-height:1.4;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">'+name+'</div>'+
           '<div style="margin-top:4px">'+isRocket+isFreeShipping+'</div>'+
-          '<div style="font-size:14px;font-weight:800;color:var(--gold);margin-top:4px">'+price+'원</div>'+
+          '<div style="font-size:14px;font-weight:800;color:var(--blue);margin-top:4px">'+price+'원</div>'+
         '</div>'+
         '<div style="flex-shrink:0;display:flex;align-items:center">'+
-          '<span style="font-size:11px;background:rgba(232,184,109,.2);color:var(--gold);border:1px solid rgba(232,184,109,.4);border-radius:6px;padding:3px 8px;white-space:nowrap">구매 &#8594;</span>'+
+          '<span style="font-size:11px;background:rgba(232,184,109,.2);color:var(--blue);border:1px solid rgba(232,184,109,.4);border-radius:6px;padding:3px 8px;white-space:nowrap">구매 &#8594;</span>'+
         '</div>'+
       '</div>';
     }).join('');
@@ -154,7 +154,7 @@ function renderCoupangFallbackUI(el, keyword, url){
       '<div style="font-size:32px;margin-bottom:12px">🛒</div>'+
       '<div style="font-size:14px;font-weight:700;margin-bottom:6px">쿠팡에서 직접 검색하기</div>'+
       '<div style="font-size:12px;color:var(--text3);margin-bottom:16px">아래 버튼으로 쿠팡에서 최적가를 검색할 수 있어요.</div>'+
-      '<button onclick="window.open(\''+url.replace(/'/g,"\\'")+'\',\'_blank\')" style="background:var(--gold);border:none;border-radius:10px;padding:12px 24px;font-size:14px;font-weight:700;color:#1a1208;cursor:pointer;font-family:inherit">🔗 쿠팡에서 \''+keyword+'\' 검색</button>'+
+      '<button onclick="window.open(\''+url.replace(/'/g,"\\'")+'\',\'_blank\')" style="background:var(--blue);border:none;border-radius:10px;padding:12px 24px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit">🔗 쿠팡에서 \''+keyword+'\' 검색</button>'+
     '</div>';
 }
 

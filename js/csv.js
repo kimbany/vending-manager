@@ -42,7 +42,7 @@ function openCsvModal(){
       db.ref('users/'+currentUser.uid+'/machines/'+currentMachineId).once('value').then(function(snap){
         var m = snap.val();
         if(m){
-          el.innerHTML = '🏪 <b style="color:var(--gold)">'+m.name+'</b> 데이터만 가져와요<br/>'+
+          el.innerHTML = '🏪 <b style="color:var(--blue)">'+m.name+'</b> 데이터만 가져와요<br/>'+
             '<span style="color:var(--text3)">단말기명: '+m.name+' · 단말기번호: '+m.deviceNo+'</span>';
         }
       });
@@ -247,7 +247,7 @@ function showSalesPreview(matched, unmatched, dupCount){
 
   // 중복 제거 안내 배너
   if(dupCount>0){
-    html += '<div style="background:rgba(232,184,109,.1);border:1px solid rgba(232,184,109,.4);border-radius:8px;padding:9px 12px;margin-bottom:10px;font-size:12px;color:var(--gold)">'+
+    html += '<div style="background:rgba(232,184,109,.1);border:1px solid rgba(232,184,109,.4);border-radius:8px;padding:9px 12px;margin-bottom:10px;font-size:12px;color:var(--blue)">'+
       '⚠️ 이미 등록된 중복 거래 <b>'+dupCount+'건</b>은 자동으로 제외했어요.</div>';
   }
 
@@ -255,7 +255,7 @@ function showSalesPreview(matched, unmatched, dupCount){
     var s = summary[k];
     var hasMatch = !!s.prod;
     html += '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;margin-bottom:5px;background:'+(hasMatch?'rgba(122,218,154,.06)':'rgba(224,88,88,.08)')+';border:1px solid '+(hasMatch?'rgba(122,218,154,.2)':'rgba(224,88,88,.3)')+'">';
-    html += '<span style="font-size:11px;font-weight:700;color:var(--gold);min-width:28px">'+s.colVal+'번</span>';
+    html += '<span style="font-size:11px;font-weight:700;color:var(--blue);min-width:28px">'+s.colVal+'번</span>';
     html += '<div style="flex:1;min-width:0">';
     html += '<div style="font-size:12px;font-weight:600">'+(hasMatch?s.prod.name:s.itemName)+'</div>';
     if(!hasMatch) html += '<div style="font-size:10px;color:var(--red)">⚠️ 등록된 제품 없음</div>';
@@ -272,7 +272,7 @@ function showSalesPreview(matched, unmatched, dupCount){
     '신규 <b>'+total+'건</b> · '+
     '<span style="color:var(--green)">매칭 '+matched+'건</span> · '+
     (unm>0?'<span style="color:var(--red)">미매칭 '+unm+'건 (컬럼: '+unmatched.join(', ')+')</span>':'<span style="color:var(--text3)">미매칭 없음</span>')+
-    (dupCount>0?' · <span style="color:var(--gold)">중복제외 '+dupCount+'건</span>':'');
+    (dupCount>0?' · <span style="color:var(--blue)">중복제외 '+dupCount+'건</span>':'');
   document.getElementById('csv-preview').innerHTML = html;
   document.getElementById('csv-s1').style.display='none';
   document.getElementById('csv-s2').style.display='block';

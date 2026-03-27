@@ -177,7 +177,7 @@ function _doRenderSalesStats(machineDataList, range, panel){
   // 제품 판매 순위
   if(prodRank.length){
     html += '<div class="card" style="margin-bottom:12px">';
-    html += '<div class="ch"><div class="ca" style="background:var(--gold)"></div><div><div class="ct">🏆 제품 판매 순위 ('+prodRank.length+'종)</div></div></div>';
+    html += '<div class="ch"><div class="ca" style="background:var(--blue)"></div><div><div class="ct">🏆 제품 판매 순위 ('+prodRank.length+'종)</div></div></div>';
     html += '<div class="cb">';
     var maxQ = prodRank[0].qty;
     var showAll = prodRank.length <= 10;
@@ -277,7 +277,7 @@ function _doRenderSalesStats(machineDataList, range, panel){
   html += '</div>';
   html += '<div style="display:flex;gap:6px;align-items:center">';
   html += '<input type="text" id="sdf-name" placeholder="제품명 검색" style="flex:1;font-size:13px;padding:8px"/>';
-  html += '<button onclick="filterSalesDetail()" style="background:var(--gold);border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;color:#1a1208;cursor:pointer;font-family:inherit;white-space:nowrap">검색</button>';
+  html += '<button onclick="filterSalesDetail()" style="background:var(--blue);border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit;white-space:nowrap">검색</button>';
   html += '</div>';
   html += '</div>';
   html += '<div id="sales-detail-list" style="padding:0">';
