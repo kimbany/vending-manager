@@ -204,20 +204,18 @@ function dismissMigrate(){
 }
 
 function switchSettingsSub(sub){
-  ['profile','machines','vmms','coupang'].forEach(function(s){
+  ['profile','machines','vmms'].forEach(function(s){
     document.getElementById('set-panel-'+s).style.display = s===sub ? 'block' : 'none';
     var btn = document.getElementById('set-sub-'+s);
     btn.style.background = s===sub ? 'var(--gold)' : 'transparent';
     btn.style.color      = s===sub ? '#1a1208' : 'var(--text2)';
     btn.style.fontWeight = s===sub ? '700' : '600';
   });
-  if(sub==='profile') renderProfileInfo();
+  if(sub==='profile'){ renderProfileInfo(); loadLowStockSetting(); }
   if(sub==='machines') renderMachinesList();
   if(sub==='vmms') resetVmmsLock();
-  if(sub==='coupang') resetCoupangLock();
   // 다른 탭으로 이동 시 VMMS 잠금 초기화
   if(sub!=='vmms') resetVmmsLock();
-  if(sub!=='coupang') resetCoupangLock();
 }
 
 // ─── 회원 정보 ────────────────────────────────────────────────────────────────

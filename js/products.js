@@ -194,8 +194,36 @@ function loadDevnoOptions(selectId, selectedDevno){
 }
 
 function editProd(id){
-  var p=gp(id);if(!p)return;
-  document.getElementById('p-eid').value=id;
+  var p=gp(id);
+  // D.products에 없으면 _vmViewProds에서 찾기
+  if(!p && typeof _vmViewProds !== 'undefined') p = _vmViewProds.find(function(x){return x.id===id;});
+  // 그래도 없으면 모든 자판기에서 찾기 (비동기)
+  if(!p && currentUser){
+    db.ref('users/'+currentUser.uid+'/locations').once('value').then(function(snap){
+      if(!snap.exists()) return;
+      var locs = snap.val();
+      var found = null;
+      Object.keys(locs).forEach(function(locId){
+        var loc = locs[locId];
+        Object.keys(loc.machines||{}).forEach(function(mid){
+          var m = loc.machines[mid];
+          var appData = m.appData||{};
+          var prods = appData.products||[];
+          if(!Array.isArray(prods)) prods = Object.values(prods);
+          var match = prods.find(function(x){return x.id===id;});
+          if(match) found = match;
+        });
+      });
+      if(found) _openEditProdModal(found);
+    });
+    return;
+  }
+  if(!p) return;
+  _openEditProdModal(p);
+}
+
+function _openEditProdModal(p){
+  document.getElementById('p-eid').value=p.id;
   document.getElementById('prod-modal-title').textContent='제품 수정';
   document.getElementById('p-save-btn').textContent='수정 완료';
   document.getElementById('p-name').value=p.name;
