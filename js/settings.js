@@ -58,12 +58,14 @@ function switchVmSub(sub){
   document.getElementById('vm-panel-products').style.display = isStatus ? 'none'  : 'block';
   var btnS = document.getElementById('vm-sub-status');
   var btnP = document.getElementById('vm-sub-products');
-  btnS.style.background = isStatus ? 'var(--blue)' : 'transparent';
-  btnS.style.color      = isStatus ? '#fff' : 'var(--text2)';
+  btnS.style.background = isStatus ? 'var(--bg2)' : 'transparent';
+  btnS.style.color      = isStatus ? 'var(--text)' : 'var(--text3)';
   btnS.style.fontWeight = isStatus ? '700' : '600';
-  btnP.style.background = isStatus ? 'transparent' : 'var(--blue)';
-  btnP.style.color      = isStatus ? 'var(--text2)' : '#fff';
+  btnS.style.boxShadow  = isStatus ? '0 1px 3px rgba(0,0,0,.08)' : 'none';
+  btnP.style.background = isStatus ? 'transparent' : 'var(--bg2)';
+  btnP.style.color      = isStatus ? 'var(--text3)' : 'var(--text)';
   btnP.style.fontWeight = isStatus ? '600' : '700';
+  btnP.style.boxShadow  = isStatus ? 'none' : '0 1px 3px rgba(0,0,0,.08)';
   if(isStatus) renderMachine();
   else { if(typeof initProdMachineNav==='function') initProdMachineNav(); renderProds(); }
 }

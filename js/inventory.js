@@ -8,12 +8,14 @@ function switchInvSub(sub){
   document.getElementById('inv-panel-purchase').style.display = isStock ? 'none' : 'block';
   var btnStock    = document.getElementById('inv-sub-stock');
   var btnPurchase = document.getElementById('inv-sub-purchase');
-  btnStock.style.background    = isStock ? 'var(--gold)' : 'transparent';
-  btnStock.style.color         = isStock ? '#1a1208' : 'var(--text2)';
+  btnStock.style.background    = isStock ? 'var(--bg2)' : 'transparent';
+  btnStock.style.color         = isStock ? 'var(--text)' : 'var(--text3)';
   btnStock.style.fontWeight    = isStock ? '700' : '600';
-  btnPurchase.style.background = isStock ? 'transparent' : 'var(--gold)';
-  btnPurchase.style.color      = isStock ? 'var(--text2)' : '#1a1208';
+  btnStock.style.boxShadow     = isStock ? '0 1px 3px rgba(0,0,0,.08)' : 'none';
+  btnPurchase.style.background = isStock ? 'transparent' : 'var(--bg2)';
+  btnPurchase.style.color      = isStock ? 'var(--text3)' : 'var(--text)';
   btnPurchase.style.fontWeight = isStock ? '600' : '700';
+  btnPurchase.style.boxShadow  = isStock ? 'none' : '0 1px 3px rgba(0,0,0,.08)';
   if(!isStock) renderPurchase();
 }
 

@@ -149,9 +149,9 @@ function _doRenderSalesStats(machineDataList, range, panel){
 
   // 기간 요약 카드
   var periodLabel = range.from===range.to ? range.from : range.from+' ~ '+range.to;
-  html += '<div style="background:var(--bg3);border-radius:12px;padding:14px;margin-bottom:12px">';
-  html += '<div style="font-size:11px;color:var(--text3);margin-bottom:8px">'+periodLabel+'</div>';
-  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">';
+  html += '<div style="background:var(--bg2);border-radius:14px;padding:16px;margin-bottom:12px;border:1px solid var(--border);box-shadow:0 1px 3px rgba(0,0,0,.04)">';
+  html += '<div style="font-size:12px;color:var(--text3);margin-bottom:10px">'+periodLabel+'</div>';
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">';
   html += '<div style="text-align:center"><div style="font-size:11px;color:var(--text2);margin-bottom:3px">총 판매량</div><div style="font-size:22px;font-weight:800;color:var(--blue)">'+fmt(totalQty)+'<span style="font-size:12px;font-weight:400">개</span></div></div>';
   html += '<div style="text-align:center"><div style="font-size:11px;color:var(--text2);margin-bottom:3px">총 매출</div><div style="font-size:22px;font-weight:800;color:var(--green)">'+fmtK(totalAmt)+'</div></div>';
   html += '</div>';
