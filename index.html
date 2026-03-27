@@ -347,20 +347,20 @@
 
       <!-- 제품 관리 서브패널 -->
       <div id="vm-panel-products" style="display:none">
+        <div style="display:flex;gap:8px;margin-bottom:10px">
+          <button class="btn-p" style="margin-bottom:0;flex:1" onclick="openProductModal()">➕ 제품 등록</button>
+          <button class="btn-p" style="margin-bottom:0;width:80px;background:var(--bg3);color:var(--text2)" id="edit-mode-btn" onclick="toggleEditMode()">✏️ 편집</button>
+        </div>
+        <button class="btn-p btn-b" style="margin-bottom:10px" onclick="openModal('bulk-modal')">📋 일괄 등록 (CSV)</button>
         <!-- 자판기 네비게이터 (제품 관리용) -->
         <div id="pm-machine-nav" style="display:none;align-items:center;justify-content:space-between;background:var(--bg3);border-radius:10px;padding:8px 12px;margin-bottom:10px">
           <button onclick="navProdMachine(-1)" style="background:none;border:1px solid var(--border);border-radius:6px;padding:4px 10px;color:var(--text2);cursor:pointer;font-size:14px">‹</button>
           <div style="text-align:center">
-            <div id="pm-machine-name" style="font-size:13px;font-weight:700;color:var(--gold)"></div>
-            <div id="pm-machine-devno" style="font-size:11px;color:var(--text3)"></div>
+            <div id="pm-machine-name" style="font-size:14px;font-weight:700;color:var(--gold)"></div>
+            <div id="pm-machine-devno" style="font-size:12px;color:var(--text3)"></div>
           </div>
           <button onclick="navProdMachine(1)" style="background:none;border:1px solid var(--border);border-radius:6px;padding:4px 10px;color:var(--text2);cursor:pointer;font-size:14px">›</button>
         </div>
-        <div style="display:flex;gap:8px;margin-bottom:16px">
-          <button class="btn-p" style="margin-bottom:0;flex:1" onclick="openProductModal()">➕ 제품 등록</button>
-          <button class="btn-p" style="margin-bottom:0;width:80px;background:var(--bg3);color:var(--text2)" id="edit-mode-btn" onclick="toggleEditMode()">✏️ 편집</button>
-        </div>
-        <button class="btn-p btn-b" style="margin-bottom:16px" onclick="openModal('bulk-modal')">📋 일괄 등록 (CSV)</button>
         <div id="edit-toolbar" style="display:none;background:var(--bg3);border-radius:10px;padding:10px 14px;margin-bottom:12px">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
             <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600">

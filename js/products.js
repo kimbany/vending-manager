@@ -37,7 +37,7 @@ function navProdMachine(dir){
   if(!pmMachineList.length) return;
   pmMachineIdx = (pmMachineIdx + dir + pmMachineList.length) % pmMachineList.length;
   _updatePmNav();
-  // 해당 자판기 데이터 로드
+  // 해당 자판기 데이터 로드 후 해당 자판기 제품만 표시
   var mc = pmMachineList[pmMachineIdx];
   var machineREF = db.ref('users/'+currentUser.uid+'/locations/'+mc.locId+'/machines/'+mc.machineId+'/appData');
   machineREF.once('value').then(function(snap){
@@ -49,7 +49,8 @@ function navProdMachine(dir){
     D.inventory = val.inventory||[];
     D.inventoryLogs = val.inventoryLogs||[];
     D.salesData = val.salesData||[];
-    renderProds();
+    // 현재 자판기 제품만 표시
+    _renderProdsFromList(D.products);
   });
 }
 
@@ -103,39 +104,8 @@ function deleteSelected(){
 }
 
 function renderProds(){
-  // 모든 자판기 제품을 로드하여 표시
-  if(!currentUser || !currentLocationId){
-    _renderProdsFromList(D.products);
-    return;
-  }
-  db.ref('users/'+currentUser.uid+'/locations').once('value').then(function(snap){
-    if(!snap.exists()||!snap.val()){
-      _renderProdsFromList(D.products);
-      return;
-    }
-    var locs = snap.val();
-    var machineDataList = [];
-    Object.keys(locs).forEach(function(locId){
-      var loc = locs[locId];
-      Object.keys(loc.machines||{}).forEach(function(mid){
-        var m = loc.machines[mid];
-        var devnos = Array.isArray(m.deviceNos)?m.deviceNos:(m.deviceNo?[m.deviceNo]:[]);
-        // 스냅샷에서 직접 제품 데이터 가져오기
-        var appData = m.appData||{};
-        var prods = appData.products||[];
-        if(!Array.isArray(prods)) prods = Object.values(prods);
-        prods = prods.filter(function(p){ return p && p.name; });
-        machineDataList.push({locId:locId, machineId:mid, locName:loc.name, machineName:m.name, devno:devnos[0]||'', products:prods, isCurrent:(locId===currentLocationId && mid===currentMachineId)});
-      });
-    });
-    var totalProds = 0;
-    machineDataList.forEach(function(md){ totalProds += md.products.length; });
-    if(machineDataList.length <= 1){
-      _renderProdsFromList(machineDataList[0]?machineDataList[0].products:D.products);
-    } else {
-      _renderProdsMulti(machineDataList, totalProds);
-    }
-  });
+  // 현재 선택된 자판기의 제품만 표시 (자판기 전환은 화살표로)
+  _renderProdsFromList(D.products);
 }
 
 function _renderProdsFromList(products){
