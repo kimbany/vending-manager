@@ -58,11 +58,11 @@ function switchVmSub(sub){
   document.getElementById('vm-panel-products').style.display = isStatus ? 'none'  : 'block';
   var btnS = document.getElementById('vm-sub-status');
   var btnP = document.getElementById('vm-sub-products');
-  btnS.style.background = isStatus ? 'var(--gold)' : 'transparent';
-  btnS.style.color      = isStatus ? '#1a1208' : 'var(--text2)';
+  btnS.style.background = isStatus ? 'var(--blue)' : 'transparent';
+  btnS.style.color      = isStatus ? '#fff' : 'var(--text2)';
   btnS.style.fontWeight = isStatus ? '700' : '600';
-  btnP.style.background = isStatus ? 'transparent' : 'var(--gold)';
-  btnP.style.color      = isStatus ? 'var(--text2)' : '#1a1208';
+  btnP.style.background = isStatus ? 'transparent' : 'var(--blue)';
+  btnP.style.color      = isStatus ? 'var(--text2)' : '#fff';
   btnP.style.fontWeight = isStatus ? '600' : '700';
   if(isStatus) renderMachine();
   else { if(typeof initProdMachineNav==='function') initProdMachineNav(); renderProds(); }
@@ -207,8 +207,8 @@ function switchSettingsSub(sub){
   ['profile','machines','vmms'].forEach(function(s){
     document.getElementById('set-panel-'+s).style.display = s===sub ? 'block' : 'none';
     var btn = document.getElementById('set-sub-'+s);
-    btn.style.background = s===sub ? 'var(--gold)' : 'transparent';
-    btn.style.color      = s===sub ? '#1a1208' : 'var(--text2)';
+    btn.style.background = s===sub ? 'var(--blue)' : 'transparent';
+    btn.style.color      = s===sub ? '#fff' : 'var(--text2)';
     btn.style.fontWeight = s===sub ? '700' : '600';
   });
   if(sub==='profile'){ renderProfileInfo(); loadLowStockSetting(); }
@@ -268,8 +268,8 @@ function switchEpTab(tab){
   ['info','edit','pw'].forEach(function(t){
     document.getElementById('ep-panel-'+t).style.display = t===tab ? 'block' : 'none';
     var btn = document.getElementById('ep-tab-'+t);
-    btn.style.background = t===tab ? 'var(--gold)' : 'transparent';
-    btn.style.color      = t===tab ? '#1a1208' : 'var(--text2)';
+    btn.style.background = t===tab ? 'var(--blue)' : 'transparent';
+    btn.style.color      = t===tab ? '#fff' : 'var(--text2)';
     btn.style.fontWeight = t===tab ? '700' : '600';
   });
 }
