@@ -112,7 +112,7 @@ input[type=date]{color-scheme:light;}
 }
 
 /* ─── 맨 위로 버튼 ─── */
-#scroll-top-btn{position:fixed;bottom:80px;right:12px;width:36px;height:36px;border-radius:50%;background:var(--text3);color:#fff;border:none;font-size:14px;cursor:pointer;z-index:60;display:flex;align-items:center;justify-content:center;opacity:.5;}
+#scroll-top-btn{position:fixed;bottom:80px;right:12px;width:40px;height:40px;border-radius:50%;background:var(--text3);color:#fff;border:none;font-size:16px;cursor:pointer;z-index:999;display:flex;align-items:center;justify-content:center;opacity:.7;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
 @media(min-width:768px){#scroll-top-btn{right:calc(50% - 520px/2 + 12px);}}
 
 /* ─── PC 사이드 배너 (768px 이상) ─── */
