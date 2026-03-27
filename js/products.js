@@ -1,5 +1,65 @@
-// ─── 제품 등록 ────────────────────────────────────────────────────────────────
+// ─── 제품 관리 ────────────────────────────────────────────────────────────────
 var editMode = false;
+
+// 제품 관리 탭 자판기 네비게이터
+var pmMachineList = [];
+var pmMachineIdx = 0;
+
+function initProdMachineNav(){
+  if(!currentUser) return;
+  db.ref('users/'+currentUser.uid+'/locations').once('value').then(function(snap){
+    pmMachineList = [];
+    if(snap.exists()){
+      snap.forEach(function(locSnap){
+        var loc = locSnap.val();
+        Object.keys(loc.machines||{}).forEach(function(mid){
+          var m = loc.machines[mid];
+          var devnos = Array.isArray(m.deviceNos)?m.deviceNos:(m.deviceNo?[m.deviceNo]:[]);
+          pmMachineList.push({machineId:mid, locId:locSnap.key, name:m.name, devno:devnos[0]||''});
+        });
+      });
+    }
+    var nav = document.getElementById('pm-machine-nav');
+    if(nav){
+      nav.style.display = pmMachineList.length > 1 ? 'flex' : 'none';
+      if(pmMachineList.length > 0){
+        // 현재 자판기 찾기
+        var found = -1;
+        pmMachineList.forEach(function(mc, i){ if(mc.machineId === currentMachineId) found = i; });
+        pmMachineIdx = found >= 0 ? found : 0;
+        _updatePmNav();
+      }
+    }
+  });
+}
+
+function navProdMachine(dir){
+  if(!pmMachineList.length) return;
+  pmMachineIdx = (pmMachineIdx + dir + pmMachineList.length) % pmMachineList.length;
+  _updatePmNav();
+  // 해당 자판기 데이터 로드
+  var mc = pmMachineList[pmMachineIdx];
+  var machineREF = db.ref('users/'+currentUser.uid+'/locations/'+mc.locId+'/machines/'+mc.machineId+'/appData');
+  machineREF.once('value').then(function(snap){
+    var val = snap.val()||{};
+    currentLocationId = mc.locId;
+    currentMachineId = mc.machineId;
+    REF = machineREF;
+    D.products = val.products||[];
+    D.inventory = val.inventory||[];
+    D.inventoryLogs = val.inventoryLogs||[];
+    D.salesData = val.salesData||[];
+    renderProds();
+  });
+}
+
+function _updatePmNav(){
+  var mc = pmMachineList[pmMachineIdx];
+  var nameEl = document.getElementById('pm-machine-name');
+  var devnoEl = document.getElementById('pm-machine-devno');
+  if(nameEl) nameEl.textContent = mc.name + (pmMachineList.length>1 ? ' ('+(pmMachineIdx+1)+'/'+pmMachineList.length+')' : '');
+  if(devnoEl) devnoEl.textContent = '단말기: '+mc.devno;
+}
 
 function toggleEditMode(){
   editMode = !editMode;
@@ -368,4 +428,83 @@ function delProd(id){
     }
   });
 }
+
+// ─── 신규 상품 감지 ──────────────────────────────────────────────────────────
+function checkNewProducts(){
+  // 판매 데이터에서 미매칭(productId=null) 항목의 상품명 수집
+  var unknowns = {};
+  D.salesData.forEach(function(s){
+    if(!s.productId && s.itemName){
+      var name = s.itemName.trim();
+      if(!unknowns[name]) unknowns[name] = {name:name, count:0};
+      unknowns[name].count++;
+    }
+  });
+  var unknownList = Object.values(unknowns);
+  if(!unknownList.length) return;
+
+  var el = document.getElementById('new-prod-list');
+  el.innerHTML = unknownList.map(function(u){
+    return '<div style="background:var(--bg3);border-radius:10px;padding:12px;margin-bottom:8px;border:1px solid var(--border)">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
+        '<div><div style="font-size:14px;font-weight:700">'+u.name+'</div><div style="font-size:12px;color:var(--text3)">미매칭 '+u.count+'건</div></div>'+
+      '</div>'+
+      '<div style="display:flex;gap:6px">'+
+        '<button onclick="registerNewProd(\''+u.name.replace(/'/g,"\\'")+'\')" style="flex:1;background:rgba(122,218,154,.15);border:1px solid rgba(122,218,154,.3);border-radius:8px;padding:8px;font-size:13px;font-weight:600;color:var(--green);cursor:pointer;font-family:inherit">신규 등록</button>'+
+        '<button onclick="mapToExistingProd(\''+u.name.replace(/'/g,"\\'")+'\')" style="flex:1;background:rgba(126,200,227,.15);border:1px solid rgba(126,200,227,.3);border-radius:8px;padding:8px;font-size:13px;font-weight:600;color:var(--blue);cursor:pointer;font-family:inherit">기존 상품 매칭</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+  openModal('new-product-modal');
+}
+
+function registerNewProd(name){
+  closeModal('new-product-modal');
+  document.getElementById('p-eid').value='';
+  document.getElementById('prod-modal-title').textContent='신규 제품 등록';
+  document.getElementById('p-save-btn').textContent='등록 완료';
+  ['p-buy','p-total','p-sell','p-col'].forEach(function(id){document.getElementById(id).value='';});
+  document.getElementById('p-name').value=name;
+  var discEl=document.getElementById('p-discontinued');
+  if(discEl) discEl.checked=false;
+  document.getElementById('p-unit').textContent='구매가 ÷ 총수량';
+  document.getElementById('p-ma').textContent='-';
+  document.getElementById('p-mr').textContent='-';
+  loadDevnoOptions('p-devno', null);
+  openModal('prod-modal');
+}
+
+function mapToExistingProd(unknownName){
+  // 기존 제품 선택 드롭다운
+  var opts = D.products.map(function(p){return '<option value="'+p.id+'">'+p.name+'</option>';}).join('');
+  var el = document.getElementById('new-prod-list');
+  el.innerHTML =
+    '<div style="padding:14px">'+
+      '<div style="font-size:14px;font-weight:700;margin-bottom:8px">"'+unknownName+'"을 어느 제품에 매칭할까요?</div>'+
+      '<select id="map-existing-select" style="margin-bottom:12px">'+opts+'</select>'+
+      '<div style="display:flex;gap:8px">'+
+        '<button onclick="confirmMapExisting(\''+unknownName.replace(/'/g,"\\'")+'\')" style="flex:1;background:var(--gold);border:none;border-radius:8px;padding:10px;font-size:14px;font-weight:700;color:#1a1208;cursor:pointer;font-family:inherit">매칭 적용</button>'+
+        '<button onclick="checkNewProducts()" style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:14px;color:var(--text2);cursor:pointer;font-family:inherit">뒤로</button>'+
+      '</div>'+
+    '</div>';
+}
+
+function confirmMapExisting(unknownName){
+  var sel = document.getElementById('map-existing-select');
+  if(!sel||!sel.value) return;
+  var targetProd = gp(sel.value);
+  if(!targetProd){ showToast('❌ 제품을 찾을 수 없어요'); return; }
+  // 해당 상품명의 모든 미매칭 판매 데이터를 기존 제품에 매칭
+  var count = 0;
+  D.salesData.forEach(function(s){
+    if(!s.productId && s.itemName && s.itemName.trim() === unknownName){
+      s.productId = targetProd.id;
+      s.itemName = targetProd.name;
+      count++;
+    }
+  });
+  save();
+  showToast('✅ '+count+'건을 "'+targetProd.name+'"에 매칭 완료');
+  closeModal('new-product-modal');
+  renderAll();
 }

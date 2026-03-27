@@ -324,7 +324,7 @@
       <!-- 서브탭 -->
       <div style="display:flex;background:var(--bg3);border-radius:10px;padding:3px;margin-bottom:14px;gap:3px">
         <button id="vm-sub-status" onclick="switchVmSub('status')" style="flex:1;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;background:var(--gold);color:#1a1208;font-family:inherit">🏪 자판기 현황</button>
-        <button id="vm-sub-products" onclick="switchVmSub('products')" style="flex:1;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--text2);font-family:inherit">🏷️ 제품 등록</button>
+        <button id="vm-sub-products" onclick="switchVmSub('products')" style="flex:1;border:none;border-radius:8px;padding:9px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--text2);font-family:inherit">🏷️ 제품 관리</button>
       </div>
 
       <!-- 자판기 현황 서브패널 -->
@@ -345,8 +345,17 @@
         </div>
       </div>
 
-      <!-- 제품 등록 서브패널 -->
+      <!-- 제품 관리 서브패널 -->
       <div id="vm-panel-products" style="display:none">
+        <!-- 자판기 네비게이터 (제품 관리용) -->
+        <div id="pm-machine-nav" style="display:none;align-items:center;justify-content:space-between;background:var(--bg3);border-radius:10px;padding:8px 12px;margin-bottom:10px">
+          <button onclick="navProdMachine(-1)" style="background:none;border:1px solid var(--border);border-radius:6px;padding:4px 10px;color:var(--text2);cursor:pointer;font-size:14px">‹</button>
+          <div style="text-align:center">
+            <div id="pm-machine-name" style="font-size:13px;font-weight:700;color:var(--gold)"></div>
+            <div id="pm-machine-devno" style="font-size:11px;color:var(--text3)"></div>
+          </div>
+          <button onclick="navProdMachine(1)" style="background:none;border:1px solid var(--border);border-radius:6px;padding:4px 10px;color:var(--text2);cursor:pointer;font-size:14px">›</button>
+        </div>
         <div style="display:flex;gap:8px;margin-bottom:16px">
           <button class="btn-p" style="margin-bottom:0;flex:1" onclick="openProductModal()">➕ 제품 등록</button>
           <button class="btn-p" style="margin-bottom:0;width:80px;background:var(--bg3);color:var(--text2)" id="edit-mode-btn" onclick="toggleEditMode()">✏️ 편집</button>
@@ -632,6 +641,18 @@
   </div>
 </div>
 
+<!-- 신규 상품 감지 모달 -->
+<div class="modal-bg" id="new-product-modal">
+  <div class="modal">
+    <div class="mh"><div class="mt">🆕 신규 상품 감지</div><button class="mc" onclick="closeModal('new-product-modal')">✕</button></div>
+    <div style="background:rgba(232,184,109,.1);border:1px solid rgba(232,184,109,.3);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:13px;color:var(--text2)">
+      매출 데이터에서 등록되지 않은 상품명이 발견됐어요.
+    </div>
+    <div id="new-prod-list" style="max-height:400px;overflow-y:auto"></div>
+    <button class="btn-p" style="margin-bottom:0;margin-top:12px" onclick="closeModal('new-product-modal')">확인</button>
+  </div>
+</div>
+
 <!-- 쿠팡 상품 검색 모달 -->
 <div class="modal-bg" id="coupang-search-modal">
   <div class="modal">
@@ -814,7 +835,7 @@
   <div class="modal">
     <div class="mh"><div class="mt" id="prod-modal-title">제품 등록</div><button class="mc" onclick="closeModal('prod-modal')">✕</button></div>
     <input type="hidden" id="p-eid"/>
-    <div class="fr"><label class="lbl">제품명</label><input type="text" id="p-name" placeholder="제품명 입력"/></div>
+    <div class="fr"><label class="lbl">제품명 <span style="color:var(--text3);font-weight:400;font-size:11px">· VMMS 상품명과 동일하게 입력</span></label><input type="text" id="p-name" placeholder="VMMS에 등록된 상품명과 동일하게 입력"/></div>
     <div class="f2">
       <div><label class="lbl">구매가 (원)</label><input type="number" id="p-buy" placeholder="총 구매금액" oninput="calcProduct()"/></div>
       <div><label class="lbl">초기 총수량 (개)</label><input type="number" id="p-total" placeholder="현재 재고 수량" oninput="calcProduct()"/></div>

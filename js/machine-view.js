@@ -165,30 +165,14 @@ function renderMachineView(mc, prods, inv){
   // overflow 방지 wrapper
   html+='<div style="overflow:hidden;width:100%">';
 
-  // 공통 헤더 0~7
-  html+='<div style="display:flex;align-items:center;margin-bottom:3px">';
-  html+='<div style="width:28px;flex-shrink:0"></div>';
-  html+='<div style="flex:1;min-width:0;display:grid;grid-template-columns:'+GRID+';gap:2px">';
-  for(var h=0;h<TOTAL_SLOTS;h++){
-    html+='<div style="text-align:center;font-size:9px;color:var(--text3);font-weight:700;min-width:0">'+h+'</div>';
-  }
-  html+='</div></div>';
-
   floors.forEach(function(floor){
     var floorSlots=allSlots.filter(function(s){return s.floor===floor;});
 
-    html+='<div style="display:flex;align-items:stretch;margin-bottom:3px">';
-    // 층 라벨
-    html+='<div style="width:28px;flex-shrink:0;display:flex;align-items:center;justify-content:center">';
-    html+='<div style="background:rgba(232,184,109,.2);border:1px solid rgba(232,184,109,.4);border-radius:4px;padding:1px 3px;font-size:9px;font-weight:700;color:var(--gold);white-space:nowrap">'+floor+'F</div>';
-    html+='</div>';
-
-    // 셀 그리드 — 항상 8칸 균등 (1칸=1fr)
-    html+='<div style="flex:1;min-width:0;display:grid;grid-template-columns:'+GRID+';gap:2px">';
+    html+='<div style="display:grid;grid-template-columns:'+GRID+';gap:2px;margin-bottom:3px">';
 
     var skipSlots={};
     for(var s=0;s<TOTAL_SLOTS;s++){
-      if(skipSlots[s]) continue; // span이 이미 차지
+      if(skipSlots[s]) continue;
 
       var entry=floorSlots.find(function(x){return x.slot===s;});
       var p=entry?entry.prod:null;
@@ -196,29 +180,21 @@ function renderMachineView(mc, prods, inv){
       var q=p?getQLocal(p.id):0;
       var cl=!p?'':q<=5?' ls':' hp';
 
-      // span 설정
       var spanStyle='';
       if(span>1){
         spanStyle='grid-column:span '+span+';';
         for(var sk=s+1;sk<s+span;sk++) skipSlots[sk]=true;
       }
 
-      var cellH = p ? '52px' : '36px';
+      var colLabel = entry ? entry.label : floor+String(s);
+      var cellH = p ? '44px' : '36px';
       var clickAttr = p ? ' onclick="openProdDetail(this.dataset.pid)" data-pid="'+p.id+'" ' : ' ';
       html+='<div class="vmc'+cl+'"'+clickAttr+'style="min-height:'+cellH+';min-width:0;overflow:hidden;'+(p?'cursor:pointer;':'')+spanStyle+(p?'':';opacity:0.3')+'">';
-      html+='<span style="position:absolute;top:1px;left:2px;font-size:6px;color:var(--text3);line-height:1">'+(entry?entry.label:floor+String(s))+'</span>';
-      if(p){
-        html+='<div style="font-size:11px;line-height:1;margin-bottom:1px">🥤</div>';
-        var maxLen = span>=2 ? 8 : 4;
-        var nm = p.name.length>maxLen ? p.name.slice(0,maxLen)+'…' : p.name;
-        html+='<div style="font-size:6px;font-weight:700;line-height:1.2;text-align:center;overflow:hidden;width:100%;padding:0 1px">'+nm+'</div>';
-        html+='<div style="font-size:8px;font-weight:700;color:'+(q<=5?'var(--red)':'var(--green)')+'">'+q+'개</div>';
-      } else {
-        html+='<div style="font-size:9px">□</div>';
-      }
+      // 컬럼 번호만 내부에 표시
+      html+='<div style="font-size:11px;font-weight:700;color:'+(p?(q<=5?'var(--red)':'var(--text)'):'var(--text3)')+'">'+colLabel+'</div>';
       html+='</div>';
     }
-    html+='</div></div>';
+    html+='</div>';
   });
 
   html+='</div>'; // overflow wrapper 닫기

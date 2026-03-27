@@ -259,9 +259,13 @@ function _doRenderSalesStats(machineDataList, range, panel){
   // 필터 UI
   html += '<div style="padding:10px 14px;background:var(--bg3);border-bottom:1px solid var(--border)">';
   html += '<div style="display:flex;gap:6px;margin-bottom:8px;align-items:center">';
-  html += '<input type="time" id="sdf-time-from" placeholder="시작" style="flex:1;font-size:13px;padding:8px"/>';
+  html += '<select id="sdf-time-from" style="flex:1;font-size:13px;padding:8px"><option value="">시작 시간</option>';
+  for(var th=0;th<24;th++) for(var tm=0;tm<60;tm+=10){ var tv=(th<10?'0'+th:th)+':'+(tm<10?'0'+tm:tm); html+='<option value="'+tv+'">'+tv+'</option>'; }
+  html += '</select>';
   html += '<span style="color:var(--text3);font-size:12px">~</span>';
-  html += '<input type="time" id="sdf-time-to" placeholder="종료" style="flex:1;font-size:13px;padding:8px"/>';
+  html += '<select id="sdf-time-to" style="flex:1;font-size:13px;padding:8px"><option value="">종료 시간</option>';
+  for(var th2=0;th2<24;th2++) for(var tm2=0;tm2<60;tm2+=10){ var tv2=(th2<10?'0'+th2:th2)+':'+(tm2<10?'0'+tm2:tm2); html+='<option value="'+tv2+'">'+tv2+'</option>'; }
+  html += '</select>';
   html += '</div>';
   html += '<div style="display:flex;gap:6px;align-items:center">';
   html += '<input type="text" id="sdf-name" placeholder="제품명 검색" style="flex:1;font-size:13px;padding:8px"/>';
@@ -417,25 +421,23 @@ function nameMatch(p, itemName){
   return pn === it || pn.indexOf(it) >= 0 || it.indexOf(pn) >= 0;
 }
 
-// 상품명 + 컬럼 복합 매칭
-// 1순위: 상품명 일치 + 컬럼 일치
-// 2순위: 상품명만 일치
-// 3순위: 컬럼만 일치 (fallback)
+// 상품명 기준 매칭 (컬럼은 배치 표시용으로만 사용)
+// 1순위: 상품명 정확 일치
+// 2순위: 상품명 포함 매칭
+// 3순위: 컬럼 매칭 (호환성 폴백)
 function findProduct(colStr, itemName, prods){
   prods = prods || D.products;
   var col = String(colStr||'').trim();
 
-  // 1순위: 상품명 + 컬럼 둘 다 일치
-  if(itemName && col){
-    var both = prods.find(function(p){ return nameMatch(p, itemName) && colMatch(p, col); });
-    if(both) return both;
-  }
-  // 2순위: 상품명만 일치
   if(itemName){
+    // 1순위: 상품명 정확 일치
+    var exact = prods.find(function(p){ return (p.name||'').trim() === itemName.trim(); });
+    if(exact) return exact;
+    // 2순위: 상품명 포함 매칭
     var byName = prods.find(function(p){ return nameMatch(p, itemName); });
     if(byName) return byName;
   }
-  // 3순위: 컬럼만 일치
+  // 3순위: 컬럼 매칭 (호환성 폴백)
   if(col){
     var byCol = prods.find(function(p){ return colMatch(p, col); });
     if(byCol) return byCol;

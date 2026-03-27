@@ -65,7 +65,7 @@ function switchVmSub(sub){
   btnP.style.color      = isStatus ? 'var(--text2)' : '#1a1208';
   btnP.style.fontWeight = isStatus ? '600' : '700';
   if(isStatus) renderMachine();
-  else renderProds();
+  else { if(typeof initProdMachineNav==='function') initProdMachineNav(); renderProds(); }
 }
 
 function checkMigrationV2(){

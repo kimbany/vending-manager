@@ -298,6 +298,8 @@ function fetchTodaySales(isAuto){
           localStorage.setItem('lastAutoCollect', today+' '+new Date().toTimeString().slice(0,5));
           updateAutoCollectStatus();
           renderAll();
+          // 신규 상품 감지
+          if(typeof checkNewProducts === 'function') setTimeout(checkNewProducts, 500);
         } else {
           if(!isAuto) showToast(dup>0?'이미 모두 반영된 데이터예요 ('+dup+'건 중복)':'📭 새 데이터가 없어요');
         }
