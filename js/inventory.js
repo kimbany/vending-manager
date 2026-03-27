@@ -121,30 +121,26 @@ function renderInv(){
       return;
     }
     var locs = snap.val();
-    var promises = [];
+    var machineDataList = [];
     Object.keys(locs).forEach(function(locId){
       var loc = locs[locId];
       Object.keys(loc.machines||{}).forEach(function(mid){
         var m = loc.machines[mid];
-        promises.push(
-          db.ref('users/'+currentUser.uid+'/locations/'+locId+'/machines/'+mid+'/appData').once('value').then(function(ds){
-            var val = ds.val()||{};
-            var prods = val.products||[];
-            if(!Array.isArray(prods)) prods = Object.values(prods);
-            prods = prods.filter(function(p){ return p && p.name; });
-            return {locId:locId, machineId:mid, locName:loc.name, machineName:m.name, products:prods, inventory:val.inventory||[], isCurrent:(locId===currentLocationId && mid===currentMachineId)};
-          })
-        );
+        var appData = m.appData||{};
+        var prods = appData.products||[];
+        if(!Array.isArray(prods)) prods = Object.values(prods);
+        prods = prods.filter(function(p){ return p && p.name; });
+        var inv = appData.inventory||[];
+        if(!Array.isArray(inv)) inv = Object.values(inv);
+        machineDataList.push({locId:locId, machineId:mid, locName:loc.name, machineName:m.name, products:prods, inventory:inv, isCurrent:(locId===currentLocationId && mid===currentMachineId)});
       });
     });
-    Promise.all(promises).then(function(machineDataList){
-      if(machineDataList.length <= 1){
-        var md = machineDataList[0]||{products:D.products, inventory:D.inventory};
-        _renderInvSingle(md.products, md.inventory, md.machineName||'');
-      } else {
-        _renderInvMulti(machineDataList);
-      }
-    });
+    if(machineDataList.length <= 1){
+      var md = machineDataList[0]||{products:D.products, inventory:D.inventory};
+      _renderInvSingle(md.products, md.inventory, md.machineName||'');
+    } else {
+      _renderInvMulti(machineDataList);
+    }
   });
 }
 
