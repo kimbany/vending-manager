@@ -54,32 +54,27 @@ function renderProds(){
       return;
     }
     var locs = snap.val();
-    var promises = [];
+    var machineDataList = [];
     Object.keys(locs).forEach(function(locId){
       var loc = locs[locId];
       Object.keys(loc.machines||{}).forEach(function(mid){
         var m = loc.machines[mid];
         var devnos = Array.isArray(m.deviceNos)?m.deviceNos:(m.deviceNo?[m.deviceNo]:[]);
-        promises.push(
-          db.ref('users/'+currentUser.uid+'/locations/'+locId+'/machines/'+mid+'/appData/products').once('value').then(function(ps){
-            var prods = ps.val()||[];
-            if(!Array.isArray(prods)) prods = Object.values(prods);
-            // null/undefined/이름없는 유효하지 않은 항목 필터링
-            prods = prods.filter(function(p){ return p && p.name; });
-            return {locId:locId, machineId:mid, locName:loc.name, machineName:m.name, devno:devnos[0]||'', products:prods, isCurrent:(locId===currentLocationId && mid===currentMachineId)};
-          })
-        );
+        // 스냅샷에서 직접 제품 데이터 가져오기
+        var appData = m.appData||{};
+        var prods = appData.products||[];
+        if(!Array.isArray(prods)) prods = Object.values(prods);
+        prods = prods.filter(function(p){ return p && p.name; });
+        machineDataList.push({locId:locId, machineId:mid, locName:loc.name, machineName:m.name, devno:devnos[0]||'', products:prods, isCurrent:(locId===currentLocationId && mid===currentMachineId)});
       });
     });
-    Promise.all(promises).then(function(machineDataList){
-      var totalProds = 0;
-      machineDataList.forEach(function(md){ totalProds += md.products.length; });
-      if(machineDataList.length <= 1){
-        _renderProdsFromList(machineDataList[0]?machineDataList[0].products:D.products);
-      } else {
-        _renderProdsMulti(machineDataList, totalProds);
-      }
-    });
+    var totalProds = 0;
+    machineDataList.forEach(function(md){ totalProds += md.products.length; });
+    if(machineDataList.length <= 1){
+      _renderProdsFromList(machineDataList[0]?machineDataList[0].products:D.products);
+    } else {
+      _renderProdsMulti(machineDataList, totalProds);
+    }
   });
 }
 
