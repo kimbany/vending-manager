@@ -259,12 +259,20 @@ function _doRenderSalesStats(machineDataList, range, panel){
   // 필터 UI
   html += '<div style="padding:10px 14px;background:var(--bg3);border-bottom:1px solid var(--border)">';
   html += '<div style="display:flex;gap:6px;margin-bottom:8px;align-items:center">';
-  html += '<select id="sdf-time-from" style="flex:1;font-size:13px;padding:8px"><option value="">시작 시간</option>';
-  for(var th=0;th<24;th++) for(var tm=0;tm<60;tm+=10){ var tv=(th<10?'0'+th:th)+':'+(tm<10?'0'+tm:tm); html+='<option value="'+tv+'">'+tv+'</option>'; }
+  // 시작 시간 (시 + 분)
+  html += '<select id="sdf-hour-from" style="flex:1;font-size:13px;padding:8px"><option value="">시</option>';
+  for(var hf=0;hf<24;hf++) html+='<option value="'+hf+'">'+(hf<10?'0'+hf:hf)+'시</option>';
+  html += '</select>';
+  html += '<select id="sdf-min-from" style="width:70px;font-size:13px;padding:8px"><option value="">분</option>';
+  for(var mf=0;mf<60;mf+=10) html+='<option value="'+mf+'">'+(mf<10?'0'+mf:mf)+'분</option>';
   html += '</select>';
   html += '<span style="color:var(--text3);font-size:12px">~</span>';
-  html += '<select id="sdf-time-to" style="flex:1;font-size:13px;padding:8px"><option value="">종료 시간</option>';
-  for(var th2=0;th2<24;th2++) for(var tm2=0;tm2<60;tm2+=10){ var tv2=(th2<10?'0'+th2:th2)+':'+(tm2<10?'0'+tm2:tm2); html+='<option value="'+tv2+'">'+tv2+'</option>'; }
+  // 종료 시간 (시 + 분)
+  html += '<select id="sdf-hour-to" style="flex:1;font-size:13px;padding:8px"><option value="">시</option>';
+  for(var ht=0;ht<24;ht++) html+='<option value="'+ht+'">'+(ht<10?'0'+ht:ht)+'시</option>';
+  html += '</select>';
+  html += '<select id="sdf-min-to" style="width:70px;font-size:13px;padding:8px"><option value="">분</option>';
+  for(var mt=0;mt<60;mt+=10) html+='<option value="'+mt+'">'+(mt<10?'0'+mt:mt)+'분</option>';
   html += '</select>';
   html += '</div>';
   html += '<div style="display:flex;gap:6px;align-items:center">';
@@ -492,23 +500,23 @@ function renderSalesDetailItems(sorted){
 
 function filterSalesDetail(){
   var sorted = window._salesDetailSorted || [];
-  var timeFrom = document.getElementById('sdf-time-from').value;
-  var timeTo = document.getElementById('sdf-time-to').value;
+  var hourFrom = document.getElementById('sdf-hour-from').value;
+  var minFrom = document.getElementById('sdf-min-from').value;
+  var hourTo = document.getElementById('sdf-hour-to').value;
+  var minTo = document.getElementById('sdf-min-to').value;
   var nameFilter = (document.getElementById('sdf-name').value||'').trim().toLowerCase();
 
   var filtered = sorted.filter(function(s){
     // 시간 필터
-    if(timeFrom && s.hour>=0){
-      var fromH = parseInt(timeFrom.split(':')[0])||0;
-      var fromM = parseInt(timeFrom.split(':')[1])||0;
+    if(hourFrom !== '' && s.hour>=0){
+      var fromTotal = parseInt(hourFrom)*60 + (minFrom!==''?parseInt(minFrom):0);
       var sMin = s.hour*60 + (s.minute>=0?s.minute:0);
-      if(sMin < fromH*60+fromM) return false;
+      if(sMin < fromTotal) return false;
     }
-    if(timeTo && s.hour>=0){
-      var toH = parseInt(timeTo.split(':')[0])||0;
-      var toM = parseInt(timeTo.split(':')[1])||0;
+    if(hourTo !== '' && s.hour>=0){
+      var toTotal = parseInt(hourTo)*60 + (minTo!==''?parseInt(minTo):50);
       var sMin2 = s.hour*60 + (s.minute>=0?s.minute:0);
-      if(sMin2 > toH*60+toM) return false;
+      if(sMin2 > toTotal) return false;
     }
     // 제품명 필터
     if(nameFilter){
