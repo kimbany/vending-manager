@@ -78,8 +78,12 @@ async def get_table_rows(page):
         for tr in tr_list:
             cells = await tr.locator('td').all()
             row = [(await cell.inner_text()).strip() for cell in cells]
-            if any(row):
-                rows.append(row)
+            # 최소 3개 이상의 셀이 있고, 날짜 형태의 값이 있는 행만 수집
+            if len(row) >= 3 and any(row):
+                # "데이터가 없습니다" 같은 안내 행 제외
+                joined = ''.join(row)
+                if '데이터' not in joined and '없습니다' not in joined:
+                    rows.append(row)
     except Exception as e:
         print(f"  테이블 수집 오류: {e}")
     return rows
@@ -220,6 +224,37 @@ async def crawl_for_user(vmms_id, vmms_pw, save_path):
             await page.wait_for_load_state("networkidle")
             await page.wait_for_timeout(2000)
 
+            # 5-0. 페이지당 표시 건수를 최대로 변경 (select box가 있는 경우)
+            try:
+                # 일반적인 페이지 사이즈 셀렉트 박스 찾기
+                page_size_selectors = [
+                    'select[name*="length"]',
+                    'select[name*="pageSize"]',
+                    'select[name*="size"]',
+                    'select.page-size',
+                    '#main select',
+                    '.dataTables_length select'
+                ]
+                for sel in page_size_selectors:
+                    select_el = page.locator(sel)
+                    if await select_el.count() > 0:
+                        # 가장 큰 값 선택 (보통 50, 100, 전체 등)
+                        options = await select_el.locator('option').all()
+                        max_val = None
+                        for opt in options:
+                            val = await opt.get_attribute('value')
+                            if val and val.isdigit():
+                                if max_val is None or int(val) > int(max_val):
+                                    max_val = val
+                        if max_val:
+                            await select_el.select_option(max_val)
+                            print(f"  [5-0] 페이지 사이즈 → {max_val}건")
+                            await page.wait_for_load_state("networkidle")
+                            await page.wait_for_timeout(1500)
+                        break
+            except Exception as e:
+                print(f"  [5-0] 페이지 사이즈 변경 실패 (무시): {e}")
+
             # 5-1. 디버깅: 조회 후 스크린샷 + 페이지 상태 확인
             safe_id = vmms_id[:3].replace('/', '_')
             await page.screenshot(path=f"after_search_{safe_id}.png")
@@ -268,6 +303,9 @@ async def crawl_for_user(vmms_id, vmms_pw, save_path):
                 print(f"  [7] {next_pg}페이지: {len(rows)}건 (누계: {len(all_rows)}건)")
 
             print(f"  총 {len(all_rows)}건 수집 완료")
+            # 디버깅: 각 행의 첫 3셀 출력
+            for i, r in enumerate(all_rows):
+                print(f"  row[{i}]: {r[:3] if len(r)>=3 else r}")
 
             # 8. Firebase 저장
             rtdb.reference(f'{save_path}/{today}').set({
