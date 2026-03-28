@@ -319,11 +319,14 @@ function saveProduct(){
     var msg=conflicts.map(function(c){return c.col+'번 ('+c.name+')';}).join(', ');
     if(!confirm('⚠️ 같은 자판기에 중복된 컬럼 위치가 있어요!\n\n'+msg+'\n\n이미 위 제품이 배정된 위치예요.\n그래도 저장할까요?')) return;
   }
-  // 중복 제품명 체크 (신규 등록 시만)
+  // 중복 제품 체크: 같은 단말기번호 + 같은 상품명 (신규 등록 시만)
   if(!eid){
-    var duplicate = D.products.find(function(p){ return p.name.trim() === name; });
+    var duplicate = D.products.find(function(p){
+      var sameDevice = !devno || !p.deviceNo || p.deviceNo === devno;
+      return p.name.trim() === name && sameDevice;
+    });
     if(duplicate){
-      if(!confirm('⚠️ "'+name+'" 제품이 이미 등록되어 있습니다.\n그래도 등록할까요?')) return;
+      if(!confirm('⚠️ 같은 자판기에 "'+name+'" 제품이 이미 등록되어 있습니다.\n그래도 등록할까요?')) return;
     }
   }
   var prod={id:eid||Date.now().toString(),name:name,buyPrice:buy,totalQty:total,unitPrice:unit,sellPrice:sell,marginAmt:ma,marginRate:mr,column:col,deviceNo:devno,discontinued:discontinuedVal};

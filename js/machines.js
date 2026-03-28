@@ -69,7 +69,7 @@ function addMachineRow(){
   var wrap=document.getElementById('al-machines-wrap');
   var div=document.createElement('div');
   div.className='al-machine-row';
-  div.style='background:var(--bg3);border-radius:10px;padding:10px;margin-bottom:8px';
+  div.style='background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px';
   var vtypeOpts='<option value="">종류 선택</option><option value="멀티자판기">멀티자판기</option><option value="음료자판기">음료자판기</option><option value="아이스크림자판기">아이스크림자판기</option><option value="과자자판기">과자자판기</option><option value="컵라면자판기">컵라면자판기</option><option value="기타">기타</option>';
   div.innerHTML=
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
@@ -81,10 +81,8 @@ function addMachineRow(){
       '<div><label class="lbl">자판기 종류</label><select class="al-vtype" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-size:13px;font-family:inherit">'+vtypeOpts+'</select></div>'+
     '</div>'+
     '<div class="fr" style="margin-bottom:8px"><label class="lbl">자판기 모델명</label><input type="text" placeholder="예: LM-5000, VM-300 등" class="al-model"/></div>'+
-    '<div class="f2" style="margin-bottom:0">'+
-      '<div><label class="lbl">계약 시작</label><input type="date" class="al-start"/></div>'+
-      '<div><label class="lbl">계약 종료</label><input type="date" class="al-end"/></div>'+
-    '</div>';
+    '<div class="fr" style="margin-bottom:4px"><label class="lbl">계약 시작</label><input type="date" class="al-start"/></div>'+
+    '<div class="fr" style="margin-bottom:0"><label class="lbl">계약 종료</label><input type="date" class="al-end"/></div>';
   wrap.appendChild(div);
 }
 
@@ -122,16 +120,14 @@ function addLocation(){
     // 초기화
     var vtypeOpts='<option value="">종류 선택</option><option value="멀티자판기">멀티자판기</option><option value="음료자판기">음료자판기</option><option value="아이스크림자판기">아이스크림자판기</option><option value="과자자판기">과자자판기</option><option value="컵라면자판기">컵라면자판기</option><option value="기타">기타</option>';
     document.getElementById('al-machines-wrap').innerHTML=
-      '<div class="al-machine-row" style="background:var(--bg3);border-radius:10px;padding:10px;margin-bottom:8px">'+
+      '<div class="al-machine-row" style="background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px">'+
         '<div class="f2" style="margin-bottom:8px">'+
           '<div><label class="lbl">단말기 번호 *</label><input type="text" placeholder="예: 2000107965" class="al-devno"/></div>'+
           '<div><label class="lbl">자판기 종류 *</label><select class="al-vtype" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-size:13px;font-family:inherit">'+vtypeOpts+'</select></div>'+
         '</div>'+
         '<div class="fr" style="margin-bottom:8px"><label class="lbl">자판기 모델명</label><input type="text" placeholder="예: VM-3000" class="al-model"/></div>'+
-        '<div class="f2" style="margin-bottom:0">'+
-          '<div><label class="lbl">계약 시작</label><input type="date" class="al-start"/></div>'+
-          '<div><label class="lbl">계약 종료</label><input type="date" class="al-end"/></div>'+
-        '</div>'+
+        '<div class="fr" style="margin-bottom:4px"><label class="lbl">계약 시작</label><input type="date" class="al-start"/></div>'+
+        '<div class="fr" style="margin-bottom:0"><label class="lbl">계약 종료</label><input type="date" class="al-end"/></div>'+
       '</div>';
     showToast('✅ 위치 추가 완료');
     renderMachinesList();
@@ -161,7 +157,7 @@ function addEmDevnoField(){} // 하위호환
 function makeEmRowHtml(devno, vtype, model, start, end){
   var vtypeOpts = '<option value="">종류 선택</option><option value="멀티자판기">멀티자판기</option><option value="음료자판기">음료자판기</option><option value="아이스크림자판기">아이스크림자판기</option><option value="과자자판기">과자자판기</option><option value="컵라면자판기">컵라면자판기</option><option value="기타">기타</option>';
   vtypeOpts = vtypeOpts.replace('value="'+vtype+'"', 'value="'+vtype+'" selected');
-  return '<div class="em-machine-row" style="background:var(--bg3);border-radius:10px;padding:10px;margin-bottom:8px">'+
+  return '<div class="em-machine-row" style="background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px">'+
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
       '<div style="font-size:12px;font-weight:600;color:var(--text2)">단말기</div>'+
       '<button onclick="this.closest(\'.em-machine-row\').remove()" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:16px">✕</button>'+
@@ -171,10 +167,8 @@ function makeEmRowHtml(devno, vtype, model, start, end){
       '<div><label class="lbl">자판기 종류</label><select class="em-vtype" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-size:13px;font-family:inherit">'+vtypeOpts+'</select></div>'+
     '</div>'+
     '<div class="fr" style="margin-bottom:8px"><label class="lbl">자판기 모델명 <span style="font-size:11px;color:var(--text3);font-weight:400">(선택)</span></label><input type="text" value="'+(model||'')+'" class="em-model" placeholder="예: VM-3000"/></div>'+
-    '<div class="f2" style="margin-bottom:0">'+
-      '<div><label class="lbl">계약 시작</label><input type="date" value="'+(start||'')+'" class="em-start"/></div>'+
-      '<div><label class="lbl">계약 종료</label><input type="date" value="'+(end||'')+'" class="em-end"/></div>'+
-    '</div>'+
+    '<div class="fr" style="margin-bottom:4px"><label class="lbl">계약 시작</label><input type="date" value="'+(start||'')+'" class="em-start"/></div>'+
+    '<div class="fr" style="margin-bottom:0"><label class="lbl">계약 종료</label><input type="date" value="'+(end||'')+'" class="em-end"/></div>'+
   '</div>';
 }
 

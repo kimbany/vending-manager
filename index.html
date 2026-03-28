@@ -566,7 +566,7 @@
     <div class="fr"><label class="lbl">위치명 <span style="color:var(--red)">*</span></label><input type="text" id="al-locname" placeholder="예: 예일초등학교"/></div>
     <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px">🏪 단말기 등록 <span style="font-size:11px;font-weight:400;color:var(--text3)">(단말기번호마다 종류 지정)</span></div>
     <div id="al-machines-wrap">
-      <div class="al-machine-row" style="background:var(--bg3);border-radius:10px;padding:10px;margin-bottom:8px">
+      <div class="al-machine-row" style="background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px">
         <div class="f2" style="margin-bottom:8px">
           <div><label class="lbl">단말기 번호 <span style="color:var(--red)">*</span></label><input type="text" placeholder="예: 2000107965" class="al-devno"/></div>
           <div><label class="lbl">자판기 종류 <span style="color:var(--red)">*</span></label>
@@ -585,10 +585,8 @@
           <label class="lbl">자판기 모델명 <span style="font-size:11px;color:var(--text3);font-weight:400">(예: VM-3000, 선택)</span></label>
           <input type="text" placeholder="예: VM-3000" class="al-model"/>
         </div>
-        <div class="f2" style="margin-bottom:0">
-          <div><label class="lbl">계약 시작</label><input type="date" class="al-start"/></div>
-          <div><label class="lbl">계약 종료</label><input type="date" class="al-end"/></div>
-        </div>
+        <div class="fr" style="margin-bottom:4px"><label class="lbl">계약 시작</label><input type="date" class="al-start"/></div>
+        <div class="fr" style="margin-bottom:0"><label class="lbl">계약 종료</label><input type="date" class="al-end"/></div>
       </div>
     </div>
     <button onclick="addMachineRow()" style="width:100%;background:var(--bg3);border:1px dashed var(--border);border-radius:8px;padding:10px;color:var(--text2);font-size:13px;cursor:pointer;font-family:inherit;margin-bottom:12px">+ 단말기 추가</button>
