@@ -234,12 +234,13 @@ function fetchTodaySales(isAuto){
 
           var qtyMap = {};
           var machineAdded = 0;
+          var skipReasons = {header:0, noDate:0, noCol:0, cancel:0, dup:0};
 
           function findProd(colVal, name){ return findProduct(colVal, name, mProds); }
 
-          (rowsByMachine[key]||[]).forEach(function(row){
+          (rowsByMachine[key]||[]).forEach(function(row, ri){
             // 헤더 행 건너뛰기
-            if(String(row[colDate]||'').trim() === '거래일시') return;
+            if(String(row[colDate]||'').trim() === '거래일시'){ skipReasons.header++; return; }
             var dateRaw = String(row[colDate]||'').trim();
             var itemName = String(row[colItem]||'').trim();
             var colVal = String(row[colNum]||'').trim();
@@ -247,14 +248,15 @@ function fetchTodaySales(isAuto){
             var txId = colTxId>=0 ? String(row[colTxId]||'').trim() : '';
             var amt = colAmt>=0 ? (typeof row[colAmt]==='number' ? row[colAmt] : parseFloat(String(row[colAmt]||0).replace(/,/g,''))||0) : 0;
 
-            if(!dateRaw||!colVal) return;
-            if(state&&(state==='취소'||state==='취소완료'||state==='환불')) return;
+            if(!dateRaw){ skipReasons.noDate++; console.log('[스킵-날짜없음] row'+ri+':', JSON.stringify(row)); return; }
+            if(!colVal){ skipReasons.noCol++; console.log('[스킵-컬럼없음] row'+ri+':', JSON.stringify(row)); return; }
+            if(state&&(state==='취소'||state==='취소완료'||state==='환불')){ skipReasons.cancel++; return; }
 
             var dt = dateRaw.length>=19 ? dateRaw.slice(0,19) : dateRaw;
             var dupKey = dt+'|'+itemName.trim()+'|'+amt;
             if(existingKeysM[dupKey]){
               dup++;
-              console.log('[중복]', dupKey.slice(0,30));
+              skipReasons.dup++;
               return;
             }
             existingKeysM[dupKey]=true;
@@ -280,6 +282,7 @@ function fetchTodaySales(isAuto){
             mLogs.push({id:Date.now().toString()+Math.random(),productId:pid,delta:-qty,memo:'자동수집 차감 '+today,date:today});
           });
 
+          console.log('[수집결과-자판기] key:'+key+' 입력rows:'+((rowsByMachine[key]||[]).length)+' 추가:'+machineAdded+' 스킵:', JSON.stringify(skipReasons));
           var saveData={products:mProds,inventory:mInv,inventoryLogs:mLogs,salesData:mSales};
           if(isCurrentMachine){
             D.salesData=mSales; D.inventory=mInv; D.inventoryLogs=mLogs;
