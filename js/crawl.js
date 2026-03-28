@@ -184,16 +184,16 @@ function fetchTodaySales(isAuto){
       });
 
       // rows 내부 중복 체크 (크롤러 중복 수집 감지)
+      // 정확히 같은 행(모든 셀이 동일)만 중복으로 판단
       var globalSeen = {};
       Object.keys(rowsByMachine).forEach(function(k){
         var deduped = [];
         rowsByMachine[k].forEach(function(row){
           var dateRaw = String(row[colDate]||'').trim();
-          var itemName = String(row[colItem]||'').trim();
           if(!dateRaw) return;
-          var dt = dateRaw.length>=19 ? dateRaw.slice(0,19) : dateRaw;
-          var dk = dt+'|'+itemName;
-          if(globalSeen[dk]) return; // 전체 중복 제거
+          // 모든 셀을 합쳐서 정확한 중복키 생성
+          var dk = row.map(function(c){return String(c||'').trim();}).join('|');
+          if(globalSeen[dk]) return;
           globalSeen[dk] = true;
           deduped.push(row);
         });
