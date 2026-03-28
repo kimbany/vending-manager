@@ -75,15 +75,29 @@ async def get_table_rows(page):
     rows = []
     try:
         tr_list = await page.locator(f'xpath={XPATH_TABLE}//tbody//tr').all()
-        for tr in tr_list:
+        print(f"  [TR] tbody tr 개수: {len(tr_list)}")
+        for idx, tr in enumerate(tr_list):
+            # tr이 보이는지 확인
+            is_visible = await tr.is_visible()
             cells = await tr.locator('td').all()
             row = [(await cell.inner_text()).strip() for cell in cells]
-            # 최소 3개 이상의 셀이 있고, 날짜 형태의 값이 있는 행만 수집
-            if len(row) >= 3 and any(row):
-                # "데이터가 없습니다" 같은 안내 행 제외
-                joined = ''.join(row)
-                if '데이터' not in joined and '없습니다' not in joined:
-                    rows.append(row)
+
+            # 셀이 1개 이하이거나 완전히 비어있으면 스킵
+            if len(cells) <= 1:
+                print(f"  [TR] row[{idx}] 스킵 - 셀 {len(cells)}개")
+                continue
+            if not any(row):
+                print(f"  [TR] row[{idx}] 스킵 - 모든 셀 비어있음")
+                continue
+            # "데이터가 없습니다" 안내 행 제외
+            joined = ''.join(row)
+            if '데이터' in joined and '없습니다' in joined:
+                print(f"  [TR] row[{idx}] 스킵 - 안내 메시지")
+                continue
+
+            rows.append(row)
+            if not is_visible:
+                print(f"  [TR] row[{idx}] 수집 (hidden) - {row[:2]}")
     except Exception as e:
         print(f"  테이블 수집 오류: {e}")
     return rows
@@ -222,7 +236,7 @@ async def crawl_for_user(vmms_id, vmms_pw, save_path):
             print("  [5] 조회 버튼 클릭")
             await page.locator(f'xpath={XPATH_BTN_SEARCH}').click()
             await page.wait_for_load_state("networkidle")
-            await page.wait_for_timeout(2000)
+            await page.wait_for_timeout(3000)  # 테이블 로딩 충분히 대기
 
             # 5-0. 페이지당 표시 건수를 최대로 변경 (select box가 있는 경우)
             try:
