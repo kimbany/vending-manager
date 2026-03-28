@@ -692,7 +692,7 @@ function openProdDetail(el){
   html += '</div>';
 
   // 스펙 수정 버튼
-  html += '<button onclick="closeModal(\'prod-detail-modal\');editProd(\''+id+'\')" style="width:100%;background:linear-gradient(135deg,var(--blue),var(--gold2));border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit">✏️ 제품 수정</button>';
+  html += '<button onclick="closeModal(\'prod-detail-modal\');editProd(\''+id+'\')" style="width:100%;background:transparent;border:2px solid var(--blue);border-radius:10px;padding:12px;font-size:14px;font-weight:700;color:var(--blue);cursor:pointer;font-family:inherit">✏️ 제품 수정</button>';
 
   document.getElementById('pdm-title').textContent = p.name;
   document.getElementById('pdm-body').innerHTML = html;
