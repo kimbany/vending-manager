@@ -232,6 +232,35 @@ async def crawl_for_user(vmms_id, vmms_pw, save_path):
                         print(f"  [4] 날짜 확인 OK: {val}")
             await page.wait_for_timeout(300)
 
+            # 4-1. 상세조회 열고 전체 체크
+            print("  [4-1] 상세조회 필터 설정")
+            try:
+                # "상세조회 열기" 또는 "▼ 상세조회 열기" 버튼 찾기
+                detail_btns = await page.locator('text=/상세조회/').all()
+                for dbtn in detail_btns:
+                    if await dbtn.is_visible():
+                        await dbtn.click()
+                        await page.wait_for_timeout(800)
+                        print("  [4-1] 상세조회 패널 열기 완료")
+                        break
+
+                # 결제유형 + 거래상태 전체 체크박스 모두 선택
+                await page.evaluate('''() => {
+                    // 모든 체크박스를 찾아서 체크
+                    var checkboxes = document.querySelectorAll('input[type="checkbox"]');
+                    checkboxes.forEach(function(cb) {
+                        if (!cb.checked) {
+                            cb.checked = true;
+                            cb.dispatchEvent(new Event("change", {bubbles: true}));
+                            cb.dispatchEvent(new Event("click", {bubbles: true}));
+                        }
+                    });
+                }''')
+                await page.wait_for_timeout(500)
+                print("  [4-1] 모든 체크박스 선택 완료")
+            except Exception as e:
+                print(f"  [4-1] 상세조회 설정 실패 (무시): {e}")
+
             # 5. 조회
             print("  [5] 조회 버튼 클릭")
             await page.locator(f'xpath={XPATH_BTN_SEARCH}').click()
