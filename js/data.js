@@ -66,7 +66,7 @@ function save(){
 }
 
 // ─── 유틸 ─────────────────────────────────────────────────────────────────────
-function td(){ return new Date().toISOString().slice(0,10); }
+function td(){ var d=new Date(Date.now()+9*3600000); return d.toISOString().slice(0,10); }
 function fmt(n){ return (Number(n)||0).toLocaleString('ko-KR'); }
 function gq(pid){ var i=D.inventory.find(function(x){return x.productId===pid;}); return i?i.qty:0; }
 function gp(id){ return D.products.find(function(p){return p.id===id;}); }
