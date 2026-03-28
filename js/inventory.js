@@ -286,8 +286,7 @@ function _renderInvMulti(machineDataList){
       var q=getQ(p.id), lw=q<=lowThreshold;
       var cols=Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
       var colLabel=cols.length?cols.join(', '):'-';
-      var isCurrent = md.isCurrent;
-      var clickAttr = isCurrent ? ' onclick="openInvDetail(this.dataset.pid)" data-pid="'+p.id+'" style="cursor:pointer;' : ' style="';
+      var clickAttr = ' onclick="switchAndOpenInvDetail(\''+md.locId+'\',\''+md.machineId+'\',\''+p.id+'\')" style="cursor:pointer;';
       html += '<div class="item"'+clickAttr+(lw?'border-color:rgba(224,88,88,.3)':'')+'">'+
         '<div><div class="in">'+p.name+'</div><div class="is">컬럼: '+colLabel+' | 판매가: '+fmt(p.sellPrice)+'원</div></div>'+
         '<span class="badge '+(q===0?'br':lw?'bo':'bg')+'">'+q+'개</span></div>';
@@ -371,6 +370,22 @@ function openInvDetail(el){
   setIdmDir('plus');
   renderIdmDetail();
   openModal('inv-detail-modal');
+}
+
+// 다른 자판기 제품 클릭 시: 해당 자판기로 전환 후 재고 상세 열기
+function switchAndOpenInvDetail(locId, machineId, pid){
+  var machineREF = db.ref('users/'+currentUser.uid+'/locations/'+locId+'/machines/'+machineId+'/appData');
+  machineREF.once('value').then(function(snap){
+    var val = snap.val()||{};
+    currentLocationId = locId;
+    currentMachineId = machineId;
+    REF = machineREF;
+    D.products = val.products||[];
+    D.inventory = val.inventory||[];
+    D.inventoryLogs = val.inventoryLogs||[];
+    D.salesData = val.salesData||[];
+    openInvDetail(pid);
+  });
 }
 
 function setIdmDir(d){
