@@ -25,16 +25,18 @@ function getSalesDateRange(){
   if(salesPeriod==='today') return {from:today, to:today};
   if(salesPeriod==='yesterday'){
     var yd = new Date(); yd.setDate(yd.getDate()-1);
-    var ydStr = yd.toISOString().slice(0,10);
+    var ydStr = yd.getFullYear()+'-'+('0'+(yd.getMonth()+1)).slice(-2)+'-'+('0'+yd.getDate()).slice(-2);
     return {from:ydStr, to:ydStr};
   }
   if(salesPeriod==='week'){
     var d = new Date(); d.setDate(d.getDate()-6);
-    return {from:d.toISOString().slice(0,10), to:today};
+    var dStr = d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);
+    return {from:dStr, to:today};
   }
   if(salesPeriod==='month'){
     var d2 = new Date(); d2.setDate(d2.getDate()-29);
-    return {from:d2.toISOString().slice(0,10), to:today};
+    var d2Str = d2.getFullYear()+'-'+('0'+(d2.getMonth()+1)).slice(-2)+'-'+('0'+d2.getDate()).slice(-2);
+    return {from:d2Str, to:today};
   }
   if(salesPeriod==='custom'){
     return {

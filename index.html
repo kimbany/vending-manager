@@ -451,15 +451,6 @@
       <!-- 자판기 관리 패널 -->
       <div id="set-panel-machines" style="display:none">
         <button class="btn-p" style="margin-bottom:8px" onclick="openModal('add-location-modal')">➕ 위치(구역) 추가</button>
-        <button class="btn-p" style="margin-bottom:14px;background:rgba(232,184,109,.15);color:var(--blue);border:1px solid rgba(232,184,109,.3)" onclick="openMigratePanel()">📦 기존 데이터 이전</button>
-        <div id="migrate-inline" style="display:none;background:rgba(232,184,109,.08);border:1px solid rgba(232,184,109,.25);border-radius:10px;padding:12px;margin-bottom:14px">
-          <div style="font-size:12px;color:var(--text2);margin-bottom:10px">기존 데이터를 특정 위치/자판기로 이전해요.</div>
-          <select id="migrate-target-inline" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:9px 10px;color:var(--text);font-size:13px;font-family:inherit;margin-bottom:10px">
-            <option value="">자판기 선택</option>
-          </select>
-          <button onclick="doMigrateInline()" style="width:100%;background:var(--blue);border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit">✅ 이전하기</button>
-          <div id="migrate-inline-msg" style="font-size:12px;margin-top:8px;text-align:center"></div>
-        </div>
         <div id="locations-list"></div>
       </div>
 
