@@ -85,21 +85,14 @@ input[type=date]{color-scheme:light;}
 #toast{position:fixed;top:70px;left:50%;transform:translateX(-50%);background:#E8F7EF;border:1px solid #A3E4C1;border-radius:12px;padding:10px 18px;font-size:16px;color:#00875A;z-index:300;display:none;white-space:nowrap;pointer-events:none;}
 #loading{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:999;flex-direction:column;gap:12px;}
 /* ─── 로딩 애니메이션 (3패널 겹침/펼침) ─── */
-.loading-logo{position:relative;width:70px;height:70px;}
-.ll-panel{position:absolute;width:30px;height:48px;border-radius:7px;top:50%;transform:translateY(-50%);}
-.ll-1{background:#B8D4F0;animation:ll-anim 1.4s ease-in-out infinite;}
-.ll-2{background:#4DA3F2;animation:ll-anim 1.4s ease-in-out infinite .15s;}
-.ll-3{background:#1A6DE0;animation:ll-anim 1.4s ease-in-out infinite .3s;}
-@keyframes ll-anim{
-  0%,100%{left:20px;opacity:.7;}
-  50%{opacity:1;}
-}
-.ll-1{animation-name:ll1;}
-.ll-2{animation-name:ll2;}
-.ll-3{animation-name:ll3;}
-@keyframes ll1{0%,100%{left:20px;opacity:.6;}50%{left:2px;opacity:.9;}}
-@keyframes ll2{0%,100%{left:20px;opacity:.7;}50%{left:20px;opacity:1;}}
-@keyframes ll3{0%,100%{left:20px;opacity:.8;}50%{left:38px;opacity:1;}}
+.loading-logo{position:relative;width:80px;height:80px;transform:skewY(-8deg);}
+.ll-panel{position:absolute;width:28px;height:50px;border-radius:8px;top:50%;transform:translateY(-50%);}
+.ll-1{background:#B8D8F8;animation:ll1 1.4s ease-in-out infinite;}
+.ll-2{background:#47A0F0;animation:ll2 1.4s ease-in-out infinite .12s;}
+.ll-3{background:#1B6FE0;animation:ll3 1.4s ease-in-out infinite .24s;}
+@keyframes ll1{0%,100%{left:26px;opacity:.5;}50%{left:4px;opacity:.85;}}
+@keyframes ll2{0%,100%{left:26px;opacity:.6;}50%{left:26px;opacity:.9;}}
+@keyframes ll3{0%,100%{left:26px;opacity:.7;}50%{left:48px;opacity:1;}}
 
 /* ─── 다크 모드 (토스 스타일) ─── */
 @media(prefers-color-scheme:dark){
