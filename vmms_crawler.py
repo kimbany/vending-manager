@@ -232,38 +232,90 @@ async def crawl_for_user(vmms_id, vmms_pw, save_path):
                         print(f"  [4] 날짜 확인 OK: {val}")
             await page.wait_for_timeout(300)
 
-            # 4-1. 상세조회 열고 전체 체크
+            # 4-1. 상세조회 열고 전체 체크 후 닫기
             print("  [4-1] 상세조회 필터 설정")
             try:
-                # "상세조회 열기" 또는 "▼ 상세조회 열기" 버튼 찾기
+                # "상세조회 열기" 버튼 찾기
+                detail_btn = None
                 detail_btns = await page.locator('text=/상세조회/').all()
                 for dbtn in detail_btns:
                     if await dbtn.is_visible():
+                        detail_btn = dbtn
                         await dbtn.click()
-                        await page.wait_for_timeout(800)
+                        await page.wait_for_timeout(1000)
                         print("  [4-1] 상세조회 패널 열기 완료")
                         break
 
                 # 결제유형 + 거래상태 전체 체크박스 모두 선택
                 await page.evaluate('''() => {
-                    // 모든 체크박스를 찾아서 체크
                     var checkboxes = document.querySelectorAll('input[type="checkbox"]');
                     checkboxes.forEach(function(cb) {
                         if (!cb.checked) {
                             cb.checked = true;
                             cb.dispatchEvent(new Event("change", {bubbles: true}));
-                            cb.dispatchEvent(new Event("click", {bubbles: true}));
                         }
                     });
                 }''')
                 await page.wait_for_timeout(500)
                 print("  [4-1] 모든 체크박스 선택 완료")
+
+                # 상세조회 패널 닫기 (조회 버튼이 가려지지 않도록)
+                close_btns = await page.locator('text=/상세조회 닫기/').all()
+                if not close_btns:
+                    close_btns = await page.locator('text=/닫기/').all()
+                if not close_btns and detail_btn:
+                    # 같은 버튼 다시 클릭 (토글)
+                    close_btns = [detail_btn]
+                for cbtn in close_btns:
+                    if await cbtn.is_visible():
+                        await cbtn.click()
+                        await page.wait_for_timeout(800)
+                        print("  [4-1] 상세조회 패널 닫기 완료")
+                        break
             except Exception as e:
                 print(f"  [4-1] 상세조회 설정 실패 (무시): {e}")
 
             # 5. 조회
             print("  [5] 조회 버튼 클릭")
-            await page.locator(f'xpath={XPATH_BTN_SEARCH}').click()
+            search_clicked = False
+            # 방법 1: 기존 XPath
+            try:
+                btn = page.locator(f'xpath={XPATH_BTN_SEARCH}')
+                if await btn.is_visible(timeout=3000):
+                    await btn.click()
+                    search_clicked = True
+                    print("  [5] 방법1 - 기존 XPath 클릭 OK")
+            except:
+                pass
+            # 방법 2: 텍스트로 찾기
+            if not search_clicked:
+                try:
+                    btn2 = page.locator('button:has-text("조회")').first
+                    if await btn2.is_visible(timeout=3000):
+                        await btn2.click()
+                        search_clicked = True
+                        print("  [5] 방법2 - 텍스트 '조회' 클릭 OK")
+                except:
+                    pass
+            # 방법 3: JavaScript 클릭
+            if not search_clicked:
+                try:
+                    await page.evaluate('''() => {
+                        var btns = document.querySelectorAll('button');
+                        for(var i=0;i<btns.length;i++){
+                            if(btns[i].textContent.trim().indexOf('조회')>=0 && btns[i].offsetParent !== null){
+                                btns[i].click();
+                                return true;
+                            }
+                        }
+                        return false;
+                    }''')
+                    search_clicked = True
+                    print("  [5] 방법3 - JS 클릭 OK")
+                except:
+                    pass
+            if not search_clicked:
+                print("  [5] 조회 버튼 클릭 실패!")
             await page.wait_for_load_state("networkidle")
             await page.wait_for_timeout(3000)  # 테이블 로딩 충분히 대기
 
