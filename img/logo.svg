@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
-  <!-- 왼쪽 패널 (연한 하늘) - 가장 뒤 -->
-  <rect x="28" y="40" width="72" height="105" rx="16" ry="16" fill="#B8D8FA" opacity="0.7"/>
-  <!-- 가운데 패널 (밝은 파랑) -->
-  <rect x="58" y="40" width="72" height="105" rx="16" ry="16" fill="#3BA0F6" opacity="0.85"/>
-  <!-- 오른쪽 패널 (진한 파랑) - 가장 앞 -->
-  <rect x="88" y="40" width="72" height="105" rx="16" ry="16" fill="#1B5FD6"/>
-</svg>

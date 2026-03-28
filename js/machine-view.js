@@ -161,7 +161,7 @@ function renderMachineView(mc, prods, inv){
   // span된 칸은 grid-column:span N 으로 처리
   var GRID = 'repeat('+TOTAL_SLOTS+',1fr)';
 
-  var html='<div class="vmh"><img src="img/logo.svg" style="width:18px;height:18px;vertical-align:middle;margin-right:6px"/>VENDING MACHINE</div>';
+  var html='<div class="vmh"><img src="img/logo.png" style="width:18px;height:18px;vertical-align:middle;margin-right:6px"/>VENDING MACHINE</div>';
   // overflow 방지 wrapper
   html+='<div style="overflow:hidden;width:100%">';
 
