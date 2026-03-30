@@ -424,7 +424,7 @@ async def crawl_for_user(vmms_id, vmms_pw, save_path):
             await browser.close()
 
 # ── 진입점 ────────────────────────────────────────────────────────────────────
-def main():
+async def main_async():
     init_firebase()
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] VMMS 크롤러 시작")
 
@@ -433,10 +433,10 @@ def main():
         for user in users:
             print(f"\n유저 {user['uid'][:8]}... 크롤링 시작")
             try:
-                count = asyncio.run(crawl_for_user(
+                count = await crawl_for_user(
                     user['id'], user['pw'],
                     f"users/{user['uid']}/crawledSales"
-                ))
+                )
                 print(f"  완료: {count}건")
             except Exception as e:
                 print(f"  실패: {e}")
@@ -444,14 +444,17 @@ def main():
         print("\nVMMS 개인 계정 없음 → 기본 계정 사용")
         if DEFAULT_ID and DEFAULT_PW:
             try:
-                count = asyncio.run(crawl_for_user(
+                count = await crawl_for_user(
                     DEFAULT_ID, DEFAULT_PW, "vendingApp/crawledSales"
-                ))
+                )
                 print(f"  완료: {count}건")
             except Exception as e:
                 print(f"  실패: {e}")
         else:
             print("  VMMS 계정 없음. 설정 > VMMS에서 계정을 등록해주세요.")
+
+def main():
+    asyncio.run(main_async())
 
 if __name__ == "__main__":
     main()
