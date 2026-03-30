@@ -255,7 +255,6 @@ function fetchTodaySales(isAuto){
             var amt = colAmt>=0 ? (typeof row[colAmt]==='number' ? row[colAmt] : parseFloat(String(row[colAmt]||0).replace(/,/g,''))||0) : 0;
 
             if(!dateRaw){ skipReasons.noDate++; console.log('[스킵-날짜없음] row'+ri+':', JSON.stringify(row)); return; }
-            if(!colVal){ skipReasons.noCol++; console.log('[스킵-컬럼없음] row'+ri+':', JSON.stringify(row)); return; }
             if(state&&(state==='취소'||state==='취소완료'||state==='환불')){ skipReasons.cancel++; return; }
 
             var dt = dateRaw.length>=19 ? dateRaw.slice(0,19) : dateRaw;
