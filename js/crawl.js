@@ -171,17 +171,23 @@ function fetchTodaySales(isAuto){
 
       // 행을 자판기별로 분류
       var rowsByMachine = {}; // key = locId+'|'+machineId
-      val.rows.forEach(function(row){
+      var noMatchCount = 0;
+      val.rows.forEach(function(row, ri){
         var rowMach = colMachine>=0 ? String(row[colMachine]||'').trim() : '';
         var rowCode = colMachineCode>=0 ? String(row[colMachineCode]||'').trim() : '';
         var rowCodeClean = rowCode.replace(/\(.*\)/, '').trim();
         // 단말기번호 D열 우선
         if(colDevno>=0 && row[colDevno]) rowCodeClean = String(row[colDevno]).trim();
         var key = machineByCode[rowCodeClean] || machineByCode[rowCode] || machineByName[rowMach] || (currentLocationId&&currentMachineId ? currentLocationId+'|'+currentMachineId : null);
-        if(!key) return;
+        if(!key){
+          noMatchCount++;
+          console.log('[매칭실패] row'+ri+' 단말기:'+rowCodeClean+' 이름:'+rowMach+' 항목:'+String(row[colItem]||'').trim());
+          return;
+        }
         if(!rowsByMachine[key]) rowsByMachine[key]=[];
         rowsByMachine[key].push(row);
       });
+      if(noMatchCount) console.log('[수집] 단말기 매칭 실패: '+noMatchCount+'건');
 
       // rows 내부 중복 체크 (크롤러 중복 수집 감지)
       // 정확히 같은 행(모든 셀이 동일)만 중복으로 판단
@@ -295,8 +301,8 @@ function fetchTodaySales(isAuto){
         if(btn){ btn.textContent='🔄 오늘 데이터 수집'; btn.disabled=false; } _fetchInProgress=false;
         if(added>0){
           var msg=(isAuto?'🤖 자동수집':'✅ 수집')+' '+added+'건 반영';
-          // 중복은 내부에서 자동 제거됨 - 토스트에 표시 안 함
-          console.log('[수집결과] 전체rows:'+(val.rows?val.rows.length:0)+' 반영:'+added+' 중복:'+dup);
+          if(dup>0) msg += ' (중복 '+dup+'건 제외)';
+          console.log('[수집결과] 전체rows:'+(val.rows?val.rows.length:0)+' 반영:'+added+' 중복:'+dup+' 매칭실패:'+noMatchCount);
           showToast(msg);
           localStorage.setItem('lastAutoCollect', today+' '+new Date().toTimeString().slice(0,5));
           updateAutoCollectStatus();
