@@ -299,9 +299,13 @@ function fetchTodaySales(isAuto){
 
       Promise.all(promises).then(function(){
         if(btn){ btn.textContent='🔄 오늘 데이터 수집'; btn.disabled=false; } _fetchInProgress=false;
-        if(added>0){
-          var msg=(isAuto?'🤖 자동수집':'✅ 수집')+' '+added+'건 반영';
-          if(dup>0) msg += ' (중복 '+dup+'건 제외)';
+        if(added>0 || dup>0 || noMatchCount>0){
+          var totalRows = val.rows ? val.rows.length : 0;
+          var details = [];
+          if(added>0) details.push('반영:'+added);
+          if(dup>0) details.push('중복:'+dup);
+          if(noMatchCount>0) details.push('미매칭:'+noMatchCount);
+          var msg=(isAuto?'🤖 자동수집':'✅ 수집완료')+' 원본 '+totalRows+'건 → '+details.join(' · ');
           console.log('[수집결과] 전체rows:'+(val.rows?val.rows.length:0)+' 반영:'+added+' 중복:'+dup+' 매칭실패:'+noMatchCount);
           showToast(msg);
           localStorage.setItem('lastAutoCollect', today+' '+new Date().toTimeString().slice(0,5));
