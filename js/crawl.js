@@ -92,6 +92,8 @@ function fetchTodaySales(isAuto){
     var colMachine = headers.indexOf('단말기명');
     var colMachineCode = headers.indexOf('머신기코드');
     var colDevno = headers.indexOf('단말기번호');
+    var colCancelDate = headers.indexOf('취소일');
+    if(colCancelDate<0) colCancelDate = headers.indexOf('취소일시');
 
     // 헤더가 실제 rows와 불일치하는 경우 rows 첫 행으로 재탐색
     if(val.rows && val.rows.length > 0){
@@ -255,7 +257,10 @@ function fetchTodaySales(isAuto){
             var amt = colAmt>=0 ? (typeof row[colAmt]==='number' ? row[colAmt] : parseFloat(String(row[colAmt]||0).replace(/,/g,''))||0) : 0;
 
             if(!dateRaw){ skipReasons.noDate++; console.log('[스킵-날짜없음] row'+ri+':', JSON.stringify(row)); return; }
-            if(state&&(state==='취소'||state==='취소완료'||state==='환불')){ skipReasons.cancel++; return; }
+            // 취소 판단: 상태 또는 취소일 기준
+            var cancelDateVal = colCancelDate>=0 ? String(row[colCancelDate]||'').trim() : '';
+            var isCancelled = (state&&(state==='취소'||state==='취소완료'||state==='환불')) || (cancelDateVal && cancelDateVal!=='-' && cancelDateVal!=='null');
+            if(isCancelled){ skipReasons.cancel++; return; }
 
             var dt = dateRaw.length>=19 ? dateRaw.slice(0,19) : dateRaw;
             var dupKey = dt+'|'+itemName.trim()+'|'+amt;
