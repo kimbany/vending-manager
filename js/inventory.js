@@ -417,7 +417,7 @@ function renderIdmDetail(){
     var delta = (typeof l.delta !== 'undefined') ? l.delta : (l.dir==='minus' ? -(l.qty||0) : (l.qty||0));
     var isSalesAuto = l.memo && (l.memo.indexOf('자동차감')>=0 || l.memo.indexOf('판매데이터')>=0 || l.memo.indexOf('환불')>=0);
     if(!isSalesAuto){
-      manualLogs.push({delta:delta, date:l.date||'', memo:l.memo||'', isSales:false, isManual:true});
+      manualLogs.push({delta:delta, date:l.date||'', memo:l.memo||'', isSales:false, isManual:true, isSet:l.type==='set', setQty:l.setQty});
     }
   });
 
@@ -464,6 +464,22 @@ function renderIdmDetail(){
     var absQty  = Math.abs(l.delta);
     var isSales = l.isSales;
     var isRefund= l.isRefund;
+    var isSet   = l.isSet;
+
+    // 재고설정은 별도 표시
+    if(isSet){
+      return '<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">'+
+        '<div style="min-width:36px;text-align:center">'+
+          '<span style="font-size:18px;font-weight:800;color:var(--blue)">'+(l.setQty||absQty)+'</span>'+
+        '</div>'+
+        '<div style="flex:1;min-width:0">'+
+          '<div style="font-size:11px;color:var(--text3)">'+l.date+'</div>'+
+          '<div style="font-size:12px;color:var(--blue);margin-top:1px;font-weight:600">'+l.memo+'</div>'+
+        '</div>'+
+        '<span style="font-size:10px;background:rgba(0,100,255,.1);color:var(--blue);border-radius:4px;padding:2px 7px;font-weight:600">재고설정</span>'+
+      '</div>';
+    }
+
     // 태그/색상 결정
     var tagLabel = isSales ? '판매차감' : isRefund ? '환불' : isPlus ? '입고' : '출고';
     var tagBg    = isSales ? 'rgba(224,88,88,.15)'   : isRefund ? 'rgba(122,218,154,.15)' : isPlus ? 'rgba(122,218,154,.15)' : 'var(--bg3)';
@@ -496,7 +512,7 @@ function submitIdmInventory(){
     var idx = D.inventory.findIndex(function(i){return i.productId===idmPid;});
     if(idx>=0) D.inventory[idx].qty = qty;
     else D.inventory.push({productId:idmPid, qty:qty});
-    D.inventoryLogs.push({id:Date.now().toString()+Math.random(), productId:idmPid, delta:delta, memo:memo||'재고 설정 ('+currentQty+'→'+qty+')', date:td()});
+    D.inventoryLogs.push({id:Date.now().toString()+Math.random(), productId:idmPid, delta:delta, type:'set', setQty:qty, memo:memo||'재고 설정 ('+currentQty+'→'+qty+')', date:td()});
     save();
     showToast('✅ 재고 '+qty+'개로 설정 완료');
   } else {
