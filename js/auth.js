@@ -65,14 +65,24 @@ function doLogin(){
   if(!uid||!pw){ msg.style.color='var(--red)'; msg.textContent='아이디와 비밀번호를 입력하세요'; return; }
   msg.style.color='var(--text2)'; msg.textContent='로그인 중...';
   // 아이디로 UID 조회 → UID로 이메일 조회 → 로그인
-  db.ref('usernames/' + uid).once('value').then(function(snap){
-    if(!snap.exists()){ msg.style.color='var(--red)'; msg.textContent='존재하지 않는 아이디예요'; return; }
-    var firebaseUid = snap.val();
-    return db.ref('users/' + firebaseUid + '/profile/email').once('value');
-  }).then(function(snap){
-    if(!snap || !snap.exists()){ msg.style.color='var(--red)'; msg.textContent='계정 정보를 찾을 수 없어요'; return; }
-    var email = snap.val();
-    return auth.signInWithEmailAndPassword(email, pw);
+  // usernames에서 이메일 직접 조회 (userEmails 경로 사용)
+  db.ref('userEmails/' + uid).once('value').then(function(snap){
+    if(snap.exists()){
+      var email = snap.val();
+      return auth.signInWithEmailAndPassword(email, pw);
+    }
+    // fallback: 기존 방식 (usernames → uid → profile/email)
+    return db.ref('usernames/' + uid).once('value').then(function(uidSnap){
+      if(!uidSnap.exists()){ msg.style.color='var(--red)'; msg.textContent='존재하지 않는 아이디예요'; return Promise.reject('no-user'); }
+      var firebaseUid = uidSnap.val();
+      return db.ref('users/' + firebaseUid + '/profile/email').once('value');
+    }).then(function(emailSnap){
+      if(!emailSnap || !emailSnap.exists()){ msg.style.color='var(--red)'; msg.textContent='계정 정보를 찾을 수 없어요'; return Promise.reject('no-email'); }
+      var email = emailSnap.val();
+      // userEmails에 캐시 저장 (다음부터 직접 조회)
+      db.ref('userEmails/' + uid).set(email);
+      return auth.signInWithEmailAndPassword(email, pw);
+    });
   }).catch(function(e){
     msg.style.color='var(--red)';
     if(e.code==='auth/wrong-password'||e.code==='auth/invalid-credential'||e.code==='auth/invalid-login-credentials')
@@ -255,6 +265,7 @@ function doSignup(){
     return Promise.all([
       db.ref('users/' + user.uid + '/profile').set(userInfo),
       db.ref('usernames/' + uid).set(user.uid),
+      db.ref('userEmails/' + uid).set(email),
       user.updateProfile({displayName: name}),
       user.sendEmailVerification()
     ]);
