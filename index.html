@@ -68,7 +68,7 @@
   <!-- 좌측: 기존 사이드 배너와 동일한 스타일 (PC에서만 표시) -->
   <div id="auth-left-panel" class="pc-side-banner left" style="z-index:0">
     <div class="side-content">
-      <div style="font-size:52px;margin-bottom:20px">🥤</div>
+      <img src="img/logo.png" style="width:104px;height:104px;margin-bottom:20px"/>
       <div class="side-logo">자판기 관리</div>
       <div class="side-slogan">스마트한<br/>자판기 운영의 시작</div>
       <div class="side-desc">매출 · 재고 · 자판기를<br/>한 곳에서 관리하세요</div>
@@ -228,21 +228,6 @@
   <div id="content">
     <!-- 홈 -->
     <div class="tab active" id="tab-home">
-      <!-- 기존 데이터 이전 안내 -->
-      <div id="migrate-banner" style="display:none;background:rgba(232,184,109,.1);border:1px solid rgba(232,184,109,.3);border-radius:12px;padding:14px;margin-bottom:14px">
-        <div style="font-size:13px;font-weight:700;color:var(--blue);margin-bottom:6px">📦 이전 데이터가 있어요!</div>
-        <div class="migrate-desc" style="font-size:12px;color:var(--text2);margin-bottom:10px">기존 데이터를 위치/자판기로 가져올 수 있어요.<br/>먼저 <b style="color:var(--blue)">설정 &gt; 자판기</b>에서 위치와 자판기를 추가해주세요.</div>
-        <div style="margin-bottom:10px">
-          <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:5px">이전 방향 선택</label>
-          <select id="migrate-target" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:9px 10px;color:var(--text);font-size:12px;font-family:inherit;">
-            <option value="">설정에서 자판기 추가 후 선택 가능</option>
-          </select>
-        </div>
-        <div style="display:flex;gap:8px">
-          <button onclick="migrateOldData()" style="flex:1;background:var(--blue);border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit">✅ 데이터 이전</button>
-          <button onclick="dismissMigrate()" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:12px;color:var(--text2);cursor:pointer;font-family:inherit">건너뛰기</button>
-        </div>
-      </div>
       <!-- 현재 자판기 재고 부족 -->
       <div class="card" style="margin-bottom:12px">
         <div class="ch"><div class="ca" style="background:var(--red)"></div><div><div class="ct">⚠️ 전체 자판기 재고 부족</div><div class="cs">설정 기준 이하 제품</div></div></div>

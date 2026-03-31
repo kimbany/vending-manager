@@ -52,9 +52,9 @@ function switchAuthTab(tab){
   var isLogin  = tab === 'login';
   var isSignup = tab === 'signup';
   document.getElementById('auth-tab-login').style.background  = isLogin  ? 'var(--blue)' : 'transparent';
-  document.getElementById('auth-tab-login').style.color       = isLogin  ? '#1a1208' : 'var(--text2)';
+  document.getElementById('auth-tab-login').style.color       = isLogin  ? '#fff' : 'var(--text2)';
   document.getElementById('auth-tab-signup').style.background = isSignup ? 'var(--blue)' : 'transparent';
-  document.getElementById('auth-tab-signup').style.color      = isSignup ? '#1a1208' : 'var(--text2)';
+  document.getElementById('auth-tab-signup').style.color      = isSignup ? '#fff' : 'var(--text2)';
 }
 
 // ─── 로그인 (아이디 → 이메일 조회 → Firebase 로그인) ─────────────────────────

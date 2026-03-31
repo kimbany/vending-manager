@@ -14,7 +14,6 @@ function startApp(){
   if('Notification' in window && Notification.permission === 'default'){
     Notification.requestPermission();
   }
-  checkMigrationV2();
   loadMachineDropdown();
   if(typeof loadLowStockThreshold === 'function') loadLowStockThreshold();
   if(typeof loadLowStockSetting === 'function') loadLowStockSetting();
