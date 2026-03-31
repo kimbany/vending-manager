@@ -84,11 +84,14 @@ function doLogin(){
       return auth.signInWithEmailAndPassword(email, pw);
     });
   }).catch(function(e){
+    if(e==='no-user'||e==='no-email') return; // 이미 메시지 표시됨
     msg.style.color='var(--red)';
     if(e.code==='auth/wrong-password'||e.code==='auth/invalid-credential'||e.code==='auth/invalid-login-credentials')
       msg.textContent='아이디 또는 비밀번호가 올바르지 않아요';
     else if(e.code==='auth/user-not-found')
       msg.textContent='등록되지 않은 계정이에요';
+    else if(e.code==='permission-denied'||e.code==='PERMISSION_DENIED'||(e.message&&e.message.indexOf('permission')>=0))
+      msg.textContent='계정 정보를 찾을 수 없어요. 잠시 후 다시 시도해주세요';
     else if(e.code==='auth/too-many-requests')
       msg.textContent='로그인 시도가 너무 많아요. 잠시 후 다시 시도해주세요';
     else msg.textContent = '로그인 실패. 다시 시도해주세요';

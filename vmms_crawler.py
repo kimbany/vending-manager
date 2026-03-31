@@ -424,9 +424,33 @@ async def crawl_for_user(vmms_id, vmms_pw, save_path):
             await browser.close()
 
 # ── 진입점 ────────────────────────────────────────────────────────────────────
+def migrate_user_emails():
+    """기존 계정의 username→email 매핑을 userEmails에 저장 (1회성 마이그레이션)"""
+    try:
+        users_data = rtdb.reference('users').get()
+        if not users_data:
+            return
+        count = 0
+        for uid, data in users_data.items():
+            if not isinstance(data, dict):
+                continue
+            profile = data.get('profile', {})
+            username = profile.get('username', '')
+            email = profile.get('email', '')
+            if username and email:
+                rtdb.reference(f'userEmails/{username}').set(email)
+                count += 1
+                print(f"  userEmails 등록: {username} → {email}")
+        print(f"  userEmails 마이그레이션 완료: {count}건")
+    except Exception as e:
+        print(f"  userEmails 마이그레이션 실패: {e}")
+
 async def main_async():
     init_firebase()
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] VMMS 크롤러 시작")
+
+    # userEmails 마이그레이션 (기존 계정 로그인 지원)
+    migrate_user_emails()
 
     users = get_all_user_vmms()
     if users:
