@@ -91,6 +91,9 @@ function parseCSVLine(line){
 function showBulkPreview(){
   var html = '';
   var okCount = 0, errCount = 0;
+  // CSV 내부 중복 체크용 맵
+  var csvNamesByDevno = {}; // {devno: [name1, name2, ...]}
+  var csvColsByDevno = {};  // {devno: [col1, col2, ...]}
   bulkRows.forEach(function(row){
     var name = row['제품명']||'';
     var buy = parseFloat(row['구매가'])||0;
@@ -104,14 +107,41 @@ function showBulkPreview(){
     if(!buy) errors.push('구매가 없음');
     if(!total) errors.push('총수량 없음');
     if(!sell) errors.push('판매가 없음');
+
+    // 1. DB 기존 제품명 중복 (같은 단말기 + 같은 이름)
+    var dbNameDup = D.products.find(function(p){
+      var sameDevice = !devno || !p.deviceNo || p.deviceNo === devno;
+      return p.name.trim() === name.trim() && sameDevice;
+    });
+    if(dbNameDup) errors.push('이미 등록된 제품명');
+
+    // 2. CSV 내부 제품명 중복 (같은 단말기 + 같은 이름)
+    var dk = devno+'|'+name.trim();
+    if(!csvNamesByDevno[dk]) csvNamesByDevno[dk] = 0;
+    csvNamesByDevno[dk]++;
+    if(csvNamesByDevno[dk] > 1) errors.push('CSV 내 제품명 중복');
+
+    // 3. DB 기존 컬럼 중복 (판매중단 제품 제외, 같은 단말기만)
     var dupConflicts = [];
     cols.forEach(function(c){
       D.products.forEach(function(p){
+        if(p.discontinued) return; // 판매중단 제외
+        if(devno && p.deviceNo && p.deviceNo !== devno) return; // 다른 단말기 제외
         var pCols = Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
         if(pCols.indexOf(c)>=0) dupConflicts.push(c+'번('+p.name+')');
       });
     });
     if(dupConflicts.length) errors.push('중복 컬럼: '+dupConflicts.join(', '));
+
+    // 4. CSV 내부 컬럼 중복 (같은 단말기)
+    var csvColDups = [];
+    cols.forEach(function(c){
+      var ck = devno+'|'+c;
+      if(!csvColsByDevno[ck]) csvColsByDevno[ck] = 0;
+      csvColsByDevno[ck]++;
+      if(csvColsByDevno[ck] > 1) csvColDups.push(c+'번');
+    });
+    if(csvColDups.length) errors.push('CSV 내 컬럼 중복: '+csvColDups.join(', '));
     var hasErr = errors.length > 0;
     if(hasErr) errCount++; else okCount++;
     var unit = total>0?Math.round(buy/total):0;
