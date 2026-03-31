@@ -304,15 +304,12 @@ function loadProfileForEdit(){
       ['아이디', p.username||'-'],
       ['이메일', p.email||currentUser.email||'-'],
       ['연락처', p.phone||'-'],
-      ['생년월일', p.birth||'-'],
       ['가입일', p.createdAt ? p.createdAt.slice(0,10) : '-']
     ].map(function(row){
       return '<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px">'+
         '<span style="color:var(--text2)">'+row[0]+'</span>'+
         '<span style="font-weight:600">'+row[1]+'</span></div>';
     }).join('');
-    // 생년월일 드롭다운 초기화
-    initEpBirthSelects(p.birth||'');
   });
 }
 
@@ -332,15 +329,10 @@ function initEpBirthSelects(current){
 function saveProfile(){
   var email = document.getElementById('ep-email').value.trim();
   var phone = document.getElementById('ep-phone').value.trim();
-  var y = document.getElementById('ep-birth-y') ? document.getElementById('ep-birth-y').value : '';
-  var m = document.getElementById('ep-birth-m') ? document.getElementById('ep-birth-m').value : '';
-  var d = document.getElementById('ep-birth-d') ? document.getElementById('ep-birth-d').value : '';
-  var birth = (y&&m&&d) ? y+'-'+m+'-'+d : '';
   var msg = document.getElementById('ep-msg');
   if(!email){ msg.style.color='var(--red)'; msg.textContent='이메일을 입력하세요'; return; }
   msg.style.color='var(--text2)'; msg.textContent='저장 중...';
   var updates = {email:email, phone:phone};
-  if(birth) updates.birth = birth;
   var promises = [db.ref('users/'+currentUser.uid+'/profile').update(updates)];
   if(email !== currentUser.email){
     // 새 이메일로 인증 메일 발송 (인증 후 자동 변경)

@@ -304,17 +304,19 @@ function saveProduct(){
   var discontinuedVal = document.getElementById('p-discontinued') ? document.getElementById('p-discontinued').checked : false;
   var devno = devnoVal ? devnoVal.split('|')[2]||'' : '';
   var eid=document.getElementById('p-eid').value;
-  // 중복 위치 체크: 같은 단말기(deviceNo) 내에서만 확인
+  // 중복 위치 체크: 같은 단말기 내, 판매중단 제품 제외
   var conflicts=[];
-  col.forEach(function(c){
-    D.products.forEach(function(p){
-      if(p.id===eid) return; // 수정 중인 제품 자신은 제외
-      // 다른 단말기의 제품이면 컬럼 충돌 무시
-      if(devno && p.deviceNo && p.deviceNo !== devno) return;
-      var pCols=Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
-      if(pCols.indexOf(c)>=0) conflicts.push({col:c, name:p.name});
+  if(!discontinuedVal){
+    col.forEach(function(c){
+      D.products.forEach(function(p){
+        if(p.id===eid) return;
+        if(p.discontinued) return; // 판매중단 제품은 제외
+        if(devno && p.deviceNo && p.deviceNo !== devno) return;
+        var pCols=Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
+        if(pCols.indexOf(c)>=0) conflicts.push({col:c, name:p.name});
+      });
     });
-  });
+  }
   if(conflicts.length){
     var msg=conflicts.map(function(c){return c.col+'번 ('+c.name+')';}).join(', ');
     if(!confirm('⚠️ 같은 자판기에 중복된 컬럼 위치가 있어요!\n\n'+msg+'\n\n이미 위 제품이 배정된 위치예요.\n그래도 저장할까요?')) return;

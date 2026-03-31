@@ -142,7 +142,7 @@ function renderMachineView(mc, prods, inv){
   function getQLocal(pid){ var i=(inv||[]).find(function(x){return x.productId===pid;}); return i?i.qty:0; }
 
   var allSlots=[];
-  filteredProds.forEach(function(p){
+  filteredProds.filter(function(p){return !p.discontinued;}).forEach(function(p){
     var cols=Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
     cols.forEach(function(c){
       var pc=parseCol(c);
@@ -219,26 +219,42 @@ function renderVmList(mc, prods, inv){
   var subEl  = document.getElementById('vm-list-sub');
   if(subEl) subEl.textContent = devno ? '단말기: '+devno : '제품 눌러서 상세 보기';
 
-  var listItems=[];
+  var listItems=[], discontinuedItems=[];
   filteredProds.forEach(function(p){
     var cols=Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
-    if(!cols.length) return;
+    if(!cols.length && !p.discontinued) return;
     var q=getQ(p.id);
     var labels=cols.map(function(c){return String(c).trim();});
-    listItems.push({id:p.id, name:p.name, labels:labels, q:q});
+    var item={id:p.id, name:p.name, labels:labels, q:q, discontinued:p.discontinued};
+    if(p.discontinued) discontinuedItems.push(item);
+    else listItems.push(item);
   });
   listItems.sort(function(a,b){return (a.labels[0]||'').localeCompare(b.labels[0]||'');});
 
-  listEl.innerHTML = listItems.length
+  var html = listItems.length
     ? listItems.map(function(item){
         var q=item.q;
         var tagHtml=item.labels.map(function(l){
-          return '<span style="background:rgba(232,184,109,.15);border:1px solid rgba(232,184,109,.4);border-radius:6px;padding:2px 7px;font-size:11px;font-weight:700;color:var(--blue)">'+l+'</span>';
+          return '<span style="background:rgba(0,100,255,.08);border:1px solid rgba(0,100,255,.2);border-radius:6px;padding:2px 7px;font-size:11px;font-weight:700;color:var(--blue)">'+l+'</span>';
         }).join(' ');
         return '<div class="item" style="flex-wrap:wrap;gap:6px;cursor:pointer" onclick="openProdDetail(this.dataset.pid)" data-pid="'+item.id+'">'+
           '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;flex:1">'+tagHtml+
           '<span style="font-size:13px;font-weight:600">'+item.name+'</span></div>'+
-          '<span style="color:'+(q<=5?'var(--red)':'var(--green)')+';font-weight:700">'+q+'개</span></div>';
+          '<span style="color:'+(q<=5?'var(--red)':'var(--green)')+';font-weight:700;white-space:nowrap">'+q+'개</span></div>';
       }).join('')
     : '<div class="empty"><div class="ei">🏪</div><div class="et">컬럼 배정된 제품 없음</div></div>';
+
+  // 판매중단 제품 리스트
+  if(discontinuedItems.length){
+    html += '<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">';
+    html += '<div style="font-size:13px;font-weight:700;color:var(--red);margin-bottom:8px">🚫 판매중단 제품 ('+discontinuedItems.length+')</div>';
+    discontinuedItems.forEach(function(item){
+      html += '<div class="item" style="flex-wrap:wrap;gap:6px;opacity:.6;cursor:pointer" onclick="openProdDetail(this.dataset.pid)" data-pid="'+item.id+'">'+
+        '<div style="flex:1"><span style="font-size:13px;font-weight:600">'+item.name+'</span></div>'+
+        '<span style="font-size:11px;background:rgba(255,90,95,.1);color:var(--red);border-radius:4px;padding:2px 6px;font-weight:600">중단</span></div>';
+    });
+    html += '</div>';
+  }
+
+  listEl.innerHTML = html;
 }
