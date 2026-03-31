@@ -257,10 +257,10 @@ function fetchTodaySales(isAuto){
             var amt = colAmt>=0 ? (typeof row[colAmt]==='number' ? row[colAmt] : parseFloat(String(row[colAmt]||0).replace(/,/g,''))||0) : 0;
 
             if(!dateRaw){ skipReasons.noDate++; console.log('[스킵-날짜없음] row'+ri+':', JSON.stringify(row)); return; }
-            // 취소 판단: 상태 또는 취소일 기준
+            // 취소 판단: 상태 또는 취소일 기준 (취소건도 저장, cancelled 플래그로 구분)
             var cancelDateVal = colCancelDate>=0 ? String(row[colCancelDate]||'').trim() : '';
             var isCancelled = (state&&(state==='취소'||state==='취소완료'||state==='환불')) || (cancelDateVal && cancelDateVal!=='-' && cancelDateVal!=='null');
-            if(isCancelled){ skipReasons.cancel++; return; }
+            if(isCancelled) skipReasons.cancel++;
 
             var dt = dateRaw.length>=19 ? dateRaw.slice(0,19) : dateRaw;
             var dupKey = dt+'|'+itemName.trim()+'|'+amt;
@@ -277,8 +277,8 @@ function fetchTodaySales(isAuto){
             var prod = findProd(colVal, itemName);
             // 미매칭도 저장 (itemName, amt 보존)
 
-            mSales.push({id:Date.now().toString()+Math.random(), txId:txId, dupKey:dupKey, date:dateStr, hour:hour, minute:minute, productId:prod?prod.id:null, itemName:itemName, colVal:colVal, qty:1, amt:amt, cancelled:false});
-            if(prod) qtyMap[prod.id]=(qtyMap[prod.id]||0)+1;
+            mSales.push({id:Date.now().toString()+Math.random(), txId:txId, dupKey:dupKey, date:dateStr, hour:hour, minute:minute, productId:prod?prod.id:null, itemName:itemName, colVal:colVal, qty:1, amt:amt, cancelled:isCancelled});
+            if(prod && !isCancelled) qtyMap[prod.id]=(qtyMap[prod.id]||0)+1;
             machineAdded++;
             added++;
           });

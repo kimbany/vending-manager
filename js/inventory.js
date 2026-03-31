@@ -392,6 +392,9 @@ function setIdmDir(d){
   idmDir = d;
   document.getElementById('idm-dir-plus').className='dbtn plus'+(d==='plus'?' active':'');
   document.getElementById('idm-dir-minus').className='dbtn minus'+(d==='minus'?' active':'');
+  document.getElementById('idm-dir-set').className='dbtn'+(d==='set'?' active':'');
+  if(d==='set') document.getElementById('idm-dir-set').style.background=d==='set'?'rgba(0,100,255,.1)':'';
+  else document.getElementById('idm-dir-set').style.background='';
 }
 
 function renderIdmDetail(){
@@ -483,13 +486,27 @@ function renderIdmDetail(){
 function submitIdmInventory(){
   var qty = parseInt(document.getElementById('idm-qty').value);
   var memo = document.getElementById('idm-memo').value.trim();
-  if(isNaN(qty)||qty<=0){showToast('❌ 수량을 입력하세요');return;}
-  var delta = idmDir==='plus' ? qty : -qty;
-  applyInventoryChange(idmPid, delta, memo);
-  save();
+  if(isNaN(qty)||(idmDir!=='set'&&qty<=0)){showToast('❌ 수량을 입력하세요');return;}
+  if(idmDir==='set' && isNaN(qty)){showToast('❌ 수량을 입력하세요');return;}
+
+  if(idmDir==='set'){
+    // 재고 설정 (덮어쓰기)
+    var currentQty = gq(idmPid);
+    var delta = qty - currentQty;
+    var idx = D.inventory.findIndex(function(i){return i.productId===idmPid;});
+    if(idx>=0) D.inventory[idx].qty = qty;
+    else D.inventory.push({productId:idmPid, qty:qty});
+    D.inventoryLogs.push({id:Date.now().toString()+Math.random(), productId:idmPid, delta:delta, memo:memo||'재고 설정 ('+currentQty+'→'+qty+')', date:td()});
+    save();
+    showToast('✅ 재고 '+qty+'개로 설정 완료');
+  } else {
+    var delta = idmDir==='plus' ? qty : -qty;
+    applyInventoryChange(idmPid, delta, memo);
+    save();
+    showToast(idmDir==='plus'?'✅ +'+qty+'개 입고':'✅ -'+qty+'개 출고');
+  }
   document.getElementById('idm-qty').value='';
   document.getElementById('idm-memo').value='';
-  showToast(idmDir==='plus'?'✅ +'+qty+'개 입고':'✅ -'+qty+'개 출고');
-  renderIdmDetail(); // 팝업 내 재고/내역 즉시 갱신
-  renderInv();       // 목록도 갱신
+  renderIdmDetail();
+  renderInv();
 }

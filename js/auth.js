@@ -110,7 +110,7 @@ function doFindId(){
       msg.style.color='var(--red)'; msg.textContent='일치하는 계정을 찾을 수 없어요';
     }
   }).catch(function(e){
-    msg.style.color='var(--red)'; msg.textContent='조회 실패: ' + e.message;
+    msg.style.color='var(--red)'; msg.textContent='조회에 실패했어요. 다시 시도해주세요';
   });
 }
 
@@ -135,7 +135,7 @@ function doFindPw(){
     msg.textContent='✅ 비밀번호 재설정 메일을 보냈어요. 이메일을 확인해주세요!';
   }).catch(function(e){
     if(e==='no-user'||e==='no-email'||e==='mismatch') return;
-    msg.style.color='var(--red)'; msg.textContent='전송 실패: ' + e.message;
+    msg.style.color='var(--red)'; msg.textContent='전송에 실패했어요. 다시 시도해주세요';
   });
 }
 

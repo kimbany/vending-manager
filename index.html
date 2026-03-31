@@ -589,7 +589,10 @@
     <div id="al-machines-wrap">
       <div class="al-machine-row" style="background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px">
         <div class="f2" style="margin-bottom:8px">
-          <div><label class="lbl">단말기 번호 <span style="color:var(--red)">*</span></label><input type="text" placeholder="예: 2000107965" class="al-devno"/></div>
+          <div><label class="lbl">단말기 번호 <span style="color:var(--red)">*</span></label>
+            <div style="display:flex;gap:6px"><input type="text" placeholder="예: 2000107965" class="al-devno" style="flex:1"/><button type="button" onclick="checkDevnoDup(this)" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;color:var(--text2);cursor:pointer;font-family:inherit;white-space:nowrap">중복확인</button></div>
+            <div class="devno-msg" style="font-size:11px;margin-top:4px;min-height:16px"></div>
+          </div>
           <div><label class="lbl">자판기 종류 <span style="color:var(--red)">*</span></label>
             <select class="al-vtype" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-size:13px;font-family:inherit">
               <option value="">종류 선택</option>
@@ -760,9 +763,10 @@
     <!-- +/- 입력 -->
     <div style="margin-bottom:14px">
       <div class="fr" style="margin-bottom:8px">
-        <div class="dbtns">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
           <button class="dbtn plus active" id="idm-dir-plus" onclick="setIdmDir('plus')">➕ 입고</button>
           <button class="dbtn minus" id="idm-dir-minus" onclick="setIdmDir('minus')">➖ 출고</button>
+          <button class="dbtn" id="idm-dir-set" onclick="setIdmDir('set')" style="font-size:14px">📝 재고설정</button>
         </div>
       </div>
       <div class="f2" style="margin-bottom:8px">

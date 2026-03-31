@@ -77,7 +77,7 @@ function addMachineRow(){
       '<button onclick="this.parentElement.parentElement.remove()" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;line-height:1">✕</button>'+
     '</div>'+
     '<div class="f2" style="margin-bottom:8px">'+
-      '<div><label class="lbl">단말기 번호</label><input type="text" placeholder="예: 2000107965" class="al-devno"/></div>'+
+      '<div><label class="lbl">단말기 번호</label><div style="display:flex;gap:6px"><input type="text" placeholder="예: 2000107965" class="al-devno" style="flex:1"/><button type="button" onclick="checkDevnoDup(this)" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;color:var(--text2);cursor:pointer;font-family:inherit;white-space:nowrap">중복확인</button></div><div class="devno-msg" style="font-size:11px;margin-top:4px;min-height:16px"></div></div>'+
       '<div><label class="lbl">자판기 종류</label><select class="al-vtype" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-size:13px;font-family:inherit">'+vtypeOpts+'</select></div>'+
     '</div>'+
     '<div class="fr" style="margin-bottom:8px"><label class="lbl">자판기 모델명</label><input type="text" placeholder="예: LM-5000, VM-300 등" class="al-model"/></div>'+
@@ -114,6 +114,8 @@ function addLocation(){
   var promises=[db.ref('users/'+currentUser.uid+'/locations/'+locId).set(locData)];
   if(isMain) promises.push(db.ref('users/'+currentUser.uid+'/mainLocationId').set(locId));
   Promise.all(promises).then(function(){
+    // 단말기번호 인덱스 등록
+    Object.keys(machines).forEach(function(mid){ var m=machines[mid]; if(m.deviceNos) m.deviceNos.forEach(function(d){updateDeviceNumberIndex(d);}); });
     closeModal('add-location-modal');
     document.getElementById('al-locname').value='';
     document.getElementById('al-main').checked=false;
@@ -122,7 +124,7 @@ function addLocation(){
     document.getElementById('al-machines-wrap').innerHTML=
       '<div class="al-machine-row" style="background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px">'+
         '<div class="f2" style="margin-bottom:8px">'+
-          '<div><label class="lbl">단말기 번호 *</label><input type="text" placeholder="예: 2000107965" class="al-devno"/></div>'+
+          '<div><label class="lbl">단말기 번호 *</label><div style="display:flex;gap:6px"><input type="text" placeholder="예: 2000107965" class="al-devno" style="flex:1"/><button type="button" onclick="checkDevnoDup(this)" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;color:var(--text2);cursor:pointer;font-family:inherit;white-space:nowrap">중복확인</button></div><div class="devno-msg" style="font-size:11px;margin-top:4px;min-height:16px"></div></div>'+
           '<div><label class="lbl">자판기 종류 *</label><select class="al-vtype" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-size:13px;font-family:inherit">'+vtypeOpts+'</select></div>'+
         '</div>'+
         '<div class="fr" style="margin-bottom:8px"><label class="lbl">자판기 모델명</label><input type="text" placeholder="예: VM-3000" class="al-model"/></div>'+
@@ -163,7 +165,7 @@ function makeEmRowHtml(devno, vtype, model, start, end){
       '<button onclick="this.closest(\'.em-machine-row\').remove()" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:16px">✕</button>'+
     '</div>'+
     '<div class="f2" style="margin-bottom:8px">'+
-      '<div><label class="lbl">단말기 번호</label><input type="text" value="'+(devno||'')+'" class="em-devno" placeholder="예: 2000107965"/></div>'+
+      '<div><label class="lbl">단말기 번호</label><div style="display:flex;gap:6px"><input type="text" value="'+(devno||'')+'" class="em-devno" placeholder="예: 2000107965" style="flex:1"/><button type="button" onclick="checkDevnoDup(this)" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:12px;color:var(--text2);cursor:pointer;font-family:inherit;white-space:nowrap">중복확인</button></div><div class="devno-msg" style="font-size:11px;margin-top:4px;min-height:16px"></div></div>'+
       '<div><label class="lbl">자판기 종류</label><select class="em-vtype" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-size:13px;font-family:inherit">'+vtypeOpts+'</select></div>'+
     '</div>'+
     '<div class="fr" style="margin-bottom:8px"><label class="lbl">자판기 모델명 <span style="font-size:11px;color:var(--text3);font-weight:400">(선택)</span></label><input type="text" value="'+(model||'')+'" class="em-model" placeholder="예: VM-3000"/></div>'+
@@ -414,4 +416,30 @@ function doMigrateInline(){
       loadLocationDropdown(); renderAll();
     });
   }).catch(function(e){ msg.style.color='var(--red)'; msg.textContent='실패: '+e.message; });
+}
+
+// ─── 단말기번호 중복 체크 (전체 계정 기준) ──────────────────────────────────────
+function checkDevnoDup(btn){
+  var input = btn.closest('div').querySelector('input');
+  var msgEl = btn.closest('div').parentElement.querySelector('.devno-msg');
+  if(!input || !msgEl) return;
+  var devno = input.value.trim();
+  if(!devno){ msgEl.style.color='var(--red)'; msgEl.textContent='단말기 번호를 입력하세요'; return; }
+  msgEl.style.color='var(--text2)'; msgEl.textContent='확인 중...';
+  // deviceNumbers/{devno} 인덱스 확인
+  db.ref('deviceNumbers/'+devno).once('value').then(function(snap){
+    if(snap.exists() && snap.val() !== currentUser.uid){
+      msgEl.style.color='var(--red)'; msgEl.textContent='❌ 이미 사용 중인 단말기 번호입니다';
+    } else {
+      msgEl.style.color='var(--green)'; msgEl.textContent='✅ 사용 가능한 단말기 번호입니다';
+    }
+  }).catch(function(){
+    msgEl.style.color='var(--red)'; msgEl.textContent='확인 실패. 다시 시도해주세요';
+  });
+}
+
+// 자판기 저장 시 deviceNumbers 인덱스 업데이트
+function updateDeviceNumberIndex(devno){
+  if(!devno || !currentUser) return;
+  db.ref('deviceNumbers/'+devno).set(currentUser.uid);
 }
