@@ -342,13 +342,24 @@ function saveProfile(){
   var updates = {email:email, phone:phone};
   if(birth) updates.birth = birth;
   var promises = [db.ref('users/'+currentUser.uid+'/profile').update(updates)];
-  if(email !== currentUser.email) promises.push(currentUser.updateEmail(email));
+  if(email !== currentUser.email){
+    // 새 이메일로 인증 메일 발송 (인증 후 자동 변경)
+    promises.push(currentUser.verifyBeforeUpdateEmail(email));
+  }
   Promise.all(promises).then(function(){
-    msg.style.color='var(--green)'; msg.textContent='✅ 저장 완료';
+    if(email !== currentUser.email){
+      msg.style.color='var(--green)'; msg.textContent='✅ 저장 완료. 새 이메일로 인증 메일을 보냈어요. 인증 후 변경됩니다.';
+    } else {
+      msg.style.color='var(--green)'; msg.textContent='✅ 저장 완료';
+    }
     renderProfileInfo();
     setTimeout(function(){ switchEpTab('info'); loadProfileForEdit(); }, 1000);
   }).catch(function(e){
-    msg.style.color='var(--red)'; msg.textContent=e.message;
+    msg.style.color='var(--red)';
+    if(e.code==='auth/requires-recent-login') msg.textContent='보안을 위해 다시 로그인 후 시도해주세요';
+    else if(e.code==='auth/invalid-email') msg.textContent='이메일 형식이 올바르지 않아요';
+    else if(e.code==='auth/email-already-in-use') msg.textContent='이미 사용 중인 이메일이에요';
+    else msg.textContent='저장 실패. 다시 시도해주세요';
   });
 }
 
