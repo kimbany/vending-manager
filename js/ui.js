@@ -23,7 +23,12 @@ function restoreTab(){
 function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 document.querySelectorAll('.modal-bg').forEach(function(bg){
-  bg.addEventListener('click',function(e){if(e.target===bg)bg.classList.remove('open');});
+  var mouseDownTarget = null;
+  bg.addEventListener('mousedown',function(e){ mouseDownTarget = e.target; });
+  bg.addEventListener('click',function(e){
+    if(e.target===bg && mouseDownTarget===bg) bg.classList.remove('open');
+    mouseDownTarget = null;
+  });
 });
 
 // ─── 새로고침 함수 ───────────────────────────────────────────────────────────
