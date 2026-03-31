@@ -48,7 +48,7 @@ function renderPurchase(){
         prods.forEach(function(p){
           var qi = inv.find(function(x){return x.productId===p.id;});
           var q = qi ? qi.qty : 0;
-          if(q <= lt) allLow.push({p:p, q:q, machineName:m.name});
+          if(q <= lt && !p.discontinued) allLow.push({p:p, q:q, machineName:m.name});
         });
       });
     });
@@ -212,7 +212,7 @@ function _renderInvSingle(prods, inv, machineName){
     return;
   }
   var lowThreshold = getLowStockThreshold();
-  var lowProds = sorted.filter(function(p){return getQ(p.id)<=lowThreshold;});
+  var lowProds = sorted.filter(function(p){return getQ(p.id)<=lowThreshold && !p.discontinued;});
   var lowCard = document.getElementById('inv-low-card');
   if(lowProds.length){
     lowCard.style.display='block';
@@ -252,7 +252,7 @@ function _renderInvMulti(machineDataList){
     function getQ(pid){ var i=md.inventory.find(function(x){return x.productId===pid;}); return i?i.qty:0; }
     md.products.forEach(function(p){
       var q=getQ(p.id);
-      if(q<=lowThreshold) allLow.push({p:p, q:q, machineName:md.machineName, locName:md.locName});
+      if(q<=lowThreshold && !p.discontinued) allLow.push({p:p, q:q, machineName:md.machineName, locName:md.locName});
     });
   });
   if(allLow.length){

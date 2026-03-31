@@ -23,13 +23,12 @@ function renderHome(){
   }
 
   // 모든 위치/자판기에서 판매 데이터 합산 (위치별)
-  db.ref('users/'+currentUser.uid+'/locations').once('value').then(function(snap){
-    if(!snap.exists()||!snap.val()){
+  getLocationsData(function(locs){
+    if(!locs){
       _renderHomeSalesSingle(date);
       renderAllMachineLowStock();
       return;
     }
-    var locs = snap.val();
     var locDataList = []; // {locName, totalQty, totalAmt, byP:{pid:{name,qty}}}
 
     Object.keys(locs).forEach(function(locId){
@@ -120,11 +119,11 @@ function renderAllMachineLowStock(){
   var el = document.getElementById('home-all-low-list');
   if(!el || !currentUser) return;
 
-  db.ref('users/'+currentUser.uid+'/locations').once('value').then(function(snap){
-    if(!snap.exists()||!snap.val()){
+  getLocationsData(function(locs){
+    if(!locs){
       var lt = typeof getLowStockThreshold==='function' ? getLowStockThreshold() : 5;
       var low = D.inventory.filter(function(i){return i.qty<=lt;})
-        .map(function(i){return {i:i,p:gp(i.productId)};}).filter(function(x){return x.p;});
+        .map(function(i){return {i:i,p:gp(i.productId)};}).filter(function(x){return x.p && !x.p.discontinued;});
       el.innerHTML = low.length
         ? low.map(function(x){
             return '<div class="li"><div style="min-width:0"><div class="in">'+x.p.name+'</div></div><span class="badge '+(x.i.qty===0?'br':'bo')+'">'+x.i.qty+'개</span></div>';
@@ -132,7 +131,6 @@ function renderAllMachineLowStock(){
         : '<div class="empty"><div class="ei">✅</div><div class="et">재고 부족 없음</div></div>';
       return;
     }
-    var locs = snap.val();
     var totalLow=0;
     var cards=[];
 
@@ -152,7 +150,7 @@ function renderAllMachineLowStock(){
         prods.forEach(function(p){
           var qi = inv.find(function(x){return x.productId===p.id;});
           var q = qi ? qi.qty : 0;
-          if(q <= lt2) locLow.push({p:p, q:q, machineName:m.name});
+          if(q <= lt2 && !p.discontinued) locLow.push({p:p, q:q, machineName:m.name});
         });
       });
       if(!locLow.length) return;

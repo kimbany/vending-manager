@@ -60,11 +60,30 @@ function load(){ loadUserData(); } // 하위 호환
 
 function save(){
   if(!REF){ return; }
+  invalidateLocationsCache();
   REF.set(JSON.parse(JSON.stringify(D))).catch(function(e){
     console.error(e);
     showToast('⚠️ 저장 실패');
   });
 }
+
+// ─── locations 캐시 (성능 개선) ───────────────────────────────────────────────
+var _locationsCache = null;
+var _locationsCacheTime = 0;
+function getLocationsData(callback){
+  if(!currentUser){ callback(null); return; }
+  // 10초 이내 캐시 사용
+  if(_locationsCache && (Date.now() - _locationsCacheTime < 10000)){
+    callback(_locationsCache);
+    return;
+  }
+  db.ref('users/'+currentUser.uid+'/locations').once('value').then(function(snap){
+    _locationsCache = snap.exists() ? snap.val() : null;
+    _locationsCacheTime = Date.now();
+    callback(_locationsCache);
+  });
+}
+function invalidateLocationsCache(){ _locationsCache=null; _locationsCacheTime=0; }
 
 // ─── 유틸 ─────────────────────────────────────────────────────────────────────
 function td(){ var d=new Date(Date.now()+9*3600000); return d.toISOString().slice(0,10); }

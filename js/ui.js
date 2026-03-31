@@ -4,6 +4,9 @@ function switchTab(name,btn){
   document.querySelectorAll('.nav-btn').forEach(function(b){b.classList.remove('active');});
   document.getElementById('tab-'+name).classList.add('active');
   btn.classList.add('active');
+  if(name==='home' && typeof renderHome==='function') renderHome();
+  if(name==='inventory' && typeof renderInv==='function') renderInv();
+  if(name==='sales' && typeof renderSalesStats==='function') renderSalesStats();
   if(name==='settings') renderProfileInfo();
   else resetVmmsLock();
   if(name==='machine') switchVmSub('status');
