@@ -443,3 +443,19 @@ function updateDeviceNumberIndex(devno){
   if(!devno || !currentUser) return;
   db.ref('deviceNumbers/'+devno).set(currentUser.uid);
 }
+
+// 앱 시작 시 본인의 모든 단말기번호를 인덱스에 자동 등록 (마이그레이션)
+function syncDeviceNumberIndex(){
+  if(!currentUser) return;
+  db.ref('users/'+currentUser.uid+'/locations').once('value').then(function(snap){
+    if(!snap.exists()) return;
+    snap.forEach(function(locSnap){
+      var loc = locSnap.val();
+      Object.keys(loc.machines||{}).forEach(function(mid){
+        var m = loc.machines[mid];
+        var devnos = Array.isArray(m.deviceNos)?m.deviceNos:(m.deviceNo?[m.deviceNo]:[]);
+        devnos.forEach(function(d){ if(d) updateDeviceNumberIndex(d); });
+      });
+    });
+  });
+}

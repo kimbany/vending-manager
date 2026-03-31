@@ -18,6 +18,7 @@ function startApp(){
   if(typeof loadLowStockThreshold === 'function') loadLowStockThreshold();
   if(typeof loadLowStockSetting === 'function') loadLowStockSetting();
   if(typeof loadPinSettings === 'function') loadPinSettings();
+  if(typeof syncDeviceNumberIndex === 'function') syncDeviceNumberIndex();
   // URL 해시에서 이전 탭 복원
   setTimeout(restoreTab, 100);
 }
