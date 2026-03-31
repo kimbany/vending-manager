@@ -75,11 +75,13 @@ function doLogin(){
     return auth.signInWithEmailAndPassword(email, pw);
   }).catch(function(e){
     msg.style.color='var(--red)';
-    if(e.code==='auth/wrong-password'||e.code==='auth/invalid-credential')
-      msg.textContent='비밀번호가 올바르지 않아요';
+    if(e.code==='auth/wrong-password'||e.code==='auth/invalid-credential'||e.code==='auth/invalid-login-credentials')
+      msg.textContent='아이디 또는 비밀번호가 올바르지 않아요';
+    else if(e.code==='auth/user-not-found')
+      msg.textContent='등록되지 않은 계정이에요';
     else if(e.code==='auth/too-many-requests')
       msg.textContent='로그인 시도가 너무 많아요. 잠시 후 다시 시도해주세요';
-    else msg.textContent = e.message || '로그인 실패';
+    else msg.textContent = '로그인 실패. 다시 시도해주세요';
   });
 }
 
@@ -234,7 +236,6 @@ function doSignup(){
   var phone = document.getElementById('su-phone').value.trim();
   var pw    = document.getElementById('su-pw').value;
   var pw2   = document.getElementById('su-pw2').value;
-  var birth = getSignupBirth();
   var msg   = document.getElementById('signup-msg');
 
   if(!name){ msg.style.color='var(--red)'; msg.textContent='이름을 입력하세요'; return; }
@@ -245,20 +246,12 @@ function doSignup(){
     msg.style.color='var(--red)'; msg.textContent='비밀번호는 영문+숫자 포함 8자 이상이어야 해요'; return;
   }
   if(pw !== pw2){ msg.style.color='var(--red)'; msg.textContent='비밀번호가 일치하지 않아요'; return; }
-  if(!birth){ msg.style.color='var(--red)'; msg.textContent='생년월일을 선택해주세요'; return; }
-
-  var today = new Date();
-  var birthDate = new Date(birth);
-  var age = today.getFullYear() - birthDate.getFullYear();
-  var mo = today.getMonth() - birthDate.getMonth();
-  if(mo < 0 || (mo===0 && today.getDate() < birthDate.getDate())) age--;
-  if(age < 14){ msg.style.color='var(--red)'; msg.textContent='14세 이상만 가입할 수 있어요'; return; }
 
   msg.style.color='var(--text2)'; msg.textContent='가입 처리 중...';
 
   auth.createUserWithEmailAndPassword(email, pw).then(function(cred){
     var user = cred.user;
-    var userInfo = {name:name, username:uid, email:email, phone:phone, birth:birth, createdAt:new Date().toISOString()};
+    var userInfo = {name:name, username:uid, email:email, phone:phone, createdAt:new Date().toISOString()};
     return Promise.all([
       db.ref('users/' + user.uid + '/profile').set(userInfo),
       db.ref('usernames/' + uid).set(user.uid),
@@ -271,7 +264,9 @@ function doSignup(){
   }).catch(function(e){
     msg.style.color='var(--red)';
     if(e.code==='auth/email-already-in-use') msg.textContent='이미 사용 중인 이메일이에요';
-    else msg.textContent = e.message;
+    else if(e.code==='auth/weak-password') msg.textContent='비밀번호가 너무 짧아요 (6자 이상)';
+    else if(e.code==='auth/invalid-email') msg.textContent='이메일 형식이 올바르지 않아요';
+    else msg.textContent = '가입 실패. 다시 시도해주세요';
   });
 }
 

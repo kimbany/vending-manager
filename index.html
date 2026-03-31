@@ -27,6 +27,32 @@
   </div>
 </div>
 
+<!-- 화면 잠금 -->
+<div id="lock-screen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:9999;align-items:center;justify-content:center;flex-direction:column">
+  <img src="img/logo.png" style="width:64px;height:64px;margin-bottom:16px"/>
+  <div style="font-size:18px;font-weight:700;margin-bottom:4px;color:var(--text)">화면이 잠겼습니다</div>
+  <div style="font-size:13px;color:var(--text3);margin-bottom:28px">PIN 4자리를 입력하세요</div>
+  <div id="lock-dots" style="display:flex;gap:14px;margin-bottom:28px">
+    <div class="lock-dot"></div><div class="lock-dot"></div><div class="lock-dot"></div><div class="lock-dot"></div>
+  </div>
+  <div id="lock-msg" style="font-size:13px;color:var(--red);min-height:20px;margin-bottom:16px"></div>
+  <div style="display:grid;grid-template-columns:repeat(3,72px);gap:10px;justify-content:center">
+    <button class="pin-btn" onclick="pinInput(1)">1</button>
+    <button class="pin-btn" onclick="pinInput(2)">2</button>
+    <button class="pin-btn" onclick="pinInput(3)">3</button>
+    <button class="pin-btn" onclick="pinInput(4)">4</button>
+    <button class="pin-btn" onclick="pinInput(5)">5</button>
+    <button class="pin-btn" onclick="pinInput(6)">6</button>
+    <button class="pin-btn" onclick="pinInput(7)">7</button>
+    <button class="pin-btn" onclick="pinInput(8)">8</button>
+    <button class="pin-btn" onclick="pinInput(9)">9</button>
+    <div></div>
+    <button class="pin-btn" onclick="pinInput(0)">0</button>
+    <button class="pin-btn" onclick="pinDelete()" style="font-size:18px">⌫</button>
+  </div>
+  <button onclick="doLogout()" style="margin-top:24px;background:none;border:none;color:var(--text3);font-size:13px;cursor:pointer;font-family:inherit">로그아웃</button>
+</div>
+
 <div id="loading">
   <div class="loading-logo">
     <div class="ll-panel ll-1"></div>
@@ -163,11 +189,6 @@
       <div style="margin-bottom:12px">
         <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">비밀번호 확인 <span style="color:var(--red)">*</span></label>
         <input type="password" id="su-pw2" placeholder="비밀번호 재입력" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;"/>
-      </div>
-      <!-- 생년월일: 년/월/일 드롭다운 -->
-      <div style="margin-bottom:20px">
-        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">생년월일 <span style="color:var(--red)">*</span> <span style="color:var(--text3);font-weight:400">(14세 이상)</span></label>
-        <div style="display:flex;gap:6px" id="birth-selects"></div>
       </div>
       <button onclick="doSignup()" style="width:100%;background:var(--blue);border:none;border-radius:10px;padding:14px;font-size:15px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit;margin-bottom:8px">회원가입</button>
       <div id="signup-msg" style="margin-top:10px;text-align:center;font-size:13px"></div>
@@ -417,6 +438,26 @@
         </div>
         <button class="btn-p" onclick="openEditProfileModal()">✏️ 회원정보 수정 / 비밀번호 변경</button>
 
+        <!-- 화면 잠금 설정 -->
+        <div class="card" style="margin-bottom:12px">
+          <div class="ch"><div class="ca" style="background:var(--blue)"></div><div><div class="ct">🔒 화면 잠금</div></div></div>
+          <div class="cb">
+            <div id="pin-status" style="font-size:14px;color:var(--text2);margin-bottom:12px">PIN 미설정</div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <button onclick="openPinSetup()" style="width:100%;background:var(--blue);border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit" id="pin-setup-btn">PIN 설정</button>
+              <div style="display:flex;gap:8px">
+                <select id="lock-timeout" onchange="saveLockTimeout()" style="flex:1;font-size:14px;padding:10px">
+                  <option value="0">사용 안함</option>
+                  <option value="30">30분</option>
+                  <option value="60" selected>1시간</option>
+                  <option value="120">2시간</option>
+                </select>
+                <button onclick="removePinSetup()" id="pin-remove-btn" style="display:none;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 16px;font-size:13px;color:var(--red);cursor:pointer;font-family:inherit;white-space:nowrap">PIN 삭제</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- 자판기 설정 -->
         <div class="card" style="margin-bottom:12px">
           <div class="ch"><div class="ca" style="background:var(--blue)"></div><div><div class="ct">자판기 설정</div></div></div>
@@ -640,6 +681,40 @@
     <div class="fr"><label class="lbl">VMMS 비밀번호</label><input type="password" id="ev-pw" placeholder="VMMS 로그인 비밀번호"/></div>
     <button class="btn-p" style="margin-bottom:0" onclick="saveVmms()">저장</button>
     <div id="ev-msg" style="font-size:12px;margin-top:8px;text-align:center"></div>
+  </div>
+</div>
+
+<!-- PIN 설정 모달 -->
+<div class="modal-bg" id="pin-setup-modal">
+  <div class="modal" style="padding-bottom:24px">
+    <div class="mh"><div class="mt">🔒 PIN 설정</div><button class="mc" onclick="closeModal('pin-setup-modal')">✕</button></div>
+    <div id="pin-step1">
+      <div style="font-size:14px;color:var(--text2);margin-bottom:14px">먼저 현재 비밀번호를 입력하세요</div>
+      <div class="fr"><input type="password" id="pin-verify-pw" placeholder="현재 로그인 비밀번호" onkeydown="if(event.key==='Enter')verifyForPin()"/></div>
+      <button onclick="verifyForPin()" style="width:100%;background:var(--blue);border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit">확인</button>
+      <div id="pin-verify-msg" style="font-size:13px;margin-top:8px;text-align:center"></div>
+    </div>
+    <div id="pin-step2" style="display:none;text-align:center">
+      <div style="font-size:14px;color:var(--text2);margin-bottom:8px" id="pin-step2-label">새 PIN 4자리를 입력하세요</div>
+      <div id="pin-setup-dots" style="display:flex;gap:14px;justify-content:center;margin-bottom:20px">
+        <div class="lock-dot"></div><div class="lock-dot"></div><div class="lock-dot"></div><div class="lock-dot"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,64px);gap:8px;justify-content:center">
+        <button class="pin-btn" onclick="pinSetupInput(1)">1</button>
+        <button class="pin-btn" onclick="pinSetupInput(2)">2</button>
+        <button class="pin-btn" onclick="pinSetupInput(3)">3</button>
+        <button class="pin-btn" onclick="pinSetupInput(4)">4</button>
+        <button class="pin-btn" onclick="pinSetupInput(5)">5</button>
+        <button class="pin-btn" onclick="pinSetupInput(6)">6</button>
+        <button class="pin-btn" onclick="pinSetupInput(7)">7</button>
+        <button class="pin-btn" onclick="pinSetupInput(8)">8</button>
+        <button class="pin-btn" onclick="pinSetupInput(9)">9</button>
+        <div></div>
+        <button class="pin-btn" onclick="pinSetupInput(0)">0</button>
+        <button class="pin-btn" onclick="pinSetupDelete()" style="font-size:16px">⌫</button>
+      </div>
+      <div id="pin-setup-msg" style="font-size:13px;color:var(--red);margin-top:12px;min-height:20px"></div>
+    </div>
   </div>
 </div>
 
@@ -906,6 +981,7 @@
 <script src="js/bulk.js"></script>
 <script src="js/coupang.js"></script>
 <script src="js/crawl.js"></script>
+<script src="js/lock.js"></script>
 <script src="js/ui.js"></script>
 </body>
 </html>
