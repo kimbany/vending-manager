@@ -1,0 +1,82 @@
+name: Firebase 자동 백업
+
+on:
+  schedule:
+    - cron: '0 18 * * *'   # 매일 새벽 03:00 KST (UTC 18:00)
+  workflow_dispatch:        # 수동 실행
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 패키지 설치
+        run: pip install firebase-admin
+
+      - name: Firebase 백업 실행
+        env:
+          FIREBASE_KEY: ${{ secrets.FIREBASE_KEY }}
+        run: |
+          python3 << 'PYEOF'
+          import json, os
+          from datetime import datetime, timedelta
+          import firebase_admin
+          from firebase_admin import credentials, db as rtdb
+
+          # Firebase 초기화
+          key_json = os.environ.get("FIREBASE_KEY", "")
+          if not key_json:
+              print("FIREBASE_KEY 없음")
+              exit(1)
+          cred = credentials.Certificate(json.loads(key_json))
+          firebase_admin.initialize_app(cred, {
+              'databaseURL': 'https://vending-manager-2d64e-default-rtdb.asia-southeast1.firebasedatabase.app'
+          })
+
+          # 전체 데이터 export
+          print("Firebase 전체 데이터 백업 중...")
+          data = rtdb.reference('/').get()
+
+          # 백업 디렉토리 생성
+          os.makedirs('backups', exist_ok=True)
+
+          # 오늘 날짜로 저장
+          today = (datetime.utcnow() + timedelta(hours=9)).strftime('%Y-%m-%d')
+          filename = f'backups/backup-{today}.json'
+
+          with open(filename, 'w', encoding='utf-8') as f:
+              json.dump(data, f, ensure_ascii=False, indent=2)
+
+          size_mb = os.path.getsize(filename) / 1024 / 1024
+          print(f"백업 완료: {filename} ({size_mb:.2f}MB)")
+
+          # 30일 이전 백업 삭제
+          cutoff = (datetime.utcnow() + timedelta(hours=9) - timedelta(days=30)).strftime('%Y-%m-%d')
+          deleted = 0
+          for f in os.listdir('backups'):
+              if f.startswith('backup-') and f.endswith('.json'):
+                  date_str = f.replace('backup-', '').replace('.json', '')
+                  if date_str < cutoff:
+                      os.remove(f'backups/{f}')
+                      deleted += 1
+                      print(f"  삭제: {f}")
+          if deleted:
+              print(f"  {deleted}개 오래된 백업 삭제")
+          PYEOF
+
+      - name: 백업 파일 커밋
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add backups/
+          git diff --cached --quiet || git commit -m "backup: $(date -u -d '+9 hours' +'%Y-%m-%d') 자동 백업"
+          git push
