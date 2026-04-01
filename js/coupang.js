@@ -1,7 +1,7 @@
 // ─── 쿠팡 파트너스 연동 (딥링크 URL 방식) ────────────────────────────────────
 
 // 쿠팡 파트너스 Sub ID (수수료 추적용)
-var COUPANG_SUB_ID = 'af9810070';
+var COUPANG_SUB_ID = 'AF1423505';
 
 // 쿠팡 파트너스 검색 딥링크 생성
 function getCoupangAffiliateUrl(keyword){
