@@ -138,11 +138,12 @@ function _renderProdsFromList(products){
   function renderProdCard(p){
     var cols=Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
     var colLabel=cols.length?cols.join(', '):'미배정';
+    var currentStock = gq(p.id);
     var cbHtml=editMode?'<input type="checkbox" class="prod-cb" value="'+p.id+'" onclick="event.stopPropagation()" onchange="updateSelectedCount()" style="width:20px;height:20px;accent-color:var(--blue);flex-shrink:0;cursor:pointer"/>'  :'';
-    var discBadge=p.discontinued?'<span style="background:rgba(224,88,88,.2);border:1px solid rgba(224,88,88,.4);border-radius:4px;padding:1px 6px;font-size:11px;color:var(--red);font-weight:700">판매중단</span>':'';
-    var btnHtml=editMode?'':'<div style="display:flex;gap:6px"><button class="btn-sm" style="background:#1a2a4a;color:var(--blue)" onclick="editProd(\'' +p.id+ '\')">수정</button><button class="btn-sm" style="background:#2a1a1a;color:var(--red)" onclick="delProd(\'' +p.id+ '\')">삭제</button></div>';
+    var discBadge=p.discontinued?'<span style="background:rgba(224,88,88,.2);border:1px solid rgba(224,88,88,.4);border-radius:4px;padding:1px 6px;font-size:10px;color:var(--red);font-weight:700;white-space:nowrap">판매중단</span>':'';
+    var btnHtml=editMode?'':'<div style="display:flex;gap:6px;flex-shrink:0"><button class="btn-sm" style="background:#1a2a4a;color:var(--blue)" onclick="editProd(\'' +p.id+ '\')">수정</button><button class="btn-sm" style="background:#2a1a1a;color:var(--red)" onclick="delProd(\'' +p.id+ '\')">삭제</button></div>';
     var clickFn=editMode?'var cb=this.querySelector(\'.prod-cb\');cb.checked=!cb.checked;updateSelectedCount()':'';
-    return '<div class="pc" style="'+(editMode?'cursor:pointer':'')+'" onclick="'+clickFn+'"><div class="pch"><div style="display:flex;align-items:center;gap:10px">'+cbHtml+'<div><div class="in">'+p.name+' '+discBadge+'</div><div class="is">컬럼: '+colLabel+'</div></div></div>'+btnHtml+'</div><div class="pm">'+[['구매가',fmt(p.buyPrice)+'원'],['낱개가',fmt(p.unitPrice)+'원'],['판매가',fmt(p.sellPrice)+'원'],['마진가',fmt(p.marginAmt)+'원'],['마진율',(p.marginRate||0)+'%'],['총수량',p.totalQty+'개']].map(function(lv){return '<div class="pmb"><div class="pml">'+lv[0]+'</div><div class="pmv">'+lv[1]+'</div></div>';}).join('')+'</div></div>';
+    return '<div class="pc" style="'+(editMode?'cursor:pointer':'')+'" onclick="'+clickFn+'"><div class="pch" style="gap:8px"><div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">'+cbHtml+'<div style="min-width:0"><div class="in" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">'+p.name+' '+discBadge+'</div><div class="is">컬럼: '+colLabel+'</div></div></div>'+btnHtml+'</div><div class="pm">'+[['구매가',fmt(p.buyPrice)+'원'],['낱개가',fmt(p.unitPrice)+'원'],['판매가',fmt(p.sellPrice)+'원'],['마진가',fmt(p.marginAmt)+'원'],['마진율',(p.marginRate||0)+'%'],['재고',currentStock+'개']].map(function(lv){return '<div class="pmb"><div class="pml">'+lv[0]+'</div><div class="pmv">'+lv[1]+'</div></div>';}).join('')+'</div></div>';
   }
 
   var groups={}, noDevno=[];
@@ -171,11 +172,12 @@ function _renderProdsMulti(machineDataList, totalProds){
   function renderProdCard(p, isCurrent){
     var cols=Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
     var colLabel=cols.length?cols.join(', '):'미배정';
+    var currentStock = gq(p.id);
     var cbHtml=editMode && isCurrent?'<input type="checkbox" class="prod-cb" value="'+p.id+'" onclick="event.stopPropagation()" onchange="updateSelectedCount()" style="width:20px;height:20px;accent-color:var(--blue);flex-shrink:0;cursor:pointer"/>':'';
-    var discBadge=p.discontinued?'<span style="background:rgba(224,88,88,.2);border:1px solid rgba(224,88,88,.4);border-radius:4px;padding:1px 6px;font-size:11px;color:var(--red);font-weight:700">판매중단</span>':'';
-    var btnHtml=editMode?'':'<div style="display:flex;gap:6px"><button class="btn-sm" style="background:#1a2a4a;color:var(--blue)" onclick="editProd(\'' +p.id+ '\')">수정</button><button class="btn-sm" style="background:#2a1a1a;color:var(--red)" onclick="delProd(\'' +p.id+ '\')">삭제</button></div>';
+    var discBadge=p.discontinued?'<span style="background:rgba(224,88,88,.2);border:1px solid rgba(224,88,88,.4);border-radius:4px;padding:1px 6px;font-size:10px;color:var(--red);font-weight:700;white-space:nowrap">판매중단</span>':'';
+    var btnHtml=editMode?'':'<div style="display:flex;gap:6px;flex-shrink:0"><button class="btn-sm" style="background:#1a2a4a;color:var(--blue)" onclick="editProd(\'' +p.id+ '\')">수정</button><button class="btn-sm" style="background:#2a1a1a;color:var(--red)" onclick="delProd(\'' +p.id+ '\')">삭제</button></div>';
     var clickFn=editMode && isCurrent?'var cb=this.querySelector(\'.prod-cb\');cb.checked=!cb.checked;updateSelectedCount()':'';
-    return '<div class="pc" style="'+(editMode && isCurrent?'cursor:pointer':'')+'" onclick="'+clickFn+'"><div class="pch"><div style="display:flex;align-items:center;gap:10px">'+cbHtml+'<div><div class="in">'+p.name+' '+discBadge+'</div><div class="is">컬럼: '+colLabel+'</div></div></div>'+btnHtml+'</div><div class="pm">'+[['구매가',fmt(p.buyPrice)+'원'],['낱개가',fmt(p.unitPrice)+'원'],['판매가',fmt(p.sellPrice)+'원'],['마진가',fmt(p.marginAmt)+'원'],['마진율',(p.marginRate||0)+'%'],['총수량',p.totalQty+'개']].map(function(lv){return '<div class="pmb"><div class="pml">'+lv[0]+'</div><div class="pmv">'+lv[1]+'</div></div>';}).join('')+'</div></div>';
+    return '<div class="pc" style="'+(editMode && isCurrent?'cursor:pointer':'')+'" onclick="'+clickFn+'"><div class="pch" style="gap:8px"><div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">'+cbHtml+'<div style="min-width:0"><div class="in" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">'+p.name+' '+discBadge+'</div><div class="is">컬럼: '+colLabel+'</div></div></div>'+btnHtml+'</div><div class="pm">'+[['구매가',fmt(p.buyPrice)+'원'],['낱개가',fmt(p.unitPrice)+'원'],['판매가',fmt(p.sellPrice)+'원'],['마진가',fmt(p.marginAmt)+'원'],['마진율',(p.marginRate||0)+'%'],['재고',currentStock+'개']].map(function(lv){return '<div class="pmb"><div class="pml">'+lv[0]+'</div><div class="pmv">'+lv[1]+'</div></div>';}).join('')+'</div></div>';
   }
 
   var html='';
