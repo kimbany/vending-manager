@@ -29,11 +29,15 @@ function renderVmmsInfo(){
   db.ref('users/'+currentUser.uid+'/vmms').once('value').then(function(snap){
     var v = snap.val()||{};
     var el = document.getElementById('vmms-info');
-    var hasData = v.id;
-    el.innerHTML = hasData
-      ? '<div style="padding:10px 0"><div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px"><span style="color:var(--text2)">아이디</span><span style="font-weight:600">'+atob(v.id||'')+'</span></div>'+
-        '<div style="display:flex;justify-content:space-between;padding:8px 0;font-size:13px"><span style="color:var(--text2)">비밀번호</span><span style="font-weight:600">••••••••</span></div></div>'
-      : '<div style="text-align:center;padding:16px;color:var(--text3);font-size:13px">VMMS 계정을 등록해주세요</div>';
+    if(!v.id){
+      el.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text3);font-size:13px">VMMS 계정을 등록해주세요</div>';
+      return;
+    }
+    decryptAES(v.id, currentUser.uid).then(function(decId){
+      var masked = decId ? decId.slice(0,3)+'••••••' : '••••••';
+      el.innerHTML = '<div style="padding:10px 0"><div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px"><span style="color:var(--text2)">아이디</span><span style="font-weight:600">'+masked+'</span></div>'+
+        '<div style="display:flex;justify-content:space-between;padding:8px 0;font-size:13px"><span style="color:var(--text2)">비밀번호</span><span style="font-weight:600">••••••••</span></div></div>';
+    });
   });
 }
 
@@ -42,13 +46,16 @@ function saveVmms(){
   var pw  = document.getElementById('ev-pw').value;
   var msg = document.getElementById('ev-msg');
   if(!id||!pw){ msg.style.color='var(--red)'; msg.textContent='아이디와 비밀번호를 입력하세요'; return; }
-  db.ref('users/'+currentUser.uid+'/vmms').set({
-    id: btoa(id), pw: btoa(pw), updatedAt: new Date().toISOString()
+  msg.style.color='var(--text2)'; msg.textContent='암호화 저장 중...';
+  Promise.all([encryptAES(id, currentUser.uid), encryptAES(pw, currentUser.uid)]).then(function(results){
+    return db.ref('users/'+currentUser.uid+'/vmms').set({
+      id: results[0], pw: results[1], updatedAt: new Date().toISOString()
+    });
   }).then(function(){
-    msg.style.color='var(--green)'; msg.textContent='✅ 저장 완료';
+    msg.style.color='var(--green)'; msg.textContent='✅ 저장 완료 (AES 암호화)';
     setTimeout(function(){ closeModal('edit-vmms-modal'); renderVmmsInfo(); }, 1000);
   }).catch(function(e){
-    msg.style.color='var(--red)'; msg.textContent=e.message;
+    msg.style.color='var(--red)'; msg.textContent='저장 실패. 다시 시도해주세요';
   });
 }
 

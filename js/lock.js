@@ -3,12 +3,12 @@ var _lockPin = '';       // 입력 중인 PIN
 var _lockAttempts = 0;   // 틀린 횟수
 var _lockTimer = null;   // 비활동 타이머
 var _lockTimeout = 60;   // 기본 60분
-var _savedPin = '';      // 저장된 PIN
+var _savedPinHash = '';  // 저장된 PIN 해시 (SHA-256)
 
 // ─── 비활동 감지 ──────────────────────────────────────────────────────────────
 function resetLockTimer(){
   clearTimeout(_lockTimer);
-  if(!_savedPin || _lockTimeout <= 0) return;
+  if(!_savedPinHash || _lockTimeout <= 0) return;
   _lockTimer = setTimeout(function(){
     showLockScreen();
   }, _lockTimeout * 60 * 1000);
@@ -26,7 +26,7 @@ function initLockTimer(){
 
 // ─── 잠금 화면 표시 ──────────────────────────────────────────────────────────
 function showLockScreen(){
-  if(!_savedPin) return;
+  if(!_savedPinHash) return;
   _lockPin = '';
   _updateLockDots();
   document.getElementById('lock-msg').textContent = '';
@@ -57,12 +57,11 @@ function pinDelete(){
 }
 
 function checkLockPin(){
-  if(_lockPin === _savedPin){
-    // 성공
+  hashSHA256(_lockPin).then(function(h){
+  if(h === _savedPinHash){
     _lockAttempts = 0;
     document.getElementById('lock-screen').classList.remove('active');
     resetLockTimer();
-    // 2분 전 경고 토스트
   } else {
     _lockAttempts++;
     _lockPin = '';
@@ -74,6 +73,7 @@ function checkLockPin(){
       document.getElementById('lock-msg').textContent = 'PIN이 올바르지 않아요 ('+_lockAttempts+'/5)';
     }
   }
+  });
 }
 
 // ─── PIN 설정 ─────────────────────────────────────────────────────────────────
@@ -123,8 +123,10 @@ function pinSetupInput(n){
       } else {
         if(_pinSetupCurrent === _pinSetupNew){
           // 저장
-          _savedPin = _pinSetupNew;
-          db.ref('users/'+currentUser.uid+'/settings/pin').set(btoa(_savedPin)).then(function(){
+          hashSHA256(_pinSetupNew).then(function(hash){
+          _savedPinHash = hash;
+          return db.ref('users/'+currentUser.uid+'/settings/pin').set(hash);
+          }).then(function(){
             closeModal('pin-setup-modal');
             showToast('✅ PIN 설정 완료');
             renderPinStatus();
@@ -159,7 +161,7 @@ function _updateSetupDots(){
 // ─── PIN 삭제 ─────────────────────────────────────────────────────────────────
 function removePinSetup(){
   if(!confirm('PIN을 삭제하면 화면 잠금이 비활성화됩니다.\n삭제할까요?')) return;
-  _savedPin = '';
+  _savedPinHash = '';
   clearTimeout(_lockTimer);
   db.ref('users/'+currentUser.uid+'/settings/pin').remove().then(function(){
     showToast('✅ PIN 삭제 완료');
@@ -182,7 +184,7 @@ function renderPinStatus(){
   var el = document.getElementById('pin-status');
   var btn = document.getElementById('pin-setup-btn');
   var rmBtn = document.getElementById('pin-remove-btn');
-  if(_savedPin){
+  if(_savedPinHash){
     el.textContent = 'PIN 설정됨 · '+(_lockTimeout>0?_lockTimeout+'분 후 자동 잠금':'자동 잠금 사용 안함');
     btn.textContent = 'PIN 변경';
     rmBtn.style.display = 'block';
@@ -199,7 +201,7 @@ function loadPinSettings(){
   db.ref('users/'+currentUser.uid+'/settings').once('value').then(function(snap){
     var v = snap.val() || {};
     if(v.pin){
-      try { _savedPin = atob(v.pin); } catch(e){ _savedPin = ''; }
+      _savedPinHash = v.pin || '';
     }
     if(v.lockTimeout !== undefined) _lockTimeout = parseInt(v.lockTimeout) || 0;
     var sel = document.getElementById('lock-timeout');
