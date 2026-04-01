@@ -1,8 +1,8 @@
 // ─── 쿠팡 파트너스 API 연동 (앱 관리자 키 사용) ──────────────────────────────
 
 // 앱 관리자의 쿠팡 파트너스 API 키 (모든 사용자 공통)
-var COUPANG_ACCESS_KEY = '';  // TODO: 관리자 Access Key 입력
-var COUPANG_SECRET_KEY = '';  // TODO: 관리자 Secret Key 입력
+var COUPANG_ACCESS_KEY = '0eeed60d-84a0-4e5f-9daa-30108a82f257';
+var COUPANG_SECRET_KEY = 'e4a7520273d6f2f2219a0cc513d1563fe60662a2';
 var COUPANG_SUB_ID = 'vending-manager';
 
 // 쿠팡 파트너스 키가 설정되었는지 확인
