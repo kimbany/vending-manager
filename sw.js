@@ -1,10 +1,15 @@
-var CACHE_NAME = 'invedory-v1';
+var CACHE_VERSION = 2;
+var CACHE_NAME = 'invedory-v' + CACHE_VERSION;
 var STATIC_FILES = [
   './',
   './index.html',
   './css/style.css',
   './img/logo.png',
   './img/icon-192.png',
+  './manifest.json'
+];
+var JS_FILES = [
+  './js/security.js',
   './js/firebase-config.js',
   './js/data.js',
   './js/auth.js',
@@ -23,22 +28,22 @@ var STATIC_FILES = [
   './js/ui.js'
 ];
 
-// 설치 - 정적 파일 캐싱
+// 설치 - 정적 파일 + JS 캐싱
 self.addEventListener('install', function(e){
   e.waitUntil(
     caches.open(CACHE_NAME).then(function(cache){
-      return cache.addAll(STATIC_FILES);
+      return cache.addAll(STATIC_FILES.concat(JS_FILES));
     })
   );
   self.skipWaiting();
 });
 
-// 활성화 - 이전 캐시 삭제
+// 활성화 - 이전 버전 캐시 삭제
 self.addEventListener('activate', function(e){
   e.waitUntil(
     caches.keys().then(function(keys){
       return Promise.all(
-        keys.filter(function(k){ return k !== CACHE_NAME; })
+        keys.filter(function(k){ return k.startsWith('invedory-') && k !== CACHE_NAME; })
             .map(function(k){ return caches.delete(k); })
       );
     })
@@ -46,25 +51,34 @@ self.addEventListener('activate', function(e){
   self.clients.claim();
 });
 
-// 네트워크 우선 전략 (온라인이면 네트워크, 실패하면 캐시)
+// Stale-While-Revalidate 전략
+// 캐시 먼저 반환 (빠른 로딩) + 백그라운드에서 네트워크 업데이트
 self.addEventListener('fetch', function(e){
-  // Firebase API 요청은 캐싱하지 않음
-  if(e.request.url.indexOf('firebasedatabase') >= 0 ||
-     e.request.url.indexOf('googleapis') >= 0 ||
-     e.request.url.indexOf('gstatic') >= 0){
+  var url = e.request.url;
+
+  // Firebase/외부 API 요청은 캐싱하지 않음
+  if(url.indexOf('firebasedatabase') >= 0 ||
+     url.indexOf('googleapis.com') >= 0 ||
+     url.indexOf('gstatic.com/firebasejs') >= 0 ||
+     url.indexOf('api-gateway.coupang') >= 0){
     return;
   }
+
   e.respondWith(
-    fetch(e.request).then(function(res){
-      // 성공하면 캐시 업데이트
-      var clone = res.clone();
-      caches.open(CACHE_NAME).then(function(cache){
-        cache.put(e.request, clone);
-      });
-      return res;
-    }).catch(function(){
-      // 오프라인이면 캐시에서
-      return caches.match(e.request);
+    caches.match(e.request).then(function(cached){
+      // 백그라운드에서 네트워크 업데이트
+      var fetchPromise = fetch(e.request).then(function(res){
+        if(res.ok){
+          var clone = res.clone();
+          caches.open(CACHE_NAME).then(function(cache){
+            cache.put(e.request, clone);
+          });
+        }
+        return res;
+      }).catch(function(){ return cached; });
+
+      // 캐시가 있으면 즉시 반환, 없으면 네트워크 대기
+      return cached || fetchPromise;
     })
   );
 });
