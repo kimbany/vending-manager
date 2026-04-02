@@ -105,7 +105,7 @@ async def get_table_rows(page, table_xpath):
     return rows
 
 async def get_all_pages(page, page_xpath, table_xpath, collector_fn):
-    """모든 페이지 순회하며 데이터 수집"""
+    """모든 페이지 순회하며 데이터 수집 (다음 버튼 지원)"""
     all_data = []
 
     # 1페이지 수집
@@ -113,30 +113,53 @@ async def get_all_pages(page, page_xpath, table_xpath, collector_fn):
     all_data.extend(first)
     print(f"    1페이지: {len(first)}건")
 
-    # 페이지네이션
-    for pg_num in range(2, 500):
+    current_page = 1
+
+    while True:
+        next_page = current_page + 1
+        clicked = False
+
+        # 방법 1: 다음 페이지 번호 직접 클릭
         try:
-            pg_btn = page.locator(f'xpath={page_xpath}').filter(has_text=str(pg_num))
-            if await pg_btn.count() == 0:
-                break
-            # 정확히 해당 숫자만 클릭
             btns = await page.locator(f'xpath={page_xpath}').all()
-            clicked = False
             for btn in btns:
                 txt = (await btn.inner_text()).strip()
-                if txt == str(pg_num):
+                if txt == str(next_page):
                     await btn.click()
                     await page.wait_for_load_state("networkidle")
                     await page.wait_for_timeout(1000)
-                    data = await collector_fn(page)
-                    all_data.extend(data)
-                    print(f"    {pg_num}페이지: {len(data)}건 (누계: {len(all_data)})")
                     clicked = True
                     break
-            if not clicked:
-                break
         except:
+            pass
+
+        # 방법 2: 번호가 없으면 "다음" 또는 ">" 버튼 클릭
+        if not clicked:
+            try:
+                btns = await page.locator(f'xpath={page_xpath}').all()
+                for btn in btns:
+                    txt = (await btn.inner_text()).strip()
+                    if txt in ['다음', '>', '»', 'Next', '›']:
+                        await btn.click()
+                        await page.wait_for_load_state("networkidle")
+                        await page.wait_for_timeout(1000)
+                        clicked = True
+                        break
+            except:
+                pass
+
+        if not clicked:
+            print(f"    {next_page}페이지 없음 → 수집 완료")
             break
+
+        data = await collector_fn(page)
+        if not data:
+            print(f"    {next_page}페이지 데이터 없음 → 수집 완료")
+            break
+
+        all_data.extend(data)
+        current_page = next_page
+        print(f"    {next_page}페이지: {len(data)}건 (누계: {len(all_data)})")
 
     return all_data
 
@@ -201,9 +224,14 @@ async def crawl_machines_and_columns(page):
     """자판기 목록 + 각 자판기별 컬럼매칭 크롤링"""
     print("  [자판기] 메뉴 이동")
 
+    # 메인 페이지로 이동 후 메뉴 클릭 (이전 페이지 상태 리셋)
+    await page.goto("https://vmms.ubcn.co.kr/index", wait_until="domcontentloaded")
+    await page.wait_for_timeout(2000)
+    await close_popup(page)
+
     # 서비스관리 > 운영머신기관리
     await page.locator(f'xpath={XPATH_MENU_SERVICE}').click()
-    await page.wait_for_timeout(800)
+    await page.wait_for_timeout(1000)
     await page.locator(f'xpath={XPATH_MENU_MACHINE}').click()
     await page.wait_for_load_state("networkidle")
     await page.wait_for_timeout(2000)
