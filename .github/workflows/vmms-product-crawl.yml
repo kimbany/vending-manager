@@ -1,0 +1,37 @@
+name: VMMS 제품/컬럼 크롤링
+
+on:
+  workflow_dispatch:        # 수동 실행만 (앱에서 필요 시 실행)
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 패키지 설치
+        run: |
+          pip install playwright firebase-admin
+          playwright install chromium
+          playwright install-deps chromium
+
+      - name: VMMS 제품/컬럼 크롤링 실행
+        env:
+          FIREBASE_KEY: ${{ secrets.FIREBASE_KEY }}
+        run: python vmms_product_crawler.py
+
+      - name: 스크린샷 업로드 (디버깅용)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vmms-product-screenshots
+          path: 'vmms_product_*.png'
+          retention-days: 3
