@@ -477,6 +477,15 @@
             <div id="ls-save-msg" style="font-size:12px;margin-top:8px;text-align:center"></div>
           </div>
         </div>
+        <!-- 쿠팡 계정 설정 -->
+        <div class="card" style="margin-bottom:12px">
+          <div class="ch"><div class="ca" style="background:var(--blue)"></div><div><div class="ct">🛒 쿠팡 계정</div><div class="cs">주문내역 자동 수집용</div></div></div>
+          <div class="cb">
+            <div id="coupang-account-status" style="font-size:14px;color:var(--text2);margin-bottom:12px">미등록</div>
+            <button onclick="openModal('coupang-account-modal')" style="width:100%;background:var(--blue);border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit" id="coupang-account-btn">쿠팡 계정 등록</button>
+          </div>
+        </div>
+
       </div>
 
       <!-- 자판기 관리 패널 -->
@@ -666,6 +675,21 @@
     <div class="fr"><label class="lbl">VMMS 비밀번호</label><input type="password" id="ev-pw" placeholder="VMMS 로그인 비밀번호"/></div>
     <button class="btn-p" style="margin-bottom:0" onclick="saveVmms()">저장</button>
     <div id="ev-msg" style="font-size:12px;margin-top:8px;text-align:center"></div>
+  </div>
+</div>
+
+<!-- 쿠팡 계정 등록 모달 -->
+<div class="modal-bg" id="coupang-account-modal">
+  <div class="modal" style="padding-bottom:24px">
+    <div class="mh"><div class="mt">🛒 쿠팡 계정 등록</div><button class="mc" onclick="closeModal('coupang-account-modal')">✕</button></div>
+    <div style="background:rgba(0,100,255,.06);border:1px solid rgba(0,100,255,.15);border-radius:10px;padding:12px;margin-bottom:14px;font-size:12px;color:var(--text2);line-height:1.6">
+      쿠팡 주문내역을 자동 수집하여 재고 입고 및 구매가를 자동 업데이트합니다.<br/>
+      계정 정보는 AES-256으로 암호화되어 저장됩니다.
+    </div>
+    <div class="fr"><label class="lbl">쿠팡 이메일</label><input type="email" id="ca-email" placeholder="쿠팡 로그인 이메일"/></div>
+    <div class="fr"><label class="lbl">쿠팡 비밀번호</label><input type="password" id="ca-pw" placeholder="쿠팡 로그인 비밀번호"/></div>
+    <button onclick="saveCoupangAccount()" style="width:100%;background:var(--blue);border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit">저장</button>
+    <div id="ca-msg" style="font-size:12px;margin-top:8px;text-align:center"></div>
   </div>
 </div>
 

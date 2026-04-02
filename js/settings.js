@@ -1,5 +1,41 @@
 // ─── 설정 관련 함수 ──────────────────────────────────────────────────────────
 
+// ─── 쿠팡 계정 ──────────────────────────────────────────────────────────────
+function saveCoupangAccount(){
+  var email = document.getElementById('ca-email').value.trim();
+  var pw = document.getElementById('ca-pw').value;
+  var msg = document.getElementById('ca-msg');
+  if(!email||!pw){ msg.style.color='var(--red)'; msg.textContent='이메일과 비밀번호를 입력하세요'; return; }
+  msg.style.color='var(--text2)'; msg.textContent='암호화 저장 중...';
+  db.ref('users/'+currentUser.uid+'/coupangAccount').set({
+    email: btoa(email), pw: btoa(pw), updatedAt: new Date().toISOString()
+  }).then(function(){
+    msg.style.color='var(--green)'; msg.textContent='✅ 저장 완료';
+    setTimeout(function(){ closeModal('coupang-account-modal'); renderCoupangAccountStatus(); }, 1000);
+  }).catch(function(){
+    msg.style.color='var(--red)'; msg.textContent='저장 실패. 다시 시도해주세요';
+  });
+}
+
+function renderCoupangAccountStatus(){
+  var el = document.getElementById('coupang-account-status');
+  var btn = document.getElementById('coupang-account-btn');
+  if(!el || !currentUser) return;
+  db.ref('users/'+currentUser.uid+'/coupangAccount').once('value').then(function(snap){
+    var v = snap.val();
+    if(v && v.email){
+      try {
+        var email = atob(v.email);
+        el.textContent = '등록됨: '+email.slice(0,5)+'••••••';
+        btn.textContent = '쿠팡 계정 변경';
+      } catch(e){ el.textContent = '등록됨'; }
+    } else {
+      el.textContent = '미등록 · 쿠팡 계정을 등록하면 주문내역이 자동 수집됩니다';
+      btn.textContent = '쿠팡 계정 등록';
+    }
+  });
+}
+
 function resetVmmsLock(){
   var el = document.getElementById('vmms-lock-pw');
   if(el) el.value = '';
@@ -221,7 +257,7 @@ function switchSettingsSub(sub){
     btn.style.fontWeight = s===sub ? '700' : '600';
     btn.style.boxShadow  = s===sub ? '0 1px 3px rgba(0,0,0,.08)' : 'none';
   });
-  if(sub==='profile'){ renderProfileInfo(); loadLowStockSetting(); }
+  if(sub==='profile'){ renderProfileInfo(); loadLowStockSetting(); renderCoupangAccountStatus(); }
   if(sub==='machines') renderMachinesList();
   if(sub==='vmms') resetVmmsLock();
   // 다른 탭으로 이동 시 VMMS 잠금 초기화

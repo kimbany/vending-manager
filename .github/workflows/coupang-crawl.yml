@@ -1,0 +1,39 @@
+name: 쿠팡 주문 크롤링
+
+on:
+  schedule:
+    - cron: '0 21 * * *'   # 매일 오전 06:00 KST
+  workflow_dispatch:        # 수동 실행
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 패키지 설치
+        run: |
+          pip install playwright firebase-admin
+          playwright install chromium
+          playwright install-deps chromium
+
+      - name: 쿠팡 주문 크롤링 실행
+        env:
+          FIREBASE_KEY: ${{ secrets.FIREBASE_KEY }}
+        run: python coupang_crawler.py
+
+      - name: 스크린샷 업로드 (디버깅용)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coupang-screenshots
+          path: 'coupang_*.png'
+          retention-days: 3
