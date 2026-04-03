@@ -343,7 +343,17 @@ async def crawl_machines_and_columns(page):
                     cells = await row.locator('td').all()
                     if not cells:
                         cells = await row.locator('div').all()
-                    cell_texts = [(await c.inner_text()).strip() for c in cells]
+
+                    # 각 셀의 텍스트 가져오기 (input 필드는 value 읽기)
+                    cell_texts = []
+                    for c in cells:
+                        # input 필드가 있으면 value 읽기 (컬럼번호가 input임)
+                        inp = c.locator('input')
+                        if await inp.count() > 0:
+                            val = await inp.first.input_value()
+                            cell_texts.append(val.strip())
+                        else:
+                            cell_texts.append((await c.inner_text()).strip())
 
                     # 디버깅: 첫 3행의 모든 셀 출력
                     if len(columns) < 3:
