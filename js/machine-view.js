@@ -38,46 +38,126 @@ function navMachine(dir){
   if(!vmMachineList.length) return;
   vmMachineIdx = (vmMachineIdx + dir + vmMachineList.length) % vmMachineList.length;
   var mc = vmMachineList[vmMachineIdx];
-  // 해당 단말기 데이터 로드
-  var appRef = db.ref('users/'+currentUser.uid+'/locations/'+mc.locId+'/machines/'+mc.machineId+'/appData');
-  appRef.once('value').then(function(snap){
-    var val = snap.val()||{};
-    var mProds = val.products||[];
-    var mInv   = val.inventory||[];
-    // 제품/재고를 현재 컨텍스트에도 저장 (클릭 이벤트 대응)
-    mc._prods = mProds;
-    mc._inv = mInv;
-    renderMachineView(mc, mProds, mInv);
-  });
+  if(mc._vmmsColumns){
+    _renderMachineFromVmms(mc);
+  } else {
+    renderMachineView(mc, [], []);
+  }
 }
 
 function renderMachine(){
-  // 위치의 모든 단말기 로드
-  if(!currentUser){ renderMachineView(null, D.products, D.inventory); return; }
-  db.ref('users/'+currentUser.uid+'/locations').once('value').then(function(snap){
+  if(!currentUser) return;
+
+  // VMMS 데이터 로드
+  Promise.all([
+    db.ref('users/'+currentUser.uid+'/vmmsMachines').once('value'),
+    db.ref('users/'+currentUser.uid+'/vmmsColumns').once('value'),
+    db.ref('users/'+currentUser.uid+'/locations').once('value')
+  ]).then(function(results){
+    var machData = results[0].val();
+    var colData = results[1].val();
+    var locData = results[2].val();
+
+    var vmmsMachines = (machData && machData.items) ? machData.items : [];
+    var vmmsColumns = (colData && colData.machines) ? colData.machines : {};
+    if(!Array.isArray(vmmsMachines)) vmmsMachines = Object.values(vmmsMachines);
+
     vmMachineList = [];
-    if(snap.exists()){
-      snap.forEach(function(locSnap){
-        var loc = locSnap.val();
+
+    if(vmmsMachines.length > 0){
+      // VMMS 데이터 기반
+      vmmsMachines.forEach(function(vm){
+        var devno = vm.deviceNo || '';
+        var model = '';
+        // locations에서 모델명 찾기
+        if(locData){
+          Object.keys(locData).forEach(function(locId){
+            var loc = locData[locId];
+            Object.keys(loc.machines||{}).forEach(function(mid){
+              var m = loc.machines[mid];
+              var devnos = Array.isArray(m.deviceNos)?m.deviceNos:(m.deviceNo?[m.deviceNo]:[]);
+              if(devnos.indexOf(devno)>=0) model = m.model||'';
+            });
+          });
+        }
+        vmMachineList.push({
+          name: vm.machineName||'', devno: devno, model: model,
+          _vmmsColumns: vmmsColumns[devno] || {}
+        });
+      });
+    } else if(locData){
+      // VMMS 없으면 기존 locations 기반 (fallback)
+      Object.keys(locData).forEach(function(locId){
+        var loc = locData[locId];
         Object.keys(loc.machines||{}).forEach(function(mid){
           var m = loc.machines[mid];
           var devnos = Array.isArray(m.deviceNos)?m.deviceNos:(m.deviceNo?[m.deviceNo]:[]);
           vmMachineList.push({
-            machineId:mid, locId:locSnap.key,
-            name:m.name, devno:devnos[0]||'', model:m.model||''
+            machineId:mid, locId:locId,
+            name:m.name, devno:devnos[0]||'', model:m.model||'',
+            _vmmsColumns: vmmsColumns[devnos[0]]||{}
           });
         });
       });
     }
+
     var nav = document.getElementById('vm-machine-nav');
-    if(vmMachineList.length > 1){
-      nav.style.display='flex';
-    } else {
-      nav.style.display='none';
-    }
+    nav.style.display = vmMachineList.length > 1 ? 'flex' : 'none';
+
     if(vmMachineList.length === 0){
-      renderMachineView(null, D.products, D.inventory);
-    } else {
+      document.getElementById('vm-grid').innerHTML = '<div class="empty"><div class="ei">🏪</div><div class="et">자판기 데이터가 없습니다</div></div>';
+      return;
+    }
+
+    var found = -1;
+    vmMachineList.forEach(function(mc, i){ if(mc.devno === currentMachineId || mc.machineId === currentMachineId) found = i; });
+    vmMachineIdx = found >= 0 ? found : 0;
+    var mc = vmMachineList[vmMachineIdx];
+    _renderMachineFromVmms(mc);
+  });
+}
+
+function _renderMachineFromVmms(mc){
+  var colData = mc._vmmsColumns || {};
+  var columns = colData.columns || [];
+  if(!Array.isArray(columns)) columns = Object.values(columns);
+
+  // VMMS 컬럼 데이터를 기존 renderMachineView 형식으로 변환
+  var prods = [];
+  var inv = [];
+  var seen = {};
+
+  columns.forEach(function(c){
+    var code = c.productCode||'';
+    var name = c.productName||'';
+    var colNo = c.columnNo||'';
+    var id = code || name;
+
+    if(!seen[id]){
+      seen[id] = {id:id, name:name, column:[], deviceNo:mc.devno, productCode:code};
+      prods.push(seen[id]);
+      inv.push({productId:id, qty:0}); // 재고는 별도 관리
+    }
+    if(colNo) seen[id].column.push(colNo);
+  });
+
+  // 기존 재고 데이터 병합 (appData에서)
+  if(mc.locId && mc.machineId){
+    db.ref('users/'+currentUser.uid+'/locations/'+mc.locId+'/machines/'+mc.machineId+'/appData/inventory').once('value').then(function(snap){
+      var existingInv = snap.val()||[];
+      if(!Array.isArray(existingInv)) existingInv = Object.values(existingInv);
+      // 상품명 기준으로 재고 매칭
+      existingInv.forEach(function(ei){
+        inv.forEach(function(ni){
+          if(ni.productId === ei.productId) ni.qty = ei.qty;
+        });
+      });
+      renderMachineView(mc, prods, inv);
+    });
+  } else {
+    renderMachineView(mc, prods, inv);
+  }
+}
       // 현재 선택된 자판기 찾기
       var found = -1;
       vmMachineList.forEach(function(mc, i){
