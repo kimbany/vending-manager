@@ -119,8 +119,22 @@ function renderAllMachineLowStock(){
   var el = document.getElementById('home-all-low-list');
   if(!el || !currentUser) return;
 
-  getLocationsData(function(locs){
-    if(!locs){
+  // VMMS + locations 데이터 로드
+  Promise.all([
+    db.ref('users/'+currentUser.uid+'/vmmsColumns').once('value'),
+    db.ref('users/'+currentUser.uid+'/vmmsMachines').once('value'),
+    db.ref('users/'+currentUser.uid+'/locations').once('value')
+  ]).then(function(results){
+    var colSnap = results[0].val();
+    var machSnap = results[1].val();
+    var locSnap = results[2].val();
+
+    var vmmsColumns = (colSnap && colSnap.machines) ? colSnap.machines : {};
+    var vmmsMachines = (machSnap && machSnap.items) ? machSnap.items : [];
+    if(!Array.isArray(vmmsMachines)) vmmsMachines = Object.values(vmmsMachines);
+
+    if(!vmmsMachines.length){
+      // VMMS 데이터 없으면 기존 방식 fallback
       var lt = typeof getLowStockThreshold==='function' ? getLowStockThreshold() : 5;
       var low = D.inventory.filter(function(i){return i.qty<=lt;})
         .map(function(i){return {i:i,p:gp(i.productId)};}).filter(function(x){return x.p && !x.p.discontinued;});
@@ -131,34 +145,54 @@ function renderAllMachineLowStock(){
         : '<div class="empty"><div class="ei">✅</div><div class="et">재고 부족 없음</div></div>';
       return;
     }
+
+    // VMMS 자판기별 재고부족
     var totalLow=0;
     var cards=[];
+    var lt2 = typeof getLowStockThreshold==='function' ? getLowStockThreshold() : 5;
 
-    // 위치별로 그룹핑
-    Object.keys(locs).forEach(function(locId){
-      var loc = locs[locId];
-      var locLow = [];
-      Object.keys(loc.machines||{}).forEach(function(mid){
-        var m = loc.machines[mid];
-        var appData = m.appData||{};
-        var prods = appData.products||[];
-        var inv = appData.inventory||[];
-        if(!Array.isArray(prods)) prods = Object.values(prods);
-        if(!Array.isArray(inv)) inv = Object.values(inv);
-        prods = prods.filter(function(p){return p && p.name;});
-        var lt2 = typeof getLowStockThreshold==='function' ? getLowStockThreshold() : 5;
-        prods.forEach(function(p){
-          var qi = inv.find(function(x){return x.productId===p.id;});
-          var q = qi ? qi.qty : 0;
-          if(q <= lt2 && !p.discontinued) locLow.push({p:p, q:q, machineName:m.name});
+    vmmsMachines.forEach(function(vm){
+      var devno = vm.deviceNo||'';
+      var colData = vmmsColumns[devno]||{};
+      var columns = colData.columns||[];
+      if(!Array.isArray(columns)) columns = Object.values(columns);
+
+      // locations에서 재고 가져오기
+      var inv = [];
+      if(locSnap){
+        Object.keys(locSnap).forEach(function(locId){
+          var loc = locSnap[locId];
+          Object.keys(loc.machines||{}).forEach(function(mid){
+            var m = loc.machines[mid];
+            var devnos = Array.isArray(m.deviceNos)?m.deviceNos:(m.deviceNo?[m.deviceNo]:[]);
+            if(devnos.indexOf(devno)>=0){
+              var appData = m.appData||{};
+              inv = appData.inventory||[];
+              if(!Array.isArray(inv)) inv = Object.values(inv);
+            }
+          });
         });
+      }
+
+      var locLow = [];
+      // 제품별 재고 확인
+      var seen = {};
+      columns.forEach(function(c){
+        var code = c.productCode||'';
+        var name = c.productName||'';
+        var id = code||name;
+        if(seen[id]) return;
+        seen[id] = true;
+        var qi = inv.find(function(x){return x.productId===id;});
+        var q = qi ? qi.qty : 0;
+        if(q <= lt2) locLow.push({p:{name:name}, q:q, machineName:vm.machineName||''});
       });
       if(!locLow.length) return;
       totalLow += locLow.length;
       var itemsHtml = locLow.map(function(x){
         return '<div class="li"><div style="min-width:0"><div class="in">'+x.p.name+'</div><div class="is">'+x.machineName+'</div></div><span class="badge '+(x.q===0?'br':'bo')+'">'+x.q+'개</span></div>';
       }).join('');
-      cards.push('<div class="low-stock-card"><div style="font-size:12px;font-weight:700;color:var(--blue);padding:0 0 6px">📍 '+loc.name+' <span style="color:var(--red)">('+locLow.length+')</span></div>'+itemsHtml+'</div>');
+      cards.push('<div class="low-stock-card"><div style="font-size:12px;font-weight:700;color:var(--blue);padding:0 0 6px">🏪 '+(vm.machineName||devno)+' <span style="color:var(--red)">('+locLow.length+')</span></div>'+itemsHtml+'</div>');
     });
 
     if(!totalLow){

@@ -163,33 +163,78 @@ function getSortedProducts(){
 }
 
 function renderInv(){
-  // 모든 자판기 재고를 로드하여 표시
-  if(!currentUser || !currentLocationId){
-    _renderInvSingle(D.products, D.inventory, '');
-    return;
-  }
-  db.ref('users/'+currentUser.uid+'/locations').once('value').then(function(snap){
-    if(!snap.exists()||!snap.val()){
+  if(!currentUser) return;
+
+  // VMMS 데이터 + locations(재고) 함께 로드
+  Promise.all([
+    db.ref('users/'+currentUser.uid+'/vmmsColumns').once('value'),
+    db.ref('users/'+currentUser.uid+'/vmmsMachines').once('value'),
+    db.ref('users/'+currentUser.uid+'/locations').once('value')
+  ]).then(function(results){
+    var colSnap = results[0].val();
+    var machSnap = results[1].val();
+    var locSnap = results[2].val();
+
+    var vmmsColumns = (colSnap && colSnap.machines) ? colSnap.machines : {};
+    var vmmsMachines = (machSnap && machSnap.items) ? machSnap.items : [];
+    if(!Array.isArray(vmmsMachines)) vmmsMachines = Object.values(vmmsMachines);
+
+    // VMMS 데이터 없으면 기존 방식
+    if(!vmmsMachines.length){
       _renderInvSingle(D.products, D.inventory, '');
       return;
     }
-    var locs = snap.val();
+
+    // 각 자판기별 VMMS 제품 + 재고 구성
     var machineDataList = [];
-    Object.keys(locs).forEach(function(locId){
-      var loc = locs[locId];
-      Object.keys(loc.machines||{}).forEach(function(mid){
-        var m = loc.machines[mid];
-        var appData = m.appData||{};
-        var prods = appData.products||[];
-        if(!Array.isArray(prods)) prods = Object.values(prods);
-        prods = prods.filter(function(p){ return p && p.name; });
-        var inv = appData.inventory||[];
-        if(!Array.isArray(inv)) inv = Object.values(inv);
-        machineDataList.push({locId:locId, machineId:mid, locName:loc.name, machineName:m.name, products:prods, inventory:inv, isCurrent:(locId===currentLocationId && mid===currentMachineId)});
+    vmmsMachines.forEach(function(vm){
+      var devno = vm.deviceNo||'';
+      var colData = vmmsColumns[devno]||{};
+      var columns = colData.columns||[];
+      if(!Array.isArray(columns)) columns = Object.values(columns);
+
+      // VMMS 컬럼 → 제품 변환
+      var prods = [];
+      var seen = {};
+      columns.forEach(function(c){
+        var code = c.productCode||'';
+        var name = c.productName||'';
+        var id = code||name;
+        if(!seen[id]){
+          seen[id] = {id:id, name:name, column:[], deviceNo:devno, productCode:code, sellPrice:0};
+          prods.push(seen[id]);
+        }
+        if(c.columnNo) seen[id].column.push(c.columnNo);
+      });
+
+      // locations에서 재고 데이터 가져오기
+      var inv = [];
+      if(locSnap){
+        Object.keys(locSnap).forEach(function(locId){
+          var loc = locSnap[locId];
+          Object.keys(loc.machines||{}).forEach(function(mid){
+            var m = loc.machines[mid];
+            var devnos = Array.isArray(m.deviceNos)?m.deviceNos:(m.deviceNo?[m.deviceNo]:[]);
+            if(devnos.indexOf(devno)>=0){
+              var appData = m.appData||{};
+              inv = appData.inventory||[];
+              if(!Array.isArray(inv)) inv = Object.values(inv);
+            }
+          });
+        });
+      }
+
+      machineDataList.push({
+        locName: vm.machineName||'',
+        machineName: vm.machineName||'',
+        products: prods,
+        inventory: inv,
+        isCurrent: false
       });
     });
+
     if(machineDataList.length <= 1){
-      var md = machineDataList[0]||{products:D.products, inventory:D.inventory};
+      var md = machineDataList[0]||{products:[], inventory:[]};
       _renderInvSingle(md.products, md.inventory, md.machineName||'');
     } else {
       _renderInvMulti(machineDataList);
