@@ -3,6 +3,48 @@
 var _vmmsProducts = [];    // 상품마스터
 var _vmmsMachines = [];    // 자판기 목록
 var _vmmsColumns = {};     // 단말기별 컬럼매칭
+
+// ─── 크롤링 데이터 불러오기 (버튼용) ─────────────────────────────────────────
+function syncVmmsProducts(){
+  var msg = document.getElementById('vmms-sync-msg');
+  if(msg){ msg.style.color='var(--text2)'; msg.textContent='제품 데이터 불러오는 중...'; }
+  db.ref('users/'+currentUser.uid+'/vmmsProducts').once('value').then(function(snap){
+    var data = snap.val();
+    if(!data || !data.items){
+      if(msg){ msg.style.color='var(--red)'; msg.textContent='VMMS 제품 데이터가 없습니다. GitHub Actions에서 크롤링을 실행해주세요.'; }
+      return;
+    }
+    _vmmsProducts = data.items;
+    if(!Array.isArray(_vmmsProducts)) _vmmsProducts = Object.values(_vmmsProducts);
+    if(msg){ msg.style.color='var(--green)'; msg.textContent='✅ 제품 '+_vmmsProducts.length+'개 불러오기 완료 ('+data.updated_at+')'; }
+    setTimeout(function(){ if(msg) msg.textContent=''; }, 3000);
+  });
+}
+
+function syncVmmsColumns(){
+  var msg = document.getElementById('vmms-sync-msg');
+  if(msg){ msg.style.color='var(--text2)'; msg.textContent='컬럼 매칭 데이터 불러오는 중...'; }
+  Promise.all([
+    db.ref('users/'+currentUser.uid+'/vmmsMachines').once('value'),
+    db.ref('users/'+currentUser.uid+'/vmmsColumns').once('value')
+  ]).then(function(results){
+    var machData = results[0].val();
+    var colData = results[1].val();
+    if(!machData || !machData.items){
+      if(msg){ msg.style.color='var(--red)'; msg.textContent='VMMS 자판기 데이터가 없습니다. GitHub Actions에서 크롤링을 실행해주세요.'; }
+      return;
+    }
+    _vmmsMachines = machData.items;
+    _vmmsColumns = (colData && colData.machines) ? colData.machines : {};
+    if(!Array.isArray(_vmmsMachines)) _vmmsMachines = Object.values(_vmmsMachines);
+    var totalCols = 0;
+    Object.values(_vmmsColumns).forEach(function(m){ totalCols += (m.columns?m.columns.length:0); });
+    if(msg){ msg.style.color='var(--green)'; msg.textContent='✅ 자판기 '+_vmmsMachines.length+'대 · 컬럼 '+totalCols+'개 불러오기 완료'; }
+    initVmmsMachineNav();
+    renderVmmsProducts();
+    setTimeout(function(){ if(msg) msg.textContent=''; }, 3000);
+  });
+}
 var _vmmsMachineIdx = 0;   // 현재 자판기 인덱스
 var _vmmsProdSort = 'name';
 
