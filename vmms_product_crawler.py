@@ -204,12 +204,14 @@ async def crawl_products(page):
             for tr in tr_list:
                 cells = await tr.locator('td').all()
                 cell_texts = [(await c.inner_text()).strip() for c in cells]
-                if len(cell_texts) >= 3:
+                # 순번(0) 작업(1) 소속(2) 공급자(3) 그룹군(4) 그룹(5) 상품코드(6) 상품명(7) 원가(8) 바코드(9)
+                if len(cell_texts) >= 8:
                     rows.append({
                         'seq': cell_texts[0] if len(cell_texts) > 0 else '',
-                        'productCode': cell_texts[1] if len(cell_texts) > 1 else '',
-                        'productName': cell_texts[2] if len(cell_texts) > 2 else '',
-                        'barcode': cell_texts[3] if len(cell_texts) > 3 else ''
+                        'productCode': cell_texts[6] if len(cell_texts) > 6 else '',
+                        'productName': cell_texts[7] if len(cell_texts) > 7 else '',
+                        'costPrice': cell_texts[8] if len(cell_texts) > 8 else '',
+                        'barcode': cell_texts[9] if len(cell_texts) > 9 else ''
                     })
         except Exception as e:
             print(f"    수집 오류: {e}")
