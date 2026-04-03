@@ -31,6 +31,7 @@ XPATH_MENU_MACHINE    = '//*[@id="main-menu-navigation"]/li[1]/ul/li[4]/a'
 # 상품마스터
 XPATH_PRODUCT_LIST    = '/html/body/div[4]/div/div[2]/div/div/div/div'
 XPATH_PRODUCT_PAGE    = '/html/body/div[4]/div/div[2]/div/div/div/div/div[2]/ul/li/a'
+XPATH_PRODUCT_NEXT    = '/html/body/div[4]/div/div[2]/div/div/div/div/div[2]/ul/li[11]/a'
 XPATH_PRODUCT_TOTAL   = '//*[@id="maintotalCnt"]'
 
 # 운영머신기
@@ -104,14 +105,16 @@ async def get_table_rows(page, table_xpath):
         print(f"  테이블 수집 오류: {e}")
     return rows
 
-async def get_all_pages(page, page_xpath, table_xpath, collector_fn):
-    """모든 페이지 순회하며 데이터 수집 (다음 버튼 지원)"""
+async def get_all_pages(page, page_xpath, next_xpath, collector_fn):
+    """모든 페이지 순회 (VMMS: 1~10 표시 → 다음 버튼(li[11]) → 11~20 표시)"""
     all_data = []
 
     # 1페이지 수집
     first = await collector_fn(page)
     all_data.extend(first)
     print(f"    1페이지: {len(first)}건")
+    if not first:
+        return all_data
 
     current_page = 1
 
@@ -119,7 +122,7 @@ async def get_all_pages(page, page_xpath, table_xpath, collector_fn):
         next_page = current_page + 1
         clicked = False
 
-        # 방법 1: 다음 페이지 번호 직접 클릭
+        # 방법 1: 페이지 번호 버튼 직접 클릭
         try:
             btns = await page.locator(f'xpath={page_xpath}').all()
             for btn in btns:
@@ -133,18 +136,16 @@ async def get_all_pages(page, page_xpath, table_xpath, collector_fn):
         except:
             pass
 
-        # 방법 2: 번호가 없으면 "다음" 또는 ">" 버튼 클릭
-        if not clicked:
+        # 방법 2: 페이지 번호 없으면 "다음(>)" 버튼 클릭 (li[11])
+        if not clicked and next_xpath:
             try:
-                btns = await page.locator(f'xpath={page_xpath}').all()
-                for btn in btns:
-                    txt = (await btn.inner_text()).strip()
-                    if txt in ['다음', '>', '»', 'Next', '›']:
-                        await btn.click()
-                        await page.wait_for_load_state("networkidle")
-                        await page.wait_for_timeout(1000)
-                        clicked = True
-                        break
+                next_btn = page.locator(f'xpath={next_xpath}')
+                if await next_btn.count() > 0 and await next_btn.is_visible(timeout=2000):
+                    await next_btn.click()
+                    await page.wait_for_load_state("networkidle")
+                    await page.wait_for_timeout(1000)
+                    clicked = True
+                    print(f"    → 다음 버튼 클릭 (페이지 그룹 이동)")
             except:
                 pass
 
@@ -215,7 +216,7 @@ async def crawl_products(page):
         return rows
 
     products = await get_all_pages(page, XPATH_PRODUCT_PAGE,
-                                    f'{XPATH_PRODUCT_LIST}//table', collect_products)
+                                    XPATH_PRODUCT_NEXT, collect_products)
     print(f"  [상품마스터] 총 {len(products)}개 수집 완료")
     return products
 
@@ -268,7 +269,7 @@ async def crawl_machines_and_columns(page):
         return rows
 
     machines = await get_all_pages(page, XPATH_MACHINE_PAGE,
-                                    XPATH_MACHINE_GRID, collect_machines)
+                                    None, collect_machines)
     print(f"  [자판기] {len(machines)}대 발견")
 
     # 각 자판기별 컬럼매칭 크롤링
