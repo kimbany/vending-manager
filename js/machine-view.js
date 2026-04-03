@@ -69,20 +69,24 @@ function renderMachine(){
       vmmsMachines.forEach(function(vm){
         var devno = vm.deviceNo || '';
         var model = '';
-        // locations에서 모델명 찾기
+        var locId = '', machineId = '';
+        // locations에서 모델명 + locId/machineId 찾기
         if(locData){
-          Object.keys(locData).forEach(function(locId){
-            var loc = locData[locId];
+          Object.keys(locData).forEach(function(lid){
+            var loc = locData[lid];
             Object.keys(loc.machines||{}).forEach(function(mid){
               var m = loc.machines[mid];
               var devnos = Array.isArray(m.deviceNos)?m.deviceNos:(m.deviceNo?[m.deviceNo]:[]);
-              if(devnos.indexOf(devno)>=0) model = m.model||'';
+              if(devnos.indexOf(devno)>=0){ model = m.model||''; locId = lid; machineId = mid; }
             });
           });
         }
+        var colMatch = vmmsColumns[devno] || {};
+        console.log('[자판기현황] devno:'+devno+' 컬럼데이터:'+(colMatch.columns?colMatch.columns.length:0)+'개 vmmsColumns키:', Object.keys(vmmsColumns));
         vmMachineList.push({
           name: vm.machineName||'', devno: devno, model: model,
-          _vmmsColumns: vmmsColumns[devno] || {}
+          locId: locId, machineId: machineId,
+          _vmmsColumns: colMatch
         });
       });
     } else if(locData){
