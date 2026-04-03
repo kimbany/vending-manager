@@ -162,21 +162,6 @@ function _renderMachineFromVmms(mc){
     renderMachineView(mc, prods, inv);
   }
 }
-      // 현재 선택된 자판기 찾기
-      var found = -1;
-      vmMachineList.forEach(function(mc, i){
-        if(mc.machineId === currentMachineId) found = i;
-      });
-      vmMachineIdx = found >= 0 ? found : 0;
-      var mc = vmMachineList[vmMachineIdx];
-      var appRef = db.ref('users/'+currentUser.uid+'/locations/'+mc.locId+'/machines/'+mc.machineId+'/appData');
-      appRef.once('value').then(function(snap){
-        var val = snap.val()||{};
-        renderMachineView(mc, val.products||[], val.inventory||[]);
-      });
-    }
-  });
-}
 
 // 현재 보고 있는 자판기 데이터 캐시 (openProdDetail에서 사용)
 var _vmViewProds = [];
