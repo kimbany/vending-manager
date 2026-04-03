@@ -126,6 +126,16 @@ function _renderMachineFromVmms(mc){
   var columns = colData.columns || [];
   if(!Array.isArray(columns)) columns = Object.values(columns);
 
+  // 2칸 제품 데이터 로드
+  var devno = mc.devno||'';
+  db.ref('users/'+currentUser.uid+'/doubleColumns/'+devno).once('value').then(function(dcSnap){
+    var doubleItems = dcSnap.val()||[];
+    if(!Array.isArray(doubleItems)) doubleItems = Object.values(doubleItems);
+    _buildMachineView(mc, columns, doubleItems);
+  });
+}
+
+function _buildMachineView(mc, columns, doubleItems){
   // VMMS 컬럼 데이터를 기존 renderMachineView 형식으로 변환
   var prods = [];
   var inv = [];
@@ -142,7 +152,19 @@ function _renderMachineFromVmms(mc){
       prods.push(seen[id]);
       inv.push({productId:id, qty:0}); // 재고는 별도 관리
     }
-    if(colNo) seen[id].column.push(colNo);
+    // 2칸 제품인지 확인
+    var dcMatch = doubleItems.find(function(d){ return d.productCode === code; });
+    if(dcMatch){
+      // 2칸 제품: "시작~끝" 형식으로 저장 (이미 있으면 건너뜀)
+      var rangeCol = dcMatch.colStart+'~'+dcMatch.colEnd;
+      if(seen[id].column.indexOf(rangeCol) < 0){
+        // 개별 컬럼 대신 범위로 교체
+        seen[id].column = seen[id].column.filter(function(c){ return c!=String(dcMatch.colStart) && c!=String(dcMatch.colEnd); });
+        seen[id].column.push(rangeCol);
+      }
+    } else {
+      if(colNo) seen[id].column.push(colNo);
+    }
   });
 
   // 기존 재고 데이터 병합 (appData에서)

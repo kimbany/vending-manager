@@ -352,6 +352,7 @@
           <button onclick="navMachine(1)" style="background:none;border:1px solid var(--border);border-radius:8px;padding:6px 12px;color:var(--text2);cursor:pointer;font-size:16px">›</button>
         </div>
         <div class="vmw" id="vm-grid"></div>
+        <button onclick="openDoubleColumnModal()" style="width:100%;margin-top:10px;background:var(--bg2);border:2px solid var(--blue);border-radius:12px;padding:12px;font-size:14px;font-weight:700;color:var(--blue);cursor:pointer;font-family:inherit">📐 2칸 제품 설정</button>
         <div class="card" style="margin-top:14px">
           <div class="ch"><div class="ca" style="background:var(--blue)"></div><div><div class="ct">컬럼 배치 현황</div><div id="vm-list-sub" style="font-size:11px;color:var(--text3);margin-top:2px">제품 눌러서 상세 보기</div></div></div>
           <div class="cb" id="vm-list"></div>
@@ -684,6 +685,34 @@
   </div>
 </div>
 
+<!-- 2칸 제품 설정 모달 -->
+<div class="modal-bg" id="double-col-modal">
+  <div class="modal">
+    <div class="mh"><div class="mt">📐 2칸 제품 설정</div><button class="mc" onclick="closeModal('double-col-modal')">✕</button></div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:14px">2칸을 차지하는 제품의 컬럼 범위를 설정하세요.</div>
+    <div id="dc-current-list" style="margin-bottom:14px"></div>
+    <div style="background:var(--bg3);border-radius:12px;padding:14px;margin-bottom:14px">
+      <div style="font-size:14px;font-weight:700;margin-bottom:10px">새 2칸 제품 추가</div>
+      <div class="fr">
+        <label class="lbl">제품 선택</label>
+        <select id="dc-product" style="font-size:14px"></select>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <div style="flex:1">
+          <label class="lbl">시작 컬럼</label>
+          <input type="number" id="dc-start" placeholder="예: 30" style="font-size:14px"/>
+        </div>
+        <div style="flex:1">
+          <label class="lbl">끝 컬럼</label>
+          <input type="number" id="dc-end" placeholder="예: 31" style="font-size:14px"/>
+        </div>
+      </div>
+      <button onclick="addDoubleColumn()" style="width:100%;background:var(--blue);border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit">추가</button>
+      <div id="dc-msg" style="font-size:12px;margin-top:8px;text-align:center;min-height:18px"></div>
+    </div>
+  </div>
+</div>
+
 <!-- PIN 설정 모달 -->
 <div class="modal-bg" id="pin-setup-modal">
   <div class="modal" style="padding-bottom:24px">
@@ -981,6 +1010,7 @@
 <script src="js/machine-view.js"></script>
 <script src="js/products.js"></script>
 <script src="js/vmms-products.js"></script>
+<script src="js/double-column.js"></script>
 <script src="js/bulk.js"></script>
 <script src="js/coupang.js"></script>
 <script src="js/crawl.js"></script>
