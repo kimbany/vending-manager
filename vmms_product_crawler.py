@@ -345,6 +345,10 @@ async def crawl_machines_and_columns(page):
                         cells = await row.locator('div').all()
                     cell_texts = [(await c.inner_text()).strip() for c in cells]
 
+                    # 디버깅: 첫 3행의 모든 셀 출력
+                    if len(columns) < 3:
+                        print(f"      row 셀({len(cell_texts)}개): {cell_texts}")
+
                     if len(cell_texts) >= 3:
                         col_entry = {
                             'columnNo': cell_texts[0] if len(cell_texts) > 0 else '',
