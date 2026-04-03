@@ -109,13 +109,16 @@ function deleteSelected(){
 }
 
 function renderProds(){
-  // 현재 선택된 자판기의 제품만 표시 (자판기 전환은 화살표로)
+  // VMMS 모드면 vmms-products.js에서 처리
+  if(document.getElementById('vmms-prod-list')) return;
   _renderProdsFromList(D.products);
 }
 
 function _renderProdsFromList(products){
-  document.getElementById('prod-title').textContent='등록 제품 ('+products.length+'개)';
-  var el=document.getElementById('prod-list');
+  var titleEl = document.getElementById('prod-title');
+  var el = document.getElementById('prod-list');
+  if(!titleEl || !el) return;
+  titleEl.textContent='등록 제품 ('+products.length+'개)';
   if(!products.length){el.innerHTML='<div class="empty"><div class="ei">🏷️</div><div class="et">등록된 제품이 없습니다</div></div>';return;}
 
   // 정렬 적용
