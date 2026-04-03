@@ -1,4 +1,4 @@
-var CACHE_VERSION = 2;
+var CACHE_VERSION = 3;
 var CACHE_NAME = 'invedory-v' + CACHE_VERSION;
 var STATIC_FILES = [
   './',
@@ -21,6 +21,7 @@ var JS_FILES = [
   './js/csv.js',
   './js/machine-view.js',
   './js/products.js',
+  './js/vmms-products.js',
   './js/bulk.js',
   './js/crawl.js',
   './js/coupang.js',

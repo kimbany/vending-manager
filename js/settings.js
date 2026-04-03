@@ -110,7 +110,7 @@ function switchVmSub(sub){
   btnP.style.fontWeight = isStatus ? '600' : '700';
   btnP.style.boxShadow  = isStatus ? 'none' : '0 1px 3px rgba(0,0,0,.08)';
   if(isStatus) renderMachine();
-  else { if(typeof initProdMachineNav==='function') initProdMachineNav(); renderProds(); }
+  else { if(typeof loadVmmsProductData==='function') loadVmmsProductData(); }
 }
 
 function checkMigrationV2(){

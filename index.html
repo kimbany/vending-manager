@@ -360,43 +360,29 @@
 
       <!-- 제품 관리 서브패널 -->
       <div id="vm-panel-products" style="display:none">
-        <button class="btn-p" style="margin-bottom:10px" onclick="openModal('prod-type-modal')">➕ 제품 등록</button>
-        <div onclick="toggleEditMode()" id="edit-mode-btn" style="display:flex;align-items:center;justify-content:space-between;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:10px;cursor:pointer;font-size:14px;font-weight:600;color:var(--text2)">
-          <span>✏️ 편집</span><span style="font-size:16px;color:var(--text3)">›</span>
-        </div>
-        <!-- 자판기 네비게이터 (제품 관리용) -->
-        <div id="pm-machine-nav" style="display:none;align-items:center;justify-content:space-between;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:10px;box-shadow:0 1px 2px rgba(0,0,0,.03)">
-          <button onclick="navProdMachine(-1)" style="background:none;border:1px solid var(--border);border-radius:8px;padding:6px 12px;color:var(--text2);cursor:pointer;font-size:16px">‹</button>
-          <div style="text-align:center">
-            <div id="pm-machine-name" style="font-size:14px;font-weight:700;color:var(--text)"></div>
-            <div id="pm-machine-devno" style="font-size:12px;color:var(--text3)"></div>
+        <!-- VMMS 데이터 기반 제품 관리 -->
+        <div id="vmms-product-panel">
+          <!-- 자판기 네비게이터 -->
+          <div id="pm-machine-nav" style="display:none;align-items:center;justify-content:space-between;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:10px;box-shadow:0 1px 2px rgba(0,0,0,.03)">
+            <button onclick="navVmmsMachine(-1)" style="background:none;border:1px solid var(--border);border-radius:8px;padding:6px 12px;color:var(--text2);cursor:pointer;font-size:16px">‹</button>
+            <div style="text-align:center">
+              <div id="pm-machine-name" style="font-size:14px;font-weight:700;color:var(--text)"></div>
+              <div id="pm-machine-devno" style="font-size:12px;color:var(--text3)"></div>
+            </div>
+            <button onclick="navVmmsMachine(1)" style="background:none;border:1px solid var(--border);border-radius:8px;padding:6px 12px;color:var(--text2);cursor:pointer;font-size:16px">›</button>
           </div>
-          <button onclick="navProdMachine(1)" style="background:none;border:1px solid var(--border);border-radius:8px;padding:6px 12px;color:var(--text2);cursor:pointer;font-size:16px">›</button>
-        </div>
-        <div id="edit-toolbar" style="display:none;background:var(--bg3);border-radius:10px;padding:10px 14px;margin-bottom:12px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600">
-              <input type="checkbox" id="select-all-cb" onchange="toggleSelectAll(this.checked)" style="width:18px;height:18px;accent-color:var(--blue)"/>
-              전체 선택
-            </label>
-            <span id="selected-count" style="font-size:12px;color:var(--text2)">0개 선택</span>
+          <div class="stabs" style="margin-bottom:10px">
+            <button class="stab active" id="vpsort-name" onclick="setVmmsProdSort('name',this)">제품명</button>
+            <button class="stab" id="vpsort-col" onclick="setVmmsProdSort('col',this)">컬럼순</button>
           </div>
-          <div style="display:flex;gap:6px">
-            <button class="btn-sm" style="flex:1;background:#1a2a3a;color:var(--blue)" onclick="downloadSelectedCSV()">⬇️ 선택 다운로드</button>
-            <button class="btn-sm" style="flex:1;background:#1a3a2a;color:var(--green)" onclick="document.getElementById('bulk-edit-file').click()">⬆️ 수정 업로드</button>
-            <button class="btn-sm" style="background:#3a1a1a;color:var(--red)" onclick="deleteSelected()">🗑️ 삭제</button>
+          <div class="card">
+            <div class="ch"><div class="ca" style="background:var(--blue)"></div><div><div class="ct" id="vmms-prod-title">VMMS 제품</div></div></div>
+            <div class="cb" id="vmms-prod-list">
+              <div class="empty"><div class="ei">📦</div><div class="et">VMMS 데이터를 불러오는 중...</div></div>
+            </div>
           </div>
-          <input type="file" id="bulk-edit-file" accept=".csv" style="display:none" onchange="handleBulkEditCSV(this)"/>
         </div>
-        <div class="stabs" style="margin-bottom:10px">
-          <button class="stab active" id="psort-name" onclick="setProdSort('name',this)">제품명</button>
-          <button class="stab" id="psort-col" onclick="setProdSort('col',this)">컬럼순</button>
-          <button class="stab" id="psort-qasc" onclick="setProdSort('qasc',this)">재고 ↑</button>
-          <button class="stab" id="psort-qdesc" onclick="setProdSort('qdesc',this)">재고 ↓</button>
-        </div>
-        <div class="card">
-          <div class="ch"><div class="ca" style="background:var(--blue)"></div><div><div class="ct" id="prod-title">등록 제품</div></div></div>
-          <div class="cb" id="prod-list"></div>
+      </div>
         </div>
       </div>
     </div>
@@ -989,6 +975,7 @@
 <script src="js/csv.js"></script>
 <script src="js/machine-view.js"></script>
 <script src="js/products.js"></script>
+<script src="js/vmms-products.js"></script>
 <script src="js/bulk.js"></script>
 <script src="js/coupang.js"></script>
 <script src="js/crawl.js"></script>
