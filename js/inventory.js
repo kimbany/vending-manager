@@ -238,7 +238,7 @@ function renderInv(){
       var needsSave = false;
       prods.forEach(function(vp){
         var origId = vp.id; // 원본 VMMS 코드
-        var dProd = existingProds.find(function(ep){ return ep.name === vp.name; });
+        var dProd = existingProds.find(function(ep){ return ep.name.trim() === vp.name.trim(); });
         if(dProd){
           vp.id = dProd.id;
           if(dProd.sellPrice!=null) vp.sellPrice = dProd.sellPrice;
@@ -286,7 +286,7 @@ function renderInv(){
 }
 
 function _renderInvSingle(prods, inv, machineName){
-  function getQ(pid){ var i=inv.find(function(x){return x.productId===pid;}); return i?i.qty:0; }
+  function getQ(pid){ return gq(pid); }
   var sorted = prods.slice();
   if(invSort==='name') sorted.sort(function(a,b){return a.name.localeCompare(b.name,'ko');});
   else if(invSort==='qasc') sorted.sort(function(a,b){return getQ(a.id)-getQ(b.id);});
@@ -337,7 +337,7 @@ function _renderInvMulti(machineDataList){
   var lowThreshold = getLowStockThreshold();
   var allLow = [];
   machineDataList.forEach(function(md){
-    function getQ(pid){ var i=md.inventory.find(function(x){return x.productId===pid;}); return i?i.qty:0; }
+    function getQ(pid){ return gq(pid); }
     md.products.forEach(function(p){
       var q=getQ(p.id);
       if(q<=lowThreshold && !p.discontinued) allLow.push({p:p, q:q, machineName:md.machineName, locName:md.locName});
@@ -358,7 +358,7 @@ function _renderInvMulti(machineDataList){
 
   var html = '';
   machineDataList.forEach(function(md){
-    function getQ(pid){ var i=md.inventory.find(function(x){return x.productId===pid;}); return i?i.qty:0; }
+    function getQ(pid){ return gq(pid); }
     var sorted = md.products.slice();
     if(invSort==='name') sorted.sort(function(a,b){return a.name.localeCompare(b.name,'ko');});
     else if(invSort==='qasc') sorted.sort(function(a,b){return getQ(a.id)-getQ(b.id);});

@@ -185,7 +185,7 @@ function _buildMachineView(mc, columns, doubleItems){
   var needsSave = false;
   prods.forEach(function(vmProd){
     var origId = vmProd.id; // 원본 VMMS 코드
-    var dProd = D.products.find(function(ep){ return ep.name === vmProd.name; });
+    var dProd = D.products.find(function(ep){ return ep.name.trim() === vmProd.name.trim(); });
     if(dProd){
       vmProd.id = dProd.id;
       if(dProd.sellPrice!=null) vmProd.sellPrice = dProd.sellPrice;
