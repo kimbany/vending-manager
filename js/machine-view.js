@@ -179,11 +179,13 @@ function _buildMachineView(mc, columns, doubleItems){
       if(!Array.isArray(existingInv)) existingInv = Object.values(existingInv);
       if(!Array.isArray(existingProds)) existingProds = Object.values(existingProds);
       // VMMS 제품과 D.products를 제품명으로 매칭 → ID 통일 및 속성/재고 병합
+      var needsMigration = false;
       prods.forEach(function(vmProd){
+        var origId = vmProd.id; // 원본 VMMS 코드 보존
         var dProd = existingProds.find(function(ep){ return ep.name === vmProd.name; });
         if(dProd){
           // inv 항목의 productId도 함께 교체
-          var ni = inv.find(function(x){ return x.productId === vmProd.id; });
+          var ni = inv.find(function(x){ return x.productId === origId; });
           // VMMS ID를 D.products ID로 교체
           vmProd.id = dProd.id;
           if(ni) ni.productId = dProd.id;
@@ -194,9 +196,27 @@ function _buildMachineView(mc, columns, doubleItems){
           if(dProd.totalQty!=null) vmProd.totalQty = dProd.totalQty;
           if(dProd.marginAmt!=null) vmProd.marginAmt = dProd.marginAmt;
           if(dProd.marginRate!=null) vmProd.marginRate = dProd.marginRate;
-          // 기존 재고 병합
-          var ei = existingInv.find(function(x){ return x.productId === dProd.id; });
+          // 기존 재고 병합: D.products ID 또는 원본 VMMS 코드 둘 다로 검색
+          var ei = existingInv.find(function(x){ return x.productId === dProd.id; })
+                || existingInv.find(function(x){ return x.productId === origId; });
           if(ei && ni) ni.qty = ei.qty;
+          // D.inventory에 VMMS 코드로 저장된 항목이 있으면 D.products ID로 마이그레이션
+          if(origId !== dProd.id){
+            var vmmsInvIdx = D.inventory.findIndex(function(x){ return x.productId === origId; });
+            if(vmmsInvIdx >= 0){
+              var dprodInv = D.inventory.find(function(x){ return x.productId === dProd.id; });
+              if(dprodInv){
+                dprodInv.qty = D.inventory[vmmsInvIdx].qty;
+                D.inventory.splice(vmmsInvIdx, 1);
+              } else {
+                D.inventory[vmmsInvIdx].productId = dProd.id;
+              }
+              D.inventoryLogs.forEach(function(l){
+                if(l.productId === origId) l.productId = dProd.id;
+              });
+              needsMigration = true;
+            }
+          }
         } else {
           // D.products에 없는 경우 직접 ID 매칭 시도
           var ni = inv.find(function(x){ return x.productId === vmProd.id; });
@@ -204,6 +224,7 @@ function _buildMachineView(mc, columns, doubleItems){
           if(match && ni) ni.qty = match.qty;
         }
       });
+      if(needsMigration) save();
       renderMachineView(mc, prods, inv);
     });
   } else {

@@ -226,8 +226,10 @@ function renderInv(){
           });
         });
       }
-      // VMMS 제품과 D.products를 제품명으로 매칭하여 ID 통일 및 속성 병합
+      // VMMS 제품과 D.products를 제품명으로 매칭하여 ID 통일 및 속성/재고 병합
+      var needsMigration = false;
       prods.forEach(function(vp){
+        var origId = vp.id; // 원본 VMMS 코드 보존
         var dProd = existingProds.find(function(ep){ return ep.name === vp.name; });
         if(dProd){
           // VMMS 제품 ID를 D.products ID로 교체 (재고/로그 일관성)
@@ -237,8 +239,35 @@ function renderInv(){
           if(dProd.totalQty!=null) vp.totalQty = dProd.totalQty;
           if(dProd.marginAmt!=null) vp.marginAmt = dProd.marginAmt;
           if(dProd.marginRate!=null) vp.marginRate = dProd.marginRate;
+          // D.products ID 또는 원본 VMMS 코드 둘 다로 재고 검색
+          var ei = inv.find(function(x){ return x.productId === dProd.id; })
+                || inv.find(function(x){ return x.productId === origId; });
+          if(ei){
+            // D.products ID로 통일된 inv 항목 확보
+            var unified = inv.find(function(x){ return x.productId === dProd.id; });
+            if(!unified) inv.push({productId: dProd.id, qty: ei.qty});
+            else if(ei.productId !== dProd.id) unified.qty = Math.max(unified.qty, ei.qty);
+          }
+          // D.inventory에 VMMS 코드로 저장된 항목이 있으면 D.products ID로 마이그레이션
+          if(origId !== dProd.id){
+            var vmmsInvIdx = D.inventory.findIndex(function(x){ return x.productId === origId; });
+            if(vmmsInvIdx >= 0){
+              var dprodInv = D.inventory.find(function(x){ return x.productId === dProd.id; });
+              if(dprodInv){
+                dprodInv.qty = D.inventory[vmmsInvIdx].qty;
+                D.inventory.splice(vmmsInvIdx, 1);
+              } else {
+                D.inventory[vmmsInvIdx].productId = dProd.id;
+              }
+              D.inventoryLogs.forEach(function(l){
+                if(l.productId === origId) l.productId = dProd.id;
+              });
+              needsMigration = true;
+            }
+          }
         }
       });
+      if(needsMigration) save();
 
       machineDataList.push({
         locName: vm.machineName||'',
