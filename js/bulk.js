@@ -716,7 +716,7 @@ function openProdDetail(el){
 
   // 가격 정보 그리드
   html += '<div class="pm" style="background:var(--bg3);border-radius:10px;margin-bottom:14px">';
-  [['구매가',fmt(p.buyPrice)+'원'],['낱개가',fmt(p.unitPrice)+'원'],['판매가',fmt(p.sellPrice)+'원'],['마진가',fmt(p.marginAmt)+'원'],['마진율',(p.marginRate||0)+'%'],['총수량',p.totalQty+'개']].forEach(function(lv){
+  [['구매가',fmt(p.buyPrice)+'원'],['낱개가',fmt(p.unitPrice)+'원'],['판매가',fmt(p.sellPrice)+'원'],['마진가',fmt(p.marginAmt)+'원'],['마진율',(p.marginRate||0)+'%'],['총수량',(p.totalQty!=null?fmt(p.totalQty):'–')+'개']].forEach(function(lv){
     html += '<div class="pmb"><div class="pml">'+lv[0]+'</div><div class="pmv">'+lv[1]+'</div></div>';
   });
   html += '</div>';

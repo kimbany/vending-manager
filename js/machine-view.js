@@ -172,14 +172,31 @@ function _buildMachineView(mc, columns, doubleItems){
 
   // 기존 재고 데이터 병합 (appData에서)
   if(mc.locId && mc.machineId){
-    db.ref('users/'+currentUser.uid+'/locations/'+mc.locId+'/machines/'+mc.machineId+'/appData/inventory').once('value').then(function(snap){
-      var existingInv = snap.val()||[];
+    db.ref('users/'+currentUser.uid+'/locations/'+mc.locId+'/machines/'+mc.machineId+'/appData').once('value').then(function(snap){
+      var appData = snap.val()||{};
+      var existingInv = appData.inventory||[];
+      var existingProds = appData.products||[];
       if(!Array.isArray(existingInv)) existingInv = Object.values(existingInv);
+      if(!Array.isArray(existingProds)) existingProds = Object.values(existingProds);
       // 상품명 기준으로 재고 매칭
-      existingInv.forEach(function(ei){
-        inv.forEach(function(ni){
-          if(ni.productId === ei.productId) ni.qty = ei.qty;
-        });
+      inv.forEach(function(ni){
+        // 직접 productId 매칭 시도
+        var match = existingInv.find(function(ei){ return ei.productId === ni.productId; });
+        if(match){ ni.qty = match.qty; return; }
+        // 실패 시 제품명으로 D.products 찾아서 재고 매칭
+        var vmProd = prods.find(function(p){ return p.id === ni.productId; });
+        if(!vmProd) return;
+        var dProd = existingProds.find(function(ep){ return ep.name === vmProd.name; });
+        if(!dProd) return;
+        var ei = existingInv.find(function(x){ return x.productId === dProd.id; });
+        if(ei) ni.qty = ei.qty;
+        // VMMS 제품에 D.products 속성 병합
+        if(dProd.sellPrice!=null) vmProd.sellPrice = dProd.sellPrice;
+        if(dProd.buyPrice!=null) vmProd.buyPrice = dProd.buyPrice;
+        if(dProd.unitPrice!=null) vmProd.unitPrice = dProd.unitPrice;
+        if(dProd.totalQty!=null) vmProd.totalQty = dProd.totalQty;
+        if(dProd.marginAmt!=null) vmProd.marginAmt = dProd.marginAmt;
+        if(dProd.marginRate!=null) vmProd.marginRate = dProd.marginRate;
       });
       renderMachineView(mc, prods, inv);
     });
