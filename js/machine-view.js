@@ -170,66 +170,27 @@ function _buildMachineView(mc, columns, doubleItems){
     }
   });
 
-  // 기존 재고 데이터 병합 (appData에서)
-  if(mc.locId && mc.machineId){
-    db.ref('users/'+currentUser.uid+'/locations/'+mc.locId+'/machines/'+mc.machineId+'/appData').once('value').then(function(snap){
-      var appData = snap.val()||{};
-      var existingInv = appData.inventory||[];
-      var existingProds = appData.products||[];
-      if(!Array.isArray(existingInv)) existingInv = Object.values(existingInv);
-      if(!Array.isArray(existingProds)) existingProds = Object.values(existingProds);
-      // VMMS 제품과 D.products를 제품명으로 매칭 → ID 통일 및 속성/재고 병합
-      var needsMigration = false;
-      prods.forEach(function(vmProd){
-        var origId = vmProd.id; // 원본 VMMS 코드 보존
-        var dProd = existingProds.find(function(ep){ return ep.name === vmProd.name; });
-        if(dProd){
-          // inv 항목의 productId도 함께 교체
-          var ni = inv.find(function(x){ return x.productId === origId; });
-          // VMMS ID를 D.products ID로 교체
-          vmProd.id = dProd.id;
-          if(ni) ni.productId = dProd.id;
-          // D.products 속성 병합
-          if(dProd.sellPrice!=null) vmProd.sellPrice = dProd.sellPrice;
-          if(dProd.buyPrice!=null) vmProd.buyPrice = dProd.buyPrice;
-          if(dProd.unitPrice!=null) vmProd.unitPrice = dProd.unitPrice;
-          if(dProd.totalQty!=null) vmProd.totalQty = dProd.totalQty;
-          if(dProd.marginAmt!=null) vmProd.marginAmt = dProd.marginAmt;
-          if(dProd.marginRate!=null) vmProd.marginRate = dProd.marginRate;
-          // 기존 재고 병합: D.products ID 또는 원본 VMMS 코드 둘 다로 검색
-          var ei = existingInv.find(function(x){ return x.productId === dProd.id; })
-                || existingInv.find(function(x){ return x.productId === origId; });
-          if(ei && ni) ni.qty = ei.qty;
-          // D.inventory에 VMMS 코드로 저장된 항목이 있으면 D.products ID로 마이그레이션
-          if(origId !== dProd.id){
-            var vmmsInvIdx = D.inventory.findIndex(function(x){ return x.productId === origId; });
-            if(vmmsInvIdx >= 0){
-              var dprodInv = D.inventory.find(function(x){ return x.productId === dProd.id; });
-              if(dprodInv){
-                dprodInv.qty = D.inventory[vmmsInvIdx].qty;
-                D.inventory.splice(vmmsInvIdx, 1);
-              } else {
-                D.inventory[vmmsInvIdx].productId = dProd.id;
-              }
-              D.inventoryLogs.forEach(function(l){
-                if(l.productId === origId) l.productId = dProd.id;
-              });
-              needsMigration = true;
-            }
-          }
-        } else {
-          // D.products에 없는 경우 직접 ID 매칭 시도
-          var ni = inv.find(function(x){ return x.productId === vmProd.id; });
-          var match = existingInv.find(function(ei){ return ei.productId === vmProd.id; });
-          if(match && ni) ni.qty = match.qty;
-        }
-      });
-      if(needsMigration) save();
-      renderMachineView(mc, prods, inv);
-    });
-  } else {
-    renderMachineView(mc, prods, inv);
-  }
+  // D.inventory(메모리, 항상 최신)에서 재고 매칭 — Firebase 비동기 문제 없음
+  prods.forEach(function(vmProd){
+    var ni = inv.find(function(x){ return x.productId === vmProd.id; });
+    var dProd = D.products.find(function(ep){ return ep.name === vmProd.name; });
+    if(dProd){
+      // VMMS ID → D.products ID 통일
+      vmProd.id = dProd.id;
+      if(ni) ni.productId = dProd.id;
+      // 속성 병합
+      if(dProd.sellPrice!=null) vmProd.sellPrice = dProd.sellPrice;
+      if(dProd.buyPrice!=null) vmProd.buyPrice = dProd.buyPrice;
+      if(dProd.unitPrice!=null) vmProd.unitPrice = dProd.unitPrice;
+      if(dProd.totalQty!=null) vmProd.totalQty = dProd.totalQty;
+      if(dProd.marginAmt!=null) vmProd.marginAmt = dProd.marginAmt;
+      if(dProd.marginRate!=null) vmProd.marginRate = dProd.marginRate;
+    }
+    // D.inventory에서 재고 가져오기 (메모리 데이터 = 항상 최신)
+    var q = gq(vmProd.id);
+    if(ni) ni.qty = q;
+  });
+  renderMachineView(mc, prods, inv);
 }
 
 // 현재 보고 있는 자판기 데이터 캐시 (openProdDetail에서 사용)
