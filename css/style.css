@@ -138,7 +138,7 @@ input[type=date]{color-scheme:light;}
 .pc-side-banner{display:none;}
 @media(min-width:768px){
   body{background:#EEF1F6;}
-  #app{margin:0 auto 0 calc(50% - 60px);box-shadow:-2px 0 20px rgba(0,0,0,.06);position:relative;z-index:1;}
+  #app{margin:0 auto 0 calc(50% - 60px);box-shadow:-2px 0 20px rgba(0,0,0,.06);position:relative;z-index:1;background:var(--bg);}
   #nav{left:calc(50% - 60px);transform:none;max-width:520px;}
   .pc-side-banner.left{display:flex;align-items:center;justify-content:flex-end;position:fixed;top:0;bottom:0;left:0;width:calc(50% - 60px);background:#EEF1F6;color:var(--text);overflow:hidden;z-index:0;}
   .side-content{padding:40px 60px 40px 40px;max-width:420px;}
