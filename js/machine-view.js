@@ -122,9 +122,8 @@ function renderMachine(){
       return;
     }
 
-    var found = -1;
-    vmMachineList.forEach(function(mc, i){ if(mc.devno === currentMachineId || mc.machineId === currentMachineId) found = i; });
-    vmMachineIdx = found >= 0 ? found : 0;
+    // order 순서 기준 첫 번째 자판기부터 표시 (인덱스 0 = 가장 높은 순위)
+    vmMachineIdx = 0;
     var mc = vmMachineList[vmMachineIdx];
     _renderMachineFromVmms(mc);
   });
