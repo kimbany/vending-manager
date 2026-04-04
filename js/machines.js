@@ -51,6 +51,7 @@ function renderMachinesList(){
     var html='';
     snap.forEach(function(locSnap){
       var loc=locSnap.val(); var locId=locSnap.key;
+      if(!loc || !loc.name) return; // 이름 없는 잘못된 위치 건너뛰기
       var machines=loc.machines||{};
       var now=new Date().toISOString().slice(0,10);
       var mKeys = sortedMachineKeys(machines);
@@ -361,7 +362,7 @@ function loadLocationDropdown(){
     var machSel=document.getElementById('machine-select');
     var selectorDiv=document.getElementById('machine-selector');
     if(!snap.exists()||!snap.val()){ selectorDiv.style.display='none'; return; }
-    var locs=snap.val(); var keys=Object.keys(locs);
+    var locs=snap.val(); var keys=Object.keys(locs).filter(function(lid){ return locs[lid] && locs[lid].name; });
     if(!keys.length){ selectorDiv.style.display='none'; return; }
     selectorDiv.style.display='flex';
     locSel.innerHTML=keys.map(function(lid){
