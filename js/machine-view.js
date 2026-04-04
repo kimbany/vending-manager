@@ -150,7 +150,6 @@ function _renderMachineFromVmms(mc){
 function _buildMachineView(mc, columns, doubleItems){
   // VMMS 컬럼 데이터를 기존 renderMachineView 형식으로 변환
   var prods = [];
-  var inv = [];
   var seen = {};
 
   columns.forEach(function(c){
@@ -162,7 +161,6 @@ function _buildMachineView(mc, columns, doubleItems){
     if(!seen[id]){
       seen[id] = {id:id, name:name, column:[], deviceNo:mc.devno, productCode:code};
       prods.push(seen[id]);
-      inv.push({productId:id, qty:0}); // 재고는 별도 관리
     }
     // 2칸 제품인지 확인 - 현재 컬럼이 속한 2칸 범위 찾기
     var colNum = parseInt(colNo);
@@ -182,15 +180,12 @@ function _buildMachineView(mc, columns, doubleItems){
     }
   });
 
-  // D.inventory(메모리, 항상 최신)에서 재고 매칭 — Firebase 비동기 문제 없음
+  // VMMS 제품 ID → D.products ID 매칭 (이름 기준) 및 속성 병합
+  // 재고는 gq()로 D.inventory에서 직접 조회 (별도 inv 배열 불필요)
   prods.forEach(function(vmProd){
-    var ni = inv.find(function(x){ return x.productId === vmProd.id; });
     var dProd = D.products.find(function(ep){ return ep.name === vmProd.name; });
     if(dProd){
-      // VMMS ID → D.products ID 통일
       vmProd.id = dProd.id;
-      if(ni) ni.productId = dProd.id;
-      // 속성 병합
       if(dProd.sellPrice!=null) vmProd.sellPrice = dProd.sellPrice;
       if(dProd.buyPrice!=null) vmProd.buyPrice = dProd.buyPrice;
       if(dProd.unitPrice!=null) vmProd.unitPrice = dProd.unitPrice;
@@ -198,11 +193,8 @@ function _buildMachineView(mc, columns, doubleItems){
       if(dProd.marginAmt!=null) vmProd.marginAmt = dProd.marginAmt;
       if(dProd.marginRate!=null) vmProd.marginRate = dProd.marginRate;
     }
-    // D.inventory에서 재고 가져오기 (메모리 데이터 = 항상 최신)
-    var q = gq(vmProd.id);
-    if(ni) ni.qty = q;
   });
-  renderMachineView(mc, prods, inv);
+  renderMachineView(mc, prods, null);
 }
 
 // 현재 보고 있는 자판기 데이터 캐시 (openProdDetail에서 사용)
@@ -210,7 +202,8 @@ var _vmViewProds = [];
 var _vmViewInv = [];
 
 function renderMachineView(mc, prods, inv){
-  // 현재 보고 있는 자판기의 products/inventory 캐시
+  // inv는 더 이상 사용하지 않음 — gq()로 D.inventory 직접 조회
+  // 현재 보고 있는 자판기의 products 캐시
   _vmViewProds = prods || [];
   _vmViewInv = inv || [];
 
@@ -250,7 +243,7 @@ function renderMachineView(mc, prods, inv){
     if(!devno) return true;
     return !p.deviceNo || p.deviceNo === devno;
   });
-  function getQLocal(pid){ var i=(inv||[]).find(function(x){return x.productId===pid;}); return i?i.qty:0; }
+  function getQLocal(pid){ return gq(pid); }
 
   var allSlots=[];
   filteredProds.filter(function(p){return !p.discontinued;}).forEach(function(p){
@@ -315,7 +308,7 @@ function renderMachineView(mc, prods, inv){
 }
 
 function renderVmList(mc, prods, inv){
-  function getQ(pid){ var i=(inv||[]).find(function(x){return x.productId===pid;}); return i?i.qty:0; }
+  function getQ(pid){ return gq(pid); }
 
   var devno = mc ? mc.devno : '';
 
