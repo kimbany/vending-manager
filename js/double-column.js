@@ -74,7 +74,7 @@ function renderDoubleColumnCandidates(devno, columns, doubleItems){
           candidates.push({
             productCode: code, productName: name, colNo: colNo,
             direction: 'up', colStart: parseInt(prevCol), colEnd: num,
-            label: prevCol+'~'+colNo+' 왼쪽 확장'
+            label: prevCol+'~'+colNo+' 병합'
           });
         }
       }
@@ -90,7 +90,7 @@ function renderDoubleColumnCandidates(devno, columns, doubleItems){
           candidates.push({
             productCode: code, productName: name, colNo: colNo,
             direction: 'down', colStart: num, colEnd: parseInt(nextCol),
-            label: colNo+'~'+nextCol+' 오른쪽 확장'
+            label: colNo+'~'+nextCol+' 병합'
           });
         }
       }
@@ -125,7 +125,7 @@ function renderDoubleColumnCandidates(devno, columns, doubleItems){
     html += '<div style="display:flex;flex-wrap:wrap;gap:6px">';
 
     g.options.forEach(function(opt){
-      var icon = opt.direction === 'up' ? '⬅️' : '➡️';
+      var icon = '⬛';
       html += '<button onclick="addDoubleColumnAuto(\''+devno+'\',\''+opt.productCode+'\',\''+sanitize(opt.productName)+'\','+opt.colStart+','+opt.colEnd+')" '+
         'style="flex:1;min-width:120px;background:rgba(0,100,255,.08);border:1px solid rgba(0,100,255,.25);border-radius:8px;padding:8px 12px;font-size:13px;font-weight:600;color:var(--blue);cursor:pointer;font-family:inherit">'+
         icon+' '+opt.label+'</button>';
@@ -209,14 +209,14 @@ function renderDoubleColumnList(devno){
             '<div style="font-size:14px;font-weight:600">'+sanitize(item.productName||'')+'</div>'+
             '<div style="font-size:12px;color:var(--text3)">컬럼: '+item.colStart+'~'+item.colEnd+'</div>'+
           '</div>'+
-          '<button onclick="removeDoubleColumn(\''+devno+'\','+i+')" style="background:rgba(255,90,95,.1);border:1px solid rgba(255,90,95,.3);border-radius:6px;padding:4px 10px;font-size:12px;color:var(--red);cursor:pointer;font-family:inherit">삭제</button>'+
+          '<button onclick="removeDoubleColumn(\''+devno+'\','+i+')" style="background:rgba(255,90,95,.1);border:1px solid rgba(255,90,95,.3);border-radius:6px;padding:4px 10px;font-size:12px;color:var(--red);cursor:pointer;font-family:inherit">해제</button>'+
         '</div>';
       }).join('');
   });
 }
 
 function removeDoubleColumn(devno, idx){
-  if(!confirm('삭제할까요?')) return;
+  if(!confirm('2칸 설정을 해제할까요?')) return;
   var ref = db.ref('users/'+currentUser.uid+'/doubleColumns/'+devno);
   ref.once('value').then(function(snap){
     var items = snap.val()||[];
@@ -224,7 +224,7 @@ function removeDoubleColumn(devno, idx){
     items.splice(idx, 1);
     return ref.set(items);
   }).then(function(){
-    showToast('삭제 완료');
+    showToast('해제 완료');
     renderDoubleColumnList(devno);
 
     // 후보 목록도 새로고침
