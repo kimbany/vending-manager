@@ -235,7 +235,9 @@ function renderInv(){
         });
       }
       // VMMS 제품 ID → D.products ID 매칭 (이름 기준) 및 속성 병합
+      var needsSave = false;
       prods.forEach(function(vp){
+        var origId = vp.id; // 원본 VMMS 코드
         var dProd = existingProds.find(function(ep){ return ep.name === vp.name; });
         if(dProd){
           vp.id = dProd.id;
@@ -244,8 +246,26 @@ function renderInv(){
           if(dProd.totalQty!=null) vp.totalQty = dProd.totalQty;
           if(dProd.marginAmt!=null) vp.marginAmt = dProd.marginAmt;
           if(dProd.marginRate!=null) vp.marginRate = dProd.marginRate;
+          // D.inventory에 VMMS 코드로 저장된 항목 → D.products ID로 마이그레이션
+          if(origId !== dProd.id){
+            var vmmsIdx = D.inventory.findIndex(function(x){ return x.productId === origId; });
+            if(vmmsIdx >= 0){
+              var dprodEntry = D.inventory.find(function(x){ return x.productId === dProd.id; });
+              if(dprodEntry){
+                if(D.inventory[vmmsIdx].qty > 0) dprodEntry.qty = D.inventory[vmmsIdx].qty;
+                D.inventory.splice(vmmsIdx, 1);
+              } else {
+                D.inventory[vmmsIdx].productId = dProd.id;
+              }
+              D.inventoryLogs.forEach(function(l){
+                if(l.productId === origId) l.productId = dProd.id;
+              });
+              needsSave = true;
+            }
+          }
         }
       });
+      if(needsSave) save();
 
       machineDataList.push({
         locName: vm.machineName||'',
