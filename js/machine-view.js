@@ -152,8 +152,11 @@ function _buildMachineView(mc, columns, doubleItems){
       prods.push(seen[id]);
       inv.push({productId:id, qty:0}); // 재고는 별도 관리
     }
-    // 2칸 제품인지 확인
-    var dcMatch = doubleItems.find(function(d){ return d.productCode === code; });
+    // 2칸 제품인지 확인 - 현재 컬럼이 속한 2칸 범위 찾기
+    var colNum = parseInt(colNo);
+    var dcMatch = doubleItems.find(function(d){
+      return d.productCode === code && colNum >= d.colStart && colNum <= d.colEnd;
+    });
     if(dcMatch){
       // 2칸 제품: "시작~끝" 형식으로 저장 (이미 있으면 건너뜀)
       var rangeCol = dcMatch.colStart+'~'+dcMatch.colEnd;
