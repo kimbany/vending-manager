@@ -26,8 +26,10 @@ function reorderMachine(locId, machineId, dir){
     if(idx < 0) return;
     var swapIdx = idx + dir;
     if(swapIdx < 0 || swapIdx >= keys.length) return;
-    // 순서 값 스왑
+    // 모든 자판기에 순서 번호 부여 (normalize) 후 스왑
     var updates = {};
+    keys.forEach(function(k, i){ updates[k+'/order'] = i; });
+    // 스왑
     updates[keys[idx]+'/order'] = swapIdx;
     updates[keys[swapIdx]+'/order'] = idx;
     db.ref('users/'+currentUser.uid+'/locations/'+locId+'/machines').update(updates).then(function(){
