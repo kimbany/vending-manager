@@ -5,6 +5,37 @@
 var currentLocationId = null;
 var currentMachineId  = null;
 
+// 자판기 순서 정렬 헬퍼: order 필드 기준 오름차순 (없으면 createdAt 또는 키 순서)
+function sortedMachineKeys(machines){
+  return Object.keys(machines).sort(function(a,b){
+    var oa = typeof machines[a].order === 'number' ? machines[a].order : 99999;
+    var ob = typeof machines[b].order === 'number' ? machines[b].order : 99999;
+    if(oa !== ob) return oa - ob;
+    return (machines[a].createdAt||'').localeCompare(machines[b].createdAt||'');
+  });
+}
+
+// 자판기 순서 변경
+function reorderMachine(locId, machineId, dir){
+  if(!currentUser) return;
+  db.ref('users/'+currentUser.uid+'/locations/'+locId+'/machines').once('value').then(function(snap){
+    var machines = snap.val();
+    if(!machines) return;
+    var keys = sortedMachineKeys(machines);
+    var idx = keys.indexOf(machineId);
+    if(idx < 0) return;
+    var swapIdx = idx + dir;
+    if(swapIdx < 0 || swapIdx >= keys.length) return;
+    // 순서 값 스왑
+    var updates = {};
+    updates[keys[idx]+'/order'] = swapIdx;
+    updates[keys[swapIdx]+'/order'] = idx;
+    db.ref('users/'+currentUser.uid+'/locations/'+locId+'/machines').update(updates).then(function(){
+      renderMachinesList();
+    });
+  });
+}
+
 // 위치 목록 렌더 (설정 탭)
 function renderMachinesList(){
   if(!currentUser) return;
@@ -22,6 +53,7 @@ function renderMachinesList(){
       var loc=locSnap.val(); var locId=locSnap.key;
       var machines=loc.machines||{};
       var now=new Date().toISOString().slice(0,10);
+      var mKeys = sortedMachineKeys(machines);
       html+='<div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px">';
       html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">';
       html+='<div style="font-size:15px;font-weight:700">📍 '+loc.name+'</div>';
@@ -30,20 +62,31 @@ function renderMachinesList(){
       html+='<button onclick="openAddMachineToLocation(this.dataset.id)" data-id="'+locId+'" style="background:rgba(122,218,154,.15);border:1px solid rgba(122,218,154,.3);border-radius:6px;padding:4px 8px;font-size:11px;color:var(--green);cursor:pointer;font-family:inherit">+ 자판기</button>';
       html+='<button onclick="openDelItem(this.dataset.type,this.dataset.locid,null)" data-type="location" data-locid="'+locId+'" style="background:rgba(224,88,88,.15);border:1px solid rgba(224,88,88,.3);border-radius:6px;padding:4px 8px;font-size:11px;color:var(--red);cursor:pointer;font-family:inherit">🗑️</button>';
       html+='</div></div>';
-      // 자판기 목록
-      Object.keys(machines).forEach(function(mid){
+      // 자판기 목록 (order 순서)
+      mKeys.forEach(function(mid, mIdx){
         var m=machines[mid];
         var devNos=Array.isArray(m.deviceNos)?m.deviceNos:(m.deviceNo?[m.deviceNo]:[]);
         var modelName=m.model?(' · '+m.model):'';
         var expired=m.contractEnd&&m.contractEnd<now;
+        var isFirst = mIdx === 0;
+        var isLast = mIdx === mKeys.length - 1;
         html+='<div style="background:var(--bg3);border-radius:8px;padding:10px;margin-bottom:6px">';
         html+='<div style="display:flex;justify-content:space-between;align-items:center">';
-        html+='<div><div style="font-size:13px;font-weight:600">🏪 '+m.name+modelName+'</div>';
+        html+='<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600">🏪 '+m.name+modelName+'</div>';
         html+='<div style="font-size:11px;color:var(--text3);margin-top:2px">단말기: '+devNos.join(', ')+'</div>';
         if(m.model) html+='<div style="font-size:11px;color:var(--text3)">모델: '+m.model+'</div>';
         html+='<div style="font-size:11px;color:var(--text3)">계약: '+(m.contractStart||'-')+' ~ '+(m.contractEnd||'-')+'</div></div>';
         html+='<div style="display:flex;gap:4px;flex-direction:column;align-items:flex-end">';
         html+='<span style="font-size:10px;background:'+(expired?'rgba(224,88,88,.2)':'rgba(122,218,154,.15)')+';color:'+(expired?'var(--red)':'var(--green)')+';border-radius:4px;padding:2px 6px">'+(expired?'계약종료':'운영중')+'</span>';
+        // 순서 변경 버튼
+        if(mKeys.length > 1){
+          html+='<div style="display:flex;gap:3px;margin-top:3px">';
+          html+='<button onclick="reorderMachine(\''+locId+'\',\''+mid+'\',-1)" '+(isFirst?'disabled':'')
+            +' style="background:var(--bg2);border:1px solid var(--border);border-radius:5px;padding:2px 6px;font-size:12px;color:'+(isFirst?'var(--text3)':'var(--text2)')+';cursor:'+(isFirst?'default':'pointer')+';font-family:inherit'+(isFirst?';opacity:0.4':'')+'">▲</button>';
+          html+='<button onclick="reorderMachine(\''+locId+'\',\''+mid+'\',1)" '+(isLast?'disabled':'')
+            +' style="background:var(--bg2);border:1px solid var(--border);border-radius:5px;padding:2px 6px;font-size:12px;color:'+(isLast?'var(--text3)':'var(--text2)')+';cursor:'+(isLast?'default':'pointer')+';font-family:inherit'+(isLast?';opacity:0.4':'')+'">▼</button>';
+          html+='</div>';
+        }
         html+='<div style="display:flex;gap:4px;margin-top:4px">';
         html+='<button onclick="openEditMachine(this.dataset.locid,this.dataset.mid)" data-locid="'+locId+'" data-mid="'+mid+'" style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:3px 7px;font-size:11px;color:var(--text2);cursor:pointer;font-family:inherit">✏️</button>';
         html+='<button onclick="openDelItem(this.dataset.type,this.dataset.locid,this.dataset.mid)" data-type="machine" data-locid="'+locId+'" data-mid="'+mid+'" style="background:rgba(224,88,88,.15);border:1px solid rgba(224,88,88,.3);border-radius:6px;padding:3px 7px;font-size:11px;color:var(--red);cursor:pointer;font-family:inherit">🗑️</button>';
@@ -338,8 +381,8 @@ function onLocationSelect(autoLoad){
   if(!currentLocationId) return;
   db.ref('users/'+currentUser.uid+'/locations/'+currentLocationId+'/machines').once('value').then(function(snap){
     if(!snap.exists()||!snap.val()) return;
-    var machines=snap.val(); var keys=Object.keys(machines);
-    currentMachineId = keys[0]; // 첫 번째 자판기를 기본으로
+    var machines=snap.val(); var keys=sortedMachineKeys(machines);
+    currentMachineId = keys[0]; // order 순서 기준 첫 번째 자판기
     if(autoLoad !== false) loadMachineData(currentLocationId, currentMachineId);
   });
 }

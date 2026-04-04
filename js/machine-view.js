@@ -83,18 +83,27 @@ function renderMachine(){
         }
         var colMatch = vmmsColumns[devno] || {};
         console.log('[자판기현황] devno:'+devno+' 컬럼데이터:'+(colMatch.columns?colMatch.columns.length:0)+'개 vmmsColumns키:', Object.keys(vmmsColumns));
+        var machineOrder = 99999;
+        if(locId && machineId && locData[locId] && locData[locId].machines && locData[locId].machines[machineId]){
+          var mo = locData[locId].machines[machineId].order;
+          if(typeof mo === 'number') machineOrder = mo;
+        }
         vmMachineList.push({
           name: vm.machineName||'', devno: devno, model: model,
           locId: locId, machineId: machineId,
-          _vmmsColumns: colMatch
+          _vmmsColumns: colMatch, _order: machineOrder
         });
       });
+      // VMMS 기반 목록도 order 순서로 정렬
+      vmMachineList.sort(function(a,b){ return (a._order||99999) - (b._order||99999); });
     } else if(locData){
-      // VMMS 없으면 기존 locations 기반 (fallback)
+      // VMMS 없으면 기존 locations 기반 (fallback) - order 순서 적용
       Object.keys(locData).forEach(function(locId){
         var loc = locData[locId];
-        Object.keys(loc.machines||{}).forEach(function(mid){
-          var m = loc.machines[mid];
+        var machines = loc.machines||{};
+        var mKeys = (typeof sortedMachineKeys === 'function') ? sortedMachineKeys(machines) : Object.keys(machines);
+        mKeys.forEach(function(mid){
+          var m = machines[mid];
           var devnos = Array.isArray(m.deviceNos)?m.deviceNos:(m.deviceNo?[m.deviceNo]:[]);
           vmMachineList.push({
             machineId:mid, locId:locId,
