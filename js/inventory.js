@@ -207,9 +207,10 @@ function renderInv(){
         if(c.columnNo) seen[id].column.push(c.columnNo);
       });
 
-      // locations에서 재고 데이터 가져오기
+      // 현재 자판기면 D.inventory(메모리, 항상 최신) 사용, 아니면 Firebase에서 로드
       var inv = [];
       var existingProds = [];
+      var isCurrent = false;
       if(locSnap){
         Object.keys(locSnap).forEach(function(locId){
           var loc = locSnap[locId];
@@ -217,57 +218,34 @@ function renderInv(){
             var m = loc.machines[mid];
             var devnos = Array.isArray(m.deviceNos)?m.deviceNos:(m.deviceNo?[m.deviceNo]:[]);
             if(devnos.indexOf(devno)>=0){
-              var appData = m.appData||{};
-              inv = appData.inventory||[];
-              existingProds = appData.products||[];
-              if(!Array.isArray(inv)) inv = Object.values(inv);
-              if(!Array.isArray(existingProds)) existingProds = Object.values(existingProds);
+              if(locId === currentLocationId && mid === currentMachineId){
+                // 현재 자판기: 메모리 데이터 사용 (save 후 즉시 반영)
+                inv = D.inventory;
+                existingProds = D.products;
+                isCurrent = true;
+              } else {
+                var appData = m.appData||{};
+                inv = appData.inventory||[];
+                existingProds = appData.products||[];
+                if(!Array.isArray(inv)) inv = Object.values(inv);
+                if(!Array.isArray(existingProds)) existingProds = Object.values(existingProds);
+              }
             }
           });
         });
       }
-      // VMMS 제품과 D.products를 제품명으로 매칭하여 ID 통일 및 속성/재고 병합
-      var needsMigration = false;
+      // VMMS 제품 ID → D.products ID 매칭 (이름 기준) 및 속성 병합
       prods.forEach(function(vp){
-        var origId = vp.id; // 원본 VMMS 코드 보존
         var dProd = existingProds.find(function(ep){ return ep.name === vp.name; });
         if(dProd){
-          // VMMS 제품 ID를 D.products ID로 교체 (재고/로그 일관성)
           vp.id = dProd.id;
           if(dProd.sellPrice!=null) vp.sellPrice = dProd.sellPrice;
           if(dProd.buyPrice!=null) vp.buyPrice = dProd.buyPrice;
           if(dProd.totalQty!=null) vp.totalQty = dProd.totalQty;
           if(dProd.marginAmt!=null) vp.marginAmt = dProd.marginAmt;
           if(dProd.marginRate!=null) vp.marginRate = dProd.marginRate;
-          // D.products ID 또는 원본 VMMS 코드 둘 다로 재고 검색
-          var ei = inv.find(function(x){ return x.productId === dProd.id; })
-                || inv.find(function(x){ return x.productId === origId; });
-          if(ei){
-            // D.products ID로 통일된 inv 항목 확보
-            var unified = inv.find(function(x){ return x.productId === dProd.id; });
-            if(!unified) inv.push({productId: dProd.id, qty: ei.qty});
-            else if(ei.productId !== dProd.id) unified.qty = Math.max(unified.qty, ei.qty);
-          }
-          // D.inventory에 VMMS 코드로 저장된 항목이 있으면 D.products ID로 마이그레이션
-          if(origId !== dProd.id){
-            var vmmsInvIdx = D.inventory.findIndex(function(x){ return x.productId === origId; });
-            if(vmmsInvIdx >= 0){
-              var dprodInv = D.inventory.find(function(x){ return x.productId === dProd.id; });
-              if(dprodInv){
-                dprodInv.qty = D.inventory[vmmsInvIdx].qty;
-                D.inventory.splice(vmmsInvIdx, 1);
-              } else {
-                D.inventory[vmmsInvIdx].productId = dProd.id;
-              }
-              D.inventoryLogs.forEach(function(l){
-                if(l.productId === origId) l.productId = dProd.id;
-              });
-              needsMigration = true;
-            }
-          }
         }
       });
-      if(needsMigration) save();
 
       machineDataList.push({
         locName: vm.machineName||'',
