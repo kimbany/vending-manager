@@ -94,8 +94,12 @@ function renderMachine(){
           _vmmsColumns: colMatch, _order: machineOrder
         });
       });
-      // VMMS 기반 목록도 order 순서로 정렬
-      vmMachineList.sort(function(a,b){ return (a._order||99999) - (b._order||99999); });
+      // VMMS 기반 목록도 order 순서로 정렬 (0은 falsy이므로 typeof 체크)
+      vmMachineList.sort(function(a,b){
+        var oa = typeof a._order === 'number' ? a._order : 99999;
+        var ob = typeof b._order === 'number' ? b._order : 99999;
+        return oa - ob;
+      });
     } else if(locData){
       // VMMS 없으면 기존 locations 기반 (fallback) - order 순서 적용
       Object.keys(locData).forEach(function(locId){
