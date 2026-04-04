@@ -110,12 +110,17 @@ function renderDoubleColumnCandidates(devno, columns, doubleItems){
     grouped[key].options.push(c);
   });
 
-  var html = '<div style="font-size:14px;font-weight:700;margin-bottom:10px">2칸 확장 가능한 제품</div>';
+  var groupKeys = Object.keys(grouped);
+  var html = '<div style="font-size:14px;font-weight:700;margin-bottom:10px">2칸 확장 가능한 제품 ('+groupKeys.length+')</div>';
 
-  Object.keys(grouped).forEach(function(key){
+  groupKeys.forEach(function(key, gi){
     var g = grouped[key];
-    html += '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">';
-    html += '<div style="font-size:14px;font-weight:600;margin-bottom:4px">'+sanitize(g.productName)+'</div>';
+    html += '<div id="dc-candidate-'+gi+'" style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">';
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">';
+    html += '<div style="font-size:14px;font-weight:600">'+sanitize(g.productName)+'</div>';
+    html += '<button onclick="skipDoubleColumnCandidate('+gi+')" '+
+      'style="background:rgba(150,150,150,.1);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;color:var(--text3);cursor:pointer;font-family:inherit">건너뛰기</button>';
+    html += '</div>';
     html += '<div style="font-size:12px;color:var(--text3);margin-bottom:8px">현재 컬럼: '+g.colNo+'</div>';
     html += '<div style="display:flex;flex-wrap:wrap;gap:6px">';
 
@@ -130,6 +135,11 @@ function renderDoubleColumnCandidates(devno, columns, doubleItems){
   });
 
   el.innerHTML = html;
+}
+
+function skipDoubleColumnCandidate(idx){
+  var el = document.getElementById('dc-candidate-'+idx);
+  if(el) el.style.display = 'none';
 }
 
 function addDoubleColumnAuto(devno, productCode, productName, colStart, colEnd){
