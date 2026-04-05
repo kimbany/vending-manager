@@ -1,7 +1,11 @@
 name: VMMS 제품/컬럼 크롤링
 
 on:
-  workflow_dispatch:        # 수동 실행만 (앱에서 필요 시 실행)
+  schedule:
+    # 한국시간 기준 (UTC+9)
+    - cron: '0 23 * * *'    # 매일 오전 08:00 KST
+    - cron: '0 11 * * *'    # 매일 오후 08:00 KST
+  workflow_dispatch:        # 수동 실행도 가능
 
 jobs:
   crawl:
