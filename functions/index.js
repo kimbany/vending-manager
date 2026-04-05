@@ -293,16 +293,14 @@ async function crawlMachinesAndColumns(page) {
 
 // ── 메인 크롤링 함수 ─────────────────────────────────────────────────────────
 async function crawlVmms(vmmsId, vmmsPw) {
-  const puppeteer = require("puppeteer");
+  const chromium = require("@sparticuz/chromium");
+  const puppeteer = require("puppeteer-core");
 
   const browser = await puppeteer.launch({
-    headless: "new",
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-blink-features=AutomationControlled",
-    ],
+    args: chromium.args,
+    defaultViewport: { width: 1280, height: 800 },
+    executablePath: await chromium.executablePath(),
+    headless: chromium.headless,
   });
 
   try {
