@@ -234,11 +234,12 @@ function renderInv(){
           });
         });
       }
+      // 항상 D.products로 이름 매칭 (D.products = 현재 자판기의 최신 데이터)
       // VMMS 제품 ID → D.products ID 매칭 (이름 기준) 및 속성 병합
       var needsSave = false;
       prods.forEach(function(vp){
         var origId = vp.id; // 원본 VMMS 코드
-        var dProd = existingProds.find(function(ep){ return ep.name.trim() === vp.name.trim(); });
+        var dProd = D.products.find(function(ep){ return ep.name.trim() === vp.name.trim(); });
         if(dProd){
           vp.id = dProd.id;
           if(dProd.sellPrice!=null) vp.sellPrice = dProd.sellPrice;
