@@ -183,9 +183,12 @@ function _buildMachineView(mc, columns, doubleItems){
   // VMMS 제품 ID → D.products ID 매칭 (이름 기준) 및 속성 병합
   // 재고는 gq()로 D.inventory에서 직접 조회 (별도 inv 배열 불필요)
   var needsSave = false;
+  console.log('[DEBUG] D.products:', JSON.stringify(D.products.map(function(p){return {id:p.id,name:p.name};})));
+  console.log('[DEBUG] D.inventory:', JSON.stringify(D.inventory));
   prods.forEach(function(vmProd){
     var origId = vmProd.id; // 원본 VMMS 코드
     var dProd = D.products.find(function(ep){ return ep.name.trim() === vmProd.name.trim(); });
+    console.log('[DEBUG] VMMS "'+vmProd.name+'" (id:'+origId+') → D.products match:', dProd ? dProd.id : 'NOT FOUND', '→ gq:', dProd ? gq(dProd.id) : 'N/A');
     if(dProd){
       vmProd.id = dProd.id;
       if(dProd.sellPrice!=null) vmProd.sellPrice = dProd.sellPrice;
