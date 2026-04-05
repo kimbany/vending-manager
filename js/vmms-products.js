@@ -9,7 +9,7 @@ var _vmmsProdSort = 'name';
 function crawlVmmsRealtime(){
   var msg = document.getElementById('vmms-sync-msg');
   if(msg){ msg.style.color='var(--text2)'; msg.textContent='⏳ VMMS에서 제품 데이터를 수집하고 있어요... (1~2분 소요)'; }
-  var crawlFn = firebase.functions().httpsCallable('crawlVmmsProducts');
+  var crawlFn = firebase.app().functions('asia-northeast3').httpsCallable('crawlVmmsProducts');
   crawlFn().then(function(result){
     var d = result.data;
     if(msg){ msg.style.color='var(--green)'; msg.textContent='✅ '+d.message; }
@@ -22,7 +22,7 @@ function crawlVmmsRealtime(){
       msg.style.color='var(--red)';
       if(e.code==='functions/failed-precondition') msg.textContent=e.message;
       else if(e.code==='functions/unauthenticated') msg.textContent='로그인이 필요합니다';
-      else msg.textContent='크롤링 실패: '+e.message;
+      else msg.textContent='크롤링 실패: '+(e.message||e.code||'알 수 없는 오류');
     }
   });
 }
