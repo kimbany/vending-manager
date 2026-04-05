@@ -9,7 +9,7 @@ var _vmmsProdSort = 'name';
 function crawlVmmsRealtime(){
   var msg = document.getElementById('vmms-sync-msg');
   if(msg){ msg.style.color='var(--text2)'; msg.textContent='⏳ VMMS에서 제품 데이터를 수집하고 있어요... (1~2분 소요)'; }
-  var crawlFn = firebase.app().functions('asia-northeast3').httpsCallable('crawlVmmsProducts');
+  var crawlFn = firebase.app().functions('asia-northeast3').httpsCallable('crawlVmmsProducts', {timeout: 300000});
   crawlFn().then(function(result){
     var d = result.data;
     if(msg){ msg.style.color='var(--green)'; msg.textContent='✅ '+d.message; }
