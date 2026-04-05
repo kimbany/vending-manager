@@ -7,8 +7,8 @@ function switchTab(name,btn){
   if(name==='home' && typeof renderHome==='function') renderHome();
   if(name==='inventory' && typeof renderInv==='function') renderInv();
   if(name==='sales' && typeof renderSalesStats==='function') renderSalesStats();
-  if(name==='settings') renderProfileInfo();
-  else resetVmmsLock();
+  if(name==='settings'){ if(typeof initSettingsTab==='function') initSettingsTab(); }
+  else { if(typeof resetSetVmmsLock==='function') resetSetVmmsLock(); }
   if(name==='machine') switchVmSub('status');
   history.replaceState(null, '', '#'+name);
 }

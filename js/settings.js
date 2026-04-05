@@ -1,6 +1,279 @@
 // ─── 설정 관련 함수 ──────────────────────────────────────────────────────────
 
-// ─── 쿠팡 계정 ──────────────────────────────────────────────────────────────
+// ─── 설정 탭 초기화 ──────────────────────────────────────────────────────────
+function initSettingsTab(){
+  renderProfileSummary();
+  loadLowStockSetting();
+}
+
+// 하위호환: 이전 탭 전환 함수
+function switchSettingsSub(sub){
+  if(sub==='profile'){ renderProfileSummary(); loadLowStockSetting(); }
+  if(sub==='machines') renderMachinesList();
+}
+
+// ─── 1. 내 정보 ────────────────────────────────────────────────────────────────
+function renderProfileSummary(){
+  if(!currentUser) return;
+  db.ref('users/'+currentUser.uid+'/profile').once('value').then(function(snap){
+    var p = snap.val()||{};
+    var nameEl = document.getElementById('set-prof-name');
+    var emailEl = document.getElementById('set-prof-email');
+    if(nameEl) nameEl.textContent = p.username||p.name||'사용자';
+    if(emailEl) emailEl.textContent = p.email||currentUser.email||'';
+  });
+}
+
+// 하위호환: renderProfileInfo
+function renderProfileInfo(){ renderProfileSummary(); }
+
+function toggleProfileDetail(){
+  var detail = document.getElementById('set-prof-detail');
+  var btn = document.getElementById('set-prof-manage-btn');
+  var isOpen = detail.style.display !== 'none';
+  detail.style.display = isOpen ? 'none' : 'block';
+  btn.textContent = isOpen ? '관리' : '닫기';
+  if(!isOpen) renderProfileFullInfo();
+  // 닫을 때 수정 영역도 닫기
+  if(isOpen){
+    document.getElementById('set-prof-edit-area').style.display='none';
+    document.getElementById('set-prof-edit-btn').textContent='정보 수정';
+  }
+}
+
+function renderProfileFullInfo(){
+  if(!currentUser) return;
+  db.ref('users/'+currentUser.uid+'/profile').once('value').then(function(snap){
+    var p = snap.val()||{};
+    var el = document.getElementById('set-prof-full-info');
+    if(!el) return;
+    el.innerHTML = [
+      ['이름', p.name||'-'],
+      ['아이디', p.username||'-'],
+      ['이메일', p.email||currentUser.email||'-'],
+      ['연락처', p.phone||'-'],
+      ['가입일', p.createdAt ? p.createdAt.slice(0,10) : '-']
+    ].map(function(row){
+      return '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">'+
+        '<span style="color:var(--text2)">'+row[0]+'</span>'+
+        '<span style="font-weight:600">'+row[1]+'</span></div>';
+    }).join('');
+  });
+}
+
+function toggleProfileEdit(){
+  var area = document.getElementById('set-prof-edit-area');
+  var btn = document.getElementById('set-prof-edit-btn');
+  var isOpen = area.style.display !== 'none';
+  area.style.display = isOpen ? 'none' : 'block';
+  btn.textContent = isOpen ? '정보 수정' : '취소';
+  if(!isOpen){
+    // 초기화
+    document.getElementById('set-prof-edit-lock').style.display='block';
+    document.getElementById('set-prof-edit-form').style.display='none';
+    document.getElementById('set-prof-lock-pw').value='';
+    document.getElementById('set-prof-lock-msg').textContent='';
+  }
+}
+
+function unlockProfileEdit(){
+  var pw = document.getElementById('set-prof-lock-pw').value;
+  var msg = document.getElementById('set-prof-lock-msg');
+  if(!pw){ msg.textContent='비밀번호를 입력하세요'; return; }
+  var cred = firebase.auth.EmailAuthProvider.credential(currentUser.email, pw);
+  currentUser.reauthenticateWithCredential(cred).then(function(){
+    document.getElementById('set-prof-edit-lock').style.display='none';
+    document.getElementById('set-prof-edit-form').style.display='block';
+    // 현재 정보 로드
+    db.ref('users/'+currentUser.uid+'/profile').once('value').then(function(snap){
+      var p = snap.val()||{};
+      document.getElementById('set-prof-email-input').value = p.email||currentUser.email||'';
+      document.getElementById('set-prof-phone-input').value = p.phone||'';
+    });
+    // 비밀번호 필드 초기화
+    document.getElementById('set-prof-cur-pw').value='';
+    document.getElementById('set-prof-new-pw').value='';
+    document.getElementById('set-prof-new-pw2').value='';
+    document.getElementById('set-prof-pw-strength').textContent='';
+    document.getElementById('set-prof-save-msg').textContent='';
+  }).catch(function(){
+    msg.textContent='비밀번호가 올바르지 않아요';
+  });
+}
+
+function checkSetNewPw(){
+  var pw = document.getElementById('set-prof-new-pw').value;
+  var el = document.getElementById('set-prof-pw-strength');
+  var ok = /[a-zA-Z]/.test(pw) && /[0-9]/.test(pw) && pw.length>=8;
+  el.style.color = ok ? 'var(--green)' : 'var(--red)';
+  el.textContent = pw ? (ok ? '✅ 사용 가능' : '❌ 영문+숫자 8자 이상') : '';
+}
+
+function saveProfileAll(){
+  var email = document.getElementById('set-prof-email-input').value.trim();
+  var phone = document.getElementById('set-prof-phone-input').value.trim();
+  var curPw = document.getElementById('set-prof-cur-pw').value;
+  var newPw = document.getElementById('set-prof-new-pw').value;
+  var newPw2 = document.getElementById('set-prof-new-pw2').value;
+  var msg = document.getElementById('set-prof-save-msg');
+
+  if(!email){ msg.style.color='var(--red)'; msg.textContent='이메일을 입력하세요'; return; }
+
+  // 비밀번호 변경 체크 (입력된 경우만)
+  var changePw = !!(newPw || newPw2);
+  if(changePw){
+    if(!curPw){ msg.style.color='var(--red)'; msg.textContent='현재 비밀번호를 입력하세요'; return; }
+    if(newPw !== newPw2){ msg.style.color='var(--red)'; msg.textContent='새 비밀번호가 일치하지 않아요'; return; }
+    if(!/[a-zA-Z]/.test(newPw)||!/[0-9]/.test(newPw)||newPw.length<8){
+      msg.style.color='var(--red)'; msg.textContent='새 비밀번호: 영문+숫자 8자 이상'; return;
+    }
+  }
+
+  msg.style.color='var(--text2)'; msg.textContent='저장 중...';
+
+  var doSave = function(){
+    var updates = {email:email, phone:phone};
+    var promises = [db.ref('users/'+currentUser.uid+'/profile').update(updates)];
+    // 이메일 변경 시 인증 메일 발송
+    if(email !== currentUser.email){
+      promises.push(currentUser.verifyBeforeUpdateEmail(email));
+    }
+    // 비밀번호 변경
+    if(changePw){
+      promises.push(currentUser.updatePassword(newPw));
+    }
+    Promise.all(promises).then(function(){
+      var notice = '';
+      if(email !== currentUser.email) notice = ' 새 이메일로 인증 메일을 보냈어요.';
+      if(changePw) notice += ' 비밀번호가 변경되었어요.';
+      msg.style.color='var(--green)'; msg.textContent='✅ 저장 완료.' + notice;
+      renderProfileSummary();
+      renderProfileFullInfo();
+      // 비밀번호 필드 초기화
+      document.getElementById('set-prof-cur-pw').value='';
+      document.getElementById('set-prof-new-pw').value='';
+      document.getElementById('set-prof-new-pw2').value='';
+      document.getElementById('set-prof-pw-strength').textContent='';
+    }).catch(function(e){
+      msg.style.color='var(--red)';
+      if(e.code==='auth/requires-recent-login') msg.textContent='보안을 위해 다시 로그인 후 시도해주세요';
+      else if(e.code==='auth/invalid-email') msg.textContent='이메일 형식이 올바르지 않아요';
+      else if(e.code==='auth/email-already-in-use') msg.textContent='이미 사용 중인 이메일이에요';
+      else if(e.code==='auth/wrong-password') msg.textContent='현재 비밀번호가 올바르지 않아요';
+      else if(e.code==='auth/weak-password') msg.textContent='비밀번호가 너무 약해요';
+      else msg.textContent='저장 실패: '+e.message;
+    });
+  };
+
+  // 비밀번호 변경 시 재인증 필요
+  if(changePw){
+    var cred = firebase.auth.EmailAuthProvider.credential(currentUser.email, curPw);
+    currentUser.reauthenticateWithCredential(cred).then(doSave).catch(function(){
+      msg.style.color='var(--red)'; msg.textContent='현재 비밀번호가 올바르지 않아요';
+    });
+  } else {
+    doSave();
+  }
+}
+
+// ─── 2. 메뉴 토글 ──────────────────────────────────────────────────────────────
+function toggleSettingsMenu(section){
+  var menu = document.getElementById('set-menu-'+section);
+  var arrow = document.getElementById('set-arrow-'+section);
+  if(!menu) return;
+  var isOpen = menu.style.display !== 'none';
+  menu.style.display = isOpen ? 'none' : 'block';
+  if(arrow) arrow.style.transform = isOpen ? '' : 'rotate(90deg)';
+  // 섹션별 초기화
+  if(!isOpen){
+    if(section==='security') initSecuritySection();
+    if(section==='machines') renderMachinesList();
+  }
+}
+
+function toggleSettingsSub(sub){
+  var el = document.getElementById('set-sub-'+sub);
+  var arrow = document.getElementById('set-arrow-'+sub);
+  if(!el) return;
+  var isOpen = el.style.display !== 'none';
+  el.style.display = isOpen ? 'none' : 'block';
+  if(arrow) arrow.style.transform = isOpen ? '' : 'rotate(90deg)';
+  if(!isOpen && sub==='machine-manage') renderMachinesList();
+}
+
+// ─── 2. 개인/보안 ──────────────────────────────────────────────────────────────
+function initSecuritySection(){
+  resetSetVmmsLock();
+  renderSetCoupangStatus();
+}
+
+// VMMS
+function resetSetVmmsLock(){
+  var pw = document.getElementById('set-vmms-lock-pw');
+  if(pw) pw.value='';
+  var msg = document.getElementById('set-vmms-lock-msg');
+  if(msg) msg.textContent='';
+  var locked = document.getElementById('set-vmms-locked');
+  var panel = document.getElementById('set-vmms-panel');
+  if(locked) locked.style.display='block';
+  if(panel) panel.style.display='none';
+}
+
+function unlockSetVmms(){
+  var pw = document.getElementById('set-vmms-lock-pw').value;
+  var msg = document.getElementById('set-vmms-lock-msg');
+  if(!pw){ msg.textContent='비밀번호를 입력하세요'; return; }
+  var cred = firebase.auth.EmailAuthProvider.credential(currentUser.email, pw);
+  currentUser.reauthenticateWithCredential(cred).then(function(){
+    document.getElementById('set-vmms-locked').style.display='none';
+    document.getElementById('set-vmms-panel').style.display='block';
+    renderSetVmmsInfo();
+  }).catch(function(){
+    msg.textContent='비밀번호가 올바르지 않아요';
+  });
+}
+
+function renderSetVmmsInfo(){
+  db.ref('users/'+currentUser.uid+'/vmms').once('value').then(function(snap){
+    var v = snap.val()||{};
+    var el = document.getElementById('set-vmms-info');
+    if(!el) return;
+    if(!v.id){
+      el.innerHTML='<div style="font-size:12px;color:var(--text3);padding:6px 0">계정이 등록되어 있지 않아요.</div>';
+      return;
+    }
+    decryptAES(v.id, currentUser.uid).then(function(decId){
+      var masked = decId ? decId.slice(0,3)+'••••••' : '••••••';
+      el.innerHTML='<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px"><span style="color:var(--text2)">아이디</span><span style="font-weight:600">'+masked+'</span></div>'+
+        '<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px"><span style="color:var(--text2)">비밀번호</span><span style="font-weight:600">••••••••</span></div>';
+    });
+  });
+}
+
+// 쿠팡
+function renderSetCoupangStatus(){
+  var el = document.getElementById('set-coupang-status');
+  var btn = document.getElementById('set-coupang-btn');
+  if(!el || !currentUser) return;
+  db.ref('users/'+currentUser.uid+'/coupangAccount').once('value').then(function(snap){
+    var v = snap.val();
+    if(v && v.email){
+      try {
+        var email = atob(v.email);
+        el.textContent='등록됨: '+email.slice(0,5)+'••••••';
+        if(btn) btn.textContent='계정 변경';
+      } catch(e){ el.textContent='등록됨'; }
+    } else {
+      el.textContent='미등록';
+      if(btn) btn.textContent='계정 등록';
+    }
+  });
+}
+
+// 하위호환: renderCoupangAccountStatus
+function renderCoupangAccountStatus(){ renderSetCoupangStatus(); }
+
+// ─── 쿠팡 계정 저장 ──────────────────────────────────────────────────────────
 function saveCoupangAccount(){
   var email = document.getElementById('ca-email').value.trim();
   var pw = document.getElementById('ca-pw').value;
@@ -11,71 +284,16 @@ function saveCoupangAccount(){
     email: btoa(email), pw: btoa(pw), updatedAt: new Date().toISOString()
   }).then(function(){
     msg.style.color='var(--green)'; msg.textContent='✅ 저장 완료';
-    setTimeout(function(){ closeModal('coupang-account-modal'); renderCoupangAccountStatus(); }, 1000);
+    setTimeout(function(){ closeModal('coupang-account-modal'); renderSetCoupangStatus(); }, 1000);
   }).catch(function(){
     msg.style.color='var(--red)'; msg.textContent='저장 실패. 다시 시도해주세요';
   });
 }
 
-function renderCoupangAccountStatus(){
-  var el = document.getElementById('coupang-account-status');
-  var btn = document.getElementById('coupang-account-btn');
-  if(!el || !currentUser) return;
-  db.ref('users/'+currentUser.uid+'/coupangAccount').once('value').then(function(snap){
-    var v = snap.val();
-    if(v && v.email){
-      try {
-        var email = atob(v.email);
-        el.textContent = '등록됨: '+email.slice(0,5)+'••••••';
-        btn.textContent = '쿠팡 계정 변경';
-      } catch(e){ el.textContent = '등록됨'; }
-    } else {
-      el.textContent = '미등록 · 쿠팡 계정을 등록하면 주문내역이 자동 수집됩니다';
-      btn.textContent = '쿠팡 계정 등록';
-    }
-  });
-}
-
-function resetVmmsLock(){
-  var el = document.getElementById('vmms-lock-pw');
-  if(el) el.value = '';
-  var msg = document.getElementById('vmms-lock-msg');
-  if(msg) msg.textContent = '';
-  var locked = document.getElementById('vmms-locked');
-  var panel  = document.getElementById('vmms-panel');
-  if(locked) locked.style.display = 'block';
-  if(panel)  panel.style.display  = 'none';
-}
-
-function unlockVmms(){
-  var pw  = document.getElementById('vmms-lock-pw').value;
-  var msg = document.getElementById('vmms-lock-msg');
-  if(!pw){ msg.textContent='비밀번호를 입력하세요'; return; }
-  var cred = firebase.auth.EmailAuthProvider.credential(currentUser.email, pw);
-  currentUser.reauthenticateWithCredential(cred).then(function(){
-    document.getElementById('vmms-locked').style.display='none';
-    document.getElementById('vmms-panel').style.display='block';
-    renderVmmsInfo();
-  }).catch(function(){
-    msg.textContent='비밀번호가 올바르지 않아요';
-  });
-}
-
-function renderVmmsInfo(){
-  db.ref('users/'+currentUser.uid+'/vmms').once('value').then(function(snap){
-    var v = snap.val()||{};
-    var el = document.getElementById('vmms-info');
-    if(!v.id){
-      el.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text3);font-size:13px">VMMS 계정을 등록해주세요</div>';
-      return;
-    }
-    decryptAES(v.id, currentUser.uid).then(function(decId){
-      var masked = decId ? decId.slice(0,3)+'••••••' : '••••••';
-      el.innerHTML = '<div style="padding:10px 0"><div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px"><span style="color:var(--text2)">아이디</span><span style="font-weight:600">'+masked+'</span></div>'+
-        '<div style="display:flex;justify-content:space-between;padding:8px 0;font-size:13px"><span style="color:var(--text2)">비밀번호</span><span style="font-weight:600">••••••••</span></div></div>';
-    });
-  });
-}
+// ─── VMMS 하위호환 ───────────────────────────────────────────────────────────
+function resetVmmsLock(){ resetSetVmmsLock(); }
+function unlockVmms(){ unlockSetVmms(); }
+function renderVmmsInfo(){ renderSetVmmsInfo(); }
 
 function saveVmms(){
   var id  = document.getElementById('ev-id').value.trim();
@@ -89,7 +307,7 @@ function saveVmms(){
     });
   }).then(function(){
     msg.style.color='var(--green)'; msg.textContent='✅ 저장 완료 (AES 암호화)';
-    setTimeout(function(){ closeModal('edit-vmms-modal'); renderVmmsInfo(); }, 1000);
+    setTimeout(function(){ closeModal('edit-vmms-modal'); renderSetVmmsInfo(); }, 1000);
   }).catch(function(e){
     msg.style.color='var(--red)'; msg.textContent='저장 실패. 다시 시도해주세요';
   });
@@ -113,12 +331,11 @@ function switchVmSub(sub){
   else { if(typeof loadVmmsProductData==='function') loadVmmsProductData(); }
 }
 
+// ─── 데이터 이전 (하위호환) ──────────────────────────────────────────────────
 function checkMigrationV2(){
   if(!currentUser) return;
   var dismissed = localStorage.getItem('migrateDismissed_v2_' + currentUser.uid);
   if(dismissed) return;
-
-  // appData 또는 기존 machines/ 경로에 데이터 있는지 확인
   Promise.all([
     db.ref('users/'+currentUser.uid+'/appData').once('value'),
     db.ref('users/'+currentUser.uid+'/machines').once('value')
@@ -127,8 +344,6 @@ function checkMigrationV2(){
     var hasAppData = appSnap.exists() && appSnap.val() && appSnap.val().products && appSnap.val().products.length;
     var hasMachines = machSnap.exists() && machSnap.val() && Object.keys(machSnap.val()).length;
     if(!hasAppData && !hasMachines) return;
-
-    // 이전할 소스 파악
     var sources = [];
     if(hasAppData) sources.push({type:'appData', label:'공통 데이터', ref:'appData'});
     if(hasMachines){
@@ -137,39 +352,9 @@ function checkMigrationV2(){
         if(m && m.name) sources.push({type:'machine', label:'🏪 '+m.name, ref:child.key, data:m});
       });
     }
-
-    // locations에 등록된 자판기 목록
     db.ref('users/'+currentUser.uid+'/locations').once('value').then(function(locSnap){
       var sel = document.getElementById('migrate-target');
       if(!sel) return;
-      sel.innerHTML = '';
-
-      // 이전할 소스 목록
-      sources.forEach(function(src){
-        var optSrc = document.createElement('option');
-        optSrc.value = 'src:'+src.ref;
-        optSrc.textContent = '원본: '+src.label;
-        optSrc.disabled = true;
-        optSrc.style.color = 'var(--text3)';
-        sel.appendChild(optSrc);
-      });
-
-      // 이전 대상: locations의 자판기들
-      if(locSnap.exists()){
-        locSnap.forEach(function(locChild){
-          var loc = locChild.val();
-          Object.keys(loc.machines||{}).forEach(function(mid){
-            var m = loc.machines[mid];
-            var opt = document.createElement('option');
-            opt.value = locChild.key+'|'+mid+'|'+(sources[0]?sources[0].ref:'appData');
-            opt.textContent = '-> 📍 '+loc.name+' · 🏪 '+m.name;
-            sel.appendChild(opt);
-          });
-        });
-      }
-
-      // 소스가 1개면 자동 선택용 값 세팅
-      // 실제 UI는 단순하게: 소스 첫번째를 기본으로 각 자판기로 이전
       sel.innerHTML = '';
       if(locSnap.exists()){
         locSnap.forEach(function(locChild){
@@ -185,9 +370,7 @@ function checkMigrationV2(){
           });
         });
       }
-
       if(!sel.options.length){
-        // locations가 없음 - 먼저 위치/자판기를 추가하라고 안내
         var banner = document.getElementById('migrate-banner');
         if(banner){
           banner.style.display='block';
@@ -196,7 +379,6 @@ function checkMigrationV2(){
         }
         return;
       }
-
       var banner = document.getElementById('migrate-banner');
       if(banner) banner.style.display='block';
     });
@@ -211,25 +393,19 @@ function migrateOldData(){
   var targetLabel = sel.options[sel.selectedIndex].text;
   if(!confirm(targetLabel+' 이전할까요?')) return;
   showToast('⏳ 이전 중...');
-
-  // 소스 데이터 읽기
   var srcPath = srcType==='machine'
     ? db.ref('users/'+currentUser.uid+'/machines/'+srcRef)
     : db.ref('users/'+currentUser.uid+'/appData');
-
   srcPath.once('value').then(function(snap){
     var val = snap.val();
-    // machine 타입이면 appData 서브노드 확인
     if(srcType==='machine' && val && val.appData) val = val.appData;
     if(!val||!val.products||!val.products.length){
       showToast('❌ 이전할 데이터가 없어요'); return;
     }
     var destPath = db.ref('users/'+currentUser.uid+'/locations/'+locId+'/machines/'+machineId+'/appData');
     return destPath.set({
-      products: val.products||[],
-      inventory: val.inventory||[],
-      inventoryLogs: val.inventoryLogs||[],
-      salesData: val.salesData||[]
+      products: val.products||[], inventory: val.inventory||[],
+      inventoryLogs: val.inventoryLogs||[], salesData: val.salesData||[]
     }).then(function(){
       document.getElementById('migrate-banner').style.display='none';
       localStorage.setItem('migrateDismissed_v2_'+currentUser.uid,'1');
@@ -248,160 +424,11 @@ function dismissMigrate(){
   if(currentUser) localStorage.setItem('migrateDismissed_'+currentUser.uid,'1');
 }
 
-function switchSettingsSub(sub){
-  ['profile','machines','vmms'].forEach(function(s){
-    document.getElementById('set-panel-'+s).style.display = s===sub ? 'block' : 'none';
-    var btn = document.getElementById('set-sub-'+s);
-    btn.style.background = s===sub ? 'var(--bg2)' : 'transparent';
-    btn.style.color      = s===sub ? 'var(--text)' : 'var(--text3)';
-    btn.style.fontWeight = s===sub ? '700' : '600';
-    btn.style.boxShadow  = s===sub ? '0 1px 3px rgba(0,0,0,.08)' : 'none';
-  });
-  if(sub==='profile'){ renderProfileInfo(); loadLowStockSetting(); renderCoupangAccountStatus(); }
-  if(sub==='machines') renderMachinesList();
-  if(sub==='vmms') resetVmmsLock();
-  // 다른 탭으로 이동 시 VMMS 잠금 초기화
-  if(sub!=='vmms') resetVmmsLock();
-}
-
-// ─── 회원 정보 ────────────────────────────────────────────────────────────────
-// ─── 회원정보 렌더 (요약 - 설정 첫화면) ────────────────────────────────────
-function renderProfileInfo(){
-  if(!currentUser) return;
-  db.ref('users/'+currentUser.uid).once('value').then(function(snap){
-    var d = snap.val()||{};
-    var p = d.profile||{};
-    var el = document.getElementById('profile-info');
-    if(!el) return;
-    // 자판기 대수 계산 (locations 기반)
-    var machineCount = 0;
-    if(d.locations){
-      Object.keys(d.locations).forEach(function(locId){
-        var loc = d.locations[locId];
-        if(loc && loc.machines) machineCount += Object.keys(loc.machines).length;
-      });
-    }
-    // 구형 machines 경로도 체크
-    if(machineCount === 0 && d.machines) machineCount = Object.keys(d.machines).length;
-    el.innerHTML = [
-      ['아이디', p.username||'-'],
-      ['이메일', p.email||currentUser.email||'-'],
-      ['가입일', p.createdAt ? p.createdAt.slice(0,10) : '-'],
-      ['자판기', machineCount+'대']
-    ].map(function(row){
-      return '<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);font-size:14px">'+
-        '<span style="color:var(--text2)">'+row[0]+'</span>'+
-        '<span style="font-weight:700;color:var(--text)">'+row[1]+'</span></div>';
-    }).join('');
-  });
-}
-
-// ─── 회원정보 수정 모달 열기/닫기 ────────────────────────────────────────────
-function openEditProfileModal(){
-  document.getElementById('edit-profile-lock').style.display='block';
-  document.getElementById('edit-profile-unlocked').style.display='none';
-  document.getElementById('ep-lock-pw').value='';
-  document.getElementById('ep-lock-msg').textContent='';
-  openModal('edit-profile-modal');
-}
-
-function closeEditProfileModal(){
-  document.getElementById('ep-lock-pw').value='';
-  closeModal('edit-profile-modal');
-}
-
-function switchEpTab(tab){
-  ['info','edit','pw'].forEach(function(t){
-    document.getElementById('ep-panel-'+t).style.display = t===tab ? 'block' : 'none';
-    var btn = document.getElementById('ep-tab-'+t);
-    btn.style.background = t===tab ? 'var(--blue)' : 'transparent';
-    btn.style.color      = t===tab ? '#fff' : 'var(--text2)';
-    btn.style.fontWeight = t===tab ? '700' : '600';
-  });
-}
-
-function unlockEditProfile(){
-  var pw = document.getElementById('ep-lock-pw').value;
-  var msg = document.getElementById('ep-lock-msg');
-  if(!pw){ msg.textContent='비밀번호를 입력하세요'; return; }
-  var cred = firebase.auth.EmailAuthProvider.credential(currentUser.email, pw);
-  currentUser.reauthenticateWithCredential(cred).then(function(){
-    document.getElementById('edit-profile-lock').style.display='none';
-    document.getElementById('edit-profile-unlocked').style.display='block';
-    switchEpTab('info');
-    loadProfileForEdit();
-  }).catch(function(){
-    msg.textContent='비밀번호가 올바르지 않아요';
-  });
-}
-
-function loadProfileForEdit(){
-  db.ref('users/'+currentUser.uid+'/profile').once('value').then(function(snap){
-    var p = snap.val()||{};
-    document.getElementById('ep-email').value = p.email||currentUser.email||'';
-    document.getElementById('ep-phone').value = p.phone||'';
-    // 상세 정보 표시
-    var el = document.getElementById('ep-detail-info');
-    if(el) el.innerHTML = [
-      ['이름', p.name||'-'],
-      ['아이디', p.username||'-'],
-      ['이메일', p.email||currentUser.email||'-'],
-      ['연락처', p.phone||'-'],
-      ['가입일', p.createdAt ? p.createdAt.slice(0,10) : '-']
-    ].map(function(row){
-      return '<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px">'+
-        '<span style="color:var(--text2)">'+row[0]+'</span>'+
-        '<span style="font-weight:600">'+row[1]+'</span></div>';
-    }).join('');
-  });
-}
-
-function initEpBirthSelects(current){
-  var el = document.getElementById('ep-birth-selects');
-  if(!el) return;
-  var ss = 'style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 6px;color:var(--text);font-size:13px;font-family:inherit;"';
-  var parts = current ? current.split('-') : ['','',''];
-  var yOpts='<option value="">년</option>', mOpts='<option value="">월</option>', dOpts='<option value="">일</option>';
-  var thisYear=new Date().getFullYear();
-  for(var y=thisYear-80;y<=thisYear-14;y++) yOpts+='<option value="'+y+'"'+(parts[0]==y?' selected':'')+'>'+y+'</option>';
-  for(var m=1;m<=12;m++){var mv=(m<10?'0':'')+m; mOpts+='<option value="'+mv+'"'+(parts[1]==mv?' selected':'')+'>'+mv+'</option>';}
-  for(var d=1;d<=31;d++){var dv=(d<10?'0':'')+d; dOpts+='<option value="'+dv+'"'+(parts[2]==dv?' selected':'')+'>'+dv+'</option>';}
-  el.innerHTML='<select id="ep-birth-y" '+ss+'>'+yOpts+'</select><select id="ep-birth-m" '+ss+'>'+mOpts+'</select><select id="ep-birth-d" '+ss+'>'+dOpts+'</select>';
-}
-
-function saveProfile(){
-  var email = document.getElementById('ep-email').value.trim();
-  var phone = document.getElementById('ep-phone').value.trim();
-  var msg = document.getElementById('ep-msg');
-  if(!email){ msg.style.color='var(--red)'; msg.textContent='이메일을 입력하세요'; return; }
-  msg.style.color='var(--text2)'; msg.textContent='저장 중...';
-  var updates = {email:email, phone:phone};
-  var promises = [db.ref('users/'+currentUser.uid+'/profile').update(updates)];
-  if(email !== currentUser.email){
-    // 새 이메일로 인증 메일 발송 (인증 후 자동 변경)
-    promises.push(currentUser.verifyBeforeUpdateEmail(email));
-  }
-  Promise.all(promises).then(function(){
-    if(email !== currentUser.email){
-      msg.style.color='var(--green)'; msg.textContent='✅ 저장 완료. 새 이메일로 인증 메일을 보냈어요. 인증 후 변경됩니다.';
-    } else {
-      msg.style.color='var(--green)'; msg.textContent='✅ 저장 완료';
-    }
-    renderProfileInfo();
-    setTimeout(function(){ switchEpTab('info'); loadProfileForEdit(); }, 1000);
-  }).catch(function(e){
-    msg.style.color='var(--red)';
-    if(e.code==='auth/requires-recent-login') msg.textContent='보안을 위해 다시 로그인 후 시도해주세요';
-    else if(e.code==='auth/invalid-email') msg.textContent='이메일 형식이 올바르지 않아요';
-    else if(e.code==='auth/email-already-in-use') msg.textContent='이미 사용 중인 이메일이에요';
-    else msg.textContent='저장 실패. 다시 시도해주세요';
-  });
-}
-
-// ─── 비밀번호 변경 ────────────────────────────────────────────────────────────
+// ─── 비밀번호 변경 (하위호환 - 모달용) ───────────────────────────────────────
 function checkNewPw(){
   var pw = document.getElementById('cp-new').value;
   var el = document.getElementById('cp-strength');
+  if(!el) return;
   var ok = /[a-zA-Z]/.test(pw) && /[0-9]/.test(pw) && pw.length>=8;
   el.style.color = ok ? 'var(--green)' : 'var(--red)';
   el.textContent = pw ? (ok ? '✅ 사용 가능' : '❌ 영문+숫자 8자 이상') : '';
@@ -420,11 +447,17 @@ function doChangePw(){
     document.getElementById('cp-new').value='';
     document.getElementById('cp-new2').value='';
     document.getElementById('cp-strength').textContent='';
-    setTimeout(function(){ closeEditProfileModal(); }, 1500);
-  }).catch(function(e){
-    msg.style.color='var(--red)'; msg.textContent=e.message;
-  });
+  }).catch(function(e){ msg.style.color='var(--red)'; msg.textContent=e.message; });
 }
+
+// 하위호환: 모달 프로필 함수들
+function openEditProfileModal(){ toggleProfileDetail(); }
+function closeEditProfileModal(){}
+function switchEpTab(){}
+function unlockEditProfile(){}
+function loadProfileForEdit(){}
+function initEpBirthSelects(){}
+function saveProfile(){}
 
 // ─── 재고 부족 기준 설정 ──────────────────────────────────────────────────────
 function toggleLowStockMode(){
@@ -475,5 +508,112 @@ function loadLowStockSetting(){
       document.getElementById('ls-fixed-input').style.display = 'none';
       document.getElementById('ls-avg-input').style.display = 'flex';
     }
+  });
+}
+
+// ─── 4. 초기화 ──────────────────────────────────────────────────────────────────
+var _resetDescriptions = {
+  inventory: {title:'📦 재고 초기화', desc:'모든 자판기의 재고 수량과 재고 기록(입출고 로그)이 삭제됩니다.'},
+  products:  {title:'🏷️ 제품 초기화', desc:'등록된 모든 제품과 컬럼 매칭이 삭제됩니다. VMMS에서 다시 수집하면 복구할 수 있습니다.'},
+  sales:     {title:'📊 판매 내역 초기화', desc:'모든 자판기의 판매 내역이 삭제됩니다.'},
+  all:       {title:'🗑️ 전체 초기화', desc:'재고, 제품, 판매내역, 자판기 위치, 자판기 단말기, VMMS 계정, 쿠팡 계정이 모두 삭제됩니다. 내 정보는 유지되며 재고 부족 기준은 기본값(고정 수량 10개)으로 초기화됩니다.'}
+};
+
+function openResetConfirm(type){
+  var info = _resetDescriptions[type];
+  if(!info) return;
+  document.getElementById('reset-modal-title').textContent='⚠️ '+info.title;
+  document.getElementById('reset-modal-desc').textContent=info.desc;
+  document.getElementById('reset-type').value=type;
+  document.getElementById('reset-pw').value='';
+  document.getElementById('reset-msg').textContent='';
+  openModal('reset-confirm-modal');
+}
+
+function executeReset(){
+  var type = document.getElementById('reset-type').value;
+  var pw = document.getElementById('reset-pw').value;
+  var msg = document.getElementById('reset-msg');
+  if(!pw){ msg.style.color='var(--red)'; msg.textContent='비밀번호를 입력하세요'; return; }
+  msg.style.color='var(--text2)'; msg.textContent='확인 중...';
+
+  var cred = firebase.auth.EmailAuthProvider.credential(currentUser.email, pw);
+  currentUser.reauthenticateWithCredential(cred).then(function(){
+    msg.textContent='초기화 중...';
+    return db.ref('users/'+currentUser.uid+'/locations').once('value');
+  }).then(function(snap){
+    var locations = snap.val()||{};
+    var updates = {};
+
+    if(type==='inventory' || type==='all'){
+      // 모든 자판기의 inventory, inventoryLogs 삭제
+      Object.keys(locations).forEach(function(locId){
+        var machines = locations[locId].machines||{};
+        Object.keys(machines).forEach(function(mid){
+          updates['locations/'+locId+'/machines/'+mid+'/appData/inventory'] = null;
+          updates['locations/'+locId+'/machines/'+mid+'/appData/inventoryLogs'] = null;
+        });
+      });
+    }
+
+    if(type==='products' || type==='all'){
+      // 모든 자판기의 products 삭제
+      Object.keys(locations).forEach(function(locId){
+        var machines = locations[locId].machines||{};
+        Object.keys(machines).forEach(function(mid){
+          updates['locations/'+locId+'/machines/'+mid+'/appData/products'] = null;
+        });
+      });
+      // vmmsColumns 삭제 (컬럼 매칭)
+      updates['vmmsColumns'] = null;
+    }
+
+    if(type==='sales' || type==='all'){
+      // 모든 자판기의 salesData 삭제
+      Object.keys(locations).forEach(function(locId){
+        var machines = locations[locId].machines||{};
+        Object.keys(machines).forEach(function(mid){
+          updates['locations/'+locId+'/machines/'+mid+'/appData/salesData'] = null;
+        });
+      });
+    }
+
+    if(type==='all'){
+      // 자판기 위치/단말기 전부 삭제
+      updates['locations'] = null;
+      updates['mainLocationId'] = null;
+      // VMMS, 쿠팡 삭제
+      updates['vmms'] = null;
+      updates['vmmsMachines'] = null;
+      updates['vmmsColumns'] = null;
+      updates['coupangAccount'] = null;
+      updates['doubleColumns'] = null;
+      // 재고 부족 기준 기본값
+      updates['settings/lowStock'] = {mode:'fixed', fixedQty:10};
+    }
+
+    return db.ref('users/'+currentUser.uid).update(updates);
+  }).then(function(){
+    msg.style.color='var(--green)'; msg.textContent='✅ 초기화 완료';
+    // 현재 데이터 초기화
+    if(type==='inventory' || type==='all'){
+      D.inventory=[]; D.inventoryLogs=[];
+    }
+    if(type==='products' || type==='all'){
+      D.products=[];
+    }
+    if(type==='sales' || type==='all'){
+      D.salesData=[];
+    }
+    if(type==='all'){
+      currentLocationId=null; currentMachineId=null;
+      _lowStockThreshold=10;
+    }
+    renderAll();
+    if(type==='all') loadLocationDropdown();
+    setTimeout(function(){ closeModal('reset-confirm-modal'); showToast('✅ 초기화 완료'); }, 1200);
+  }).catch(function(e){
+    if(e.code==='auth/wrong-password') msg.textContent='비밀번호가 올바르지 않아요';
+    else{ msg.style.color='var(--red)'; msg.textContent='오류: '+e.message; }
   });
 }

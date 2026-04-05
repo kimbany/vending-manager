@@ -396,113 +396,188 @@
 
     <!-- 설정 -->
     <div class="tab" id="tab-settings">
-      <!-- 서브탭 -->
-      <div style="display:flex;background:var(--bg2);border-radius:12px;padding:3px;margin-bottom:16px;gap:0;border:1px solid var(--border)">
-        <button id="set-sub-profile" onclick="switchSettingsSub('profile')" style="flex:1;border:none;border-radius:9px;padding:9px 4px;font-size:14px;font-weight:700;cursor:pointer;background:var(--bg2);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.08);font-family:inherit">회원정보</button>
-        <div style="width:1px;background:var(--border);margin:6px 0;flex-shrink:0"></div>
-        <button id="set-sub-machines" onclick="switchSettingsSub('machines')" style="flex:1;border:none;border-radius:9px;padding:9px 4px;font-size:14px;font-weight:600;cursor:pointer;background:transparent;color:var(--text3);font-family:inherit">자판기</button>
-        <div style="width:1px;background:var(--border);margin:6px 0;flex-shrink:0"></div>
-        <button id="set-sub-vmms" onclick="switchSettingsSub('vmms')" style="flex:1;border:none;border-radius:9px;padding:9px 4px;font-size:14px;font-weight:600;cursor:pointer;background:transparent;color:var(--text3);font-family:inherit">VMMS</button>
-      </div>
 
-      <!-- 회원정보 패널 -->
-      <div id="set-panel-profile">
-        <!-- 요약 카드 -->
-        <div class="card" style="margin-bottom:12px">
-          <div class="ch"><div class="ca" style="background:var(--blue)"></div><div><div class="ct">내 정보</div></div></div>
-          <div class="cb" id="profile-info"></div>
+      <!-- 1. 내 정보 (상단 카드) -->
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="width:44px;height:44px;border-radius:50%;background:var(--blue);display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff;flex-shrink:0">👤</div>
+            <div>
+              <div id="set-prof-name" style="font-size:16px;font-weight:700"></div>
+              <div id="set-prof-email" style="font-size:12px;color:var(--text3);margin-top:1px"></div>
+            </div>
+          </div>
+          <button onclick="toggleProfileDetail()" id="set-prof-manage-btn" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;font-family:inherit;white-space:nowrap">관리</button>
         </div>
-        <button class="btn-p" onclick="openEditProfileModal()">✏️ 회원정보 수정 / 비밀번호 변경</button>
-
-        <!-- 화면 잠금 설정 -->
-        <div class="card" style="margin-bottom:12px">
-          <div class="ch"><div class="ca" style="background:var(--blue)"></div><div><div class="ct">🔒 화면 잠금</div></div></div>
-          <div class="cb">
-            <div id="pin-status" style="font-size:14px;color:var(--text2);margin-bottom:12px">PIN 미설정</div>
-            <div style="display:flex;flex-direction:column;gap:8px">
-              <button onclick="openPinSetup()" style="width:100%;background:var(--blue);border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit" id="pin-setup-btn">PIN 설정</button>
-              <div style="display:flex;gap:8px">
-                <select id="lock-timeout" onchange="saveLockTimeout()" style="flex:1;font-size:14px;padding:10px">
-                  <option value="0">사용 안함</option>
-                  <option value="30">30분</option>
-                  <option value="60" selected>1시간</option>
-                  <option value="120">2시간</option>
-                </select>
-                <button onclick="removePinSetup()" id="pin-remove-btn" style="display:none;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 16px;font-size:13px;color:var(--red);cursor:pointer;font-family:inherit;white-space:nowrap">PIN 삭제</button>
+        <!-- 상세 정보 (접힘) -->
+        <div id="set-prof-detail" style="display:none">
+          <div id="set-prof-full-info" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)"></div>
+          <!-- 정보 수정 영역 -->
+          <div id="set-prof-edit-area" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+            <div id="set-prof-edit-lock">
+              <div style="font-size:13px;color:var(--text2);margin-bottom:10px">정보를 수정하려면 비밀번호를 입력하세요.</div>
+              <div class="fr"><input type="password" id="set-prof-lock-pw" placeholder="현재 비밀번호" onkeydown="if(event.key==='Enter')unlockProfileEdit()"/></div>
+              <button onclick="unlockProfileEdit()" style="width:100%;background:var(--blue);border:none;border-radius:10px;padding:10px;font-size:13px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit">확인</button>
+              <div id="set-prof-lock-msg" style="font-size:12px;color:var(--red);margin-top:6px;text-align:center"></div>
+            </div>
+            <div id="set-prof-edit-form" style="display:none">
+              <div style="font-size:14px;font-weight:700;margin-bottom:12px">정보 수정</div>
+              <div class="fr"><label class="lbl">이메일</label><input type="email" id="set-prof-email-input" placeholder="이메일"/></div>
+              <div style="font-size:11px;color:var(--text3);margin:-6px 0 10px 2px">이메일 변경 시 인증 메일이 발송됩니다.</div>
+              <div class="fr"><label class="lbl">연락처</label><input type="tel" id="set-prof-phone-input" placeholder="010-1234-5678" oninput="formatPhone(this)" maxlength="13"/></div>
+              <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+                <div style="font-size:14px;font-weight:700;margin-bottom:4px">비밀번호 변경</div>
+                <div style="font-size:11px;color:var(--text3);margin-bottom:12px">변경하지 않으려면 비워두세요.</div>
+                <div class="fr"><label class="lbl">현재 비밀번호</label><input type="password" id="set-prof-cur-pw"/></div>
+                <div class="fr"><label class="lbl">새 비밀번호 <span style="font-size:11px;color:var(--text3);font-weight:400">(영문+숫자 8자 이상)</span></label><input type="password" id="set-prof-new-pw" oninput="checkSetNewPw()"/></div>
+                <div id="set-prof-pw-strength" style="font-size:11px;margin:-6px 0 10px 2px"></div>
+                <div class="fr"><label class="lbl">새 비밀번호 확인</label><input type="password" id="set-prof-new-pw2"/></div>
               </div>
+              <button onclick="saveProfileAll()" style="width:100%;background:var(--blue);border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit;margin-top:8px">저장</button>
+              <div id="set-prof-save-msg" style="font-size:12px;margin-top:8px;text-align:center"></div>
+            </div>
+          </div>
+          <button onclick="toggleProfileEdit()" id="set-prof-edit-btn" style="width:100%;margin-top:14px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;font-family:inherit">정보 수정</button>
+        </div>
+      </div>
+
+      <!-- 메뉴 리스트 -->
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:12px">
+
+        <!-- 2. 개인/보안 -->
+        <div onclick="toggleSettingsMenu('security')" style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer">
+          <div style="display:flex;align-items:center;gap:10px"><span style="font-size:18px">🔒</span><span style="font-size:14px;font-weight:600">개인/보안</span></div>
+          <span id="set-arrow-security" style="font-size:16px;color:var(--text3);transition:transform .2s">›</span>
+        </div>
+        <div id="set-menu-security" style="display:none;padding:0 16px 16px">
+          <!-- 화면 잠금 -->
+          <div style="background:var(--bg3);border-radius:10px;padding:14px;margin-bottom:8px">
+            <div style="font-size:13px;font-weight:700;margin-bottom:10px">🔒 화면 잠금</div>
+            <div id="pin-status" style="font-size:13px;color:var(--text2);margin-bottom:10px">PIN 미설정</div>
+            <div style="display:flex;gap:8px">
+              <button onclick="openPinSetup()" style="flex:1;background:var(--blue);border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit" id="pin-setup-btn">PIN 설정</button>
+              <select id="lock-timeout" onchange="saveLockTimeout()" style="flex:1;font-size:13px;padding:8px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit">
+                <option value="0">사용 안함</option><option value="30">30분</option><option value="60" selected>1시간</option><option value="120">2시간</option>
+              </select>
+              <button onclick="removePinSetup()" id="pin-remove-btn" style="display:none;background:var(--bg2);border:1px solid rgba(224,88,88,.3);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--red);cursor:pointer;font-family:inherit">삭제</button>
+            </div>
+          </div>
+          <!-- VMMS 계정 -->
+          <div style="background:var(--bg3);border-radius:10px;padding:14px;margin-bottom:8px">
+            <div style="font-size:13px;font-weight:700;margin-bottom:8px">🔗 VMMS 계정</div>
+            <div id="set-vmms-locked">
+              <div style="font-size:12px;color:var(--text3);margin-bottom:8px">비밀번호를 입력하면 계정 정보를 확인/수정할 수 있어요.</div>
+              <div style="display:flex;gap:6px">
+                <input type="password" id="set-vmms-lock-pw" placeholder="로그인 비밀번호" style="flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px;font-family:inherit" onkeydown="if(event.key==='Enter')unlockSetVmms()"/>
+                <button onclick="unlockSetVmms()" style="background:var(--blue);border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit">확인</button>
+              </div>
+              <div id="set-vmms-lock-msg" style="font-size:11px;color:var(--red);margin-top:4px"></div>
+            </div>
+            <div id="set-vmms-panel" style="display:none">
+              <div id="set-vmms-info"></div>
+              <button onclick="openModal('edit-vmms-modal')" style="width:100%;margin-top:8px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;font-family:inherit">계정 수정</button>
+            </div>
+          </div>
+          <!-- 쿠팡 계정 -->
+          <div style="background:var(--bg3);border-radius:10px;padding:14px">
+            <div style="font-size:13px;font-weight:700;margin-bottom:4px">🛒 쿠팡 계정</div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:8px">주문내역 자동 수집용</div>
+            <div id="set-coupang-status" style="font-size:13px;color:var(--text2);margin-bottom:8px">미등록</div>
+            <button onclick="openModal('coupang-account-modal')" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;font-family:inherit" id="set-coupang-btn">계정 등록</button>
+          </div>
+        </div>
+
+        <div style="height:1px;background:var(--border);margin:0 16px"></div>
+
+        <!-- 3. 자판기 -->
+        <div onclick="toggleSettingsMenu('machines')" style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer">
+          <div style="display:flex;align-items:center;gap:10px"><span style="font-size:18px">🏪</span><span style="font-size:14px;font-weight:600">자판기</span></div>
+          <span id="set-arrow-machines" style="font-size:16px;color:var(--text3);transition:transform .2s">›</span>
+        </div>
+        <div id="set-menu-machines" style="display:none;padding:0 16px 16px">
+          <!-- 자판기 관리 -->
+          <div onclick="toggleSettingsSub('machine-manage')" style="background:var(--bg3);border-radius:10px;padding:14px;margin-bottom:8px;cursor:pointer">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <div style="font-size:13px;font-weight:700">📋 자판기 관리</div>
+              <span id="set-arrow-machine-manage" style="font-size:14px;color:var(--text3);transition:transform .2s">›</span>
+            </div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px">위치/자판기 추가 · 수정 · 순서 변경</div>
+          </div>
+          <div id="set-sub-machine-manage" style="display:none;margin-bottom:8px" onclick="event.stopPropagation()">
+            <button class="btn-p" style="margin-bottom:8px" onclick="openModal('add-location-modal')">➕ 위치(구역) 추가</button>
+            <div id="locations-list"></div>
+          </div>
+          <!-- 자판기 설정 -->
+          <div onclick="toggleSettingsSub('machine-settings')" style="background:var(--bg3);border-radius:10px;padding:14px;cursor:pointer">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <div style="font-size:13px;font-weight:700">⚙️ 자판기 설정</div>
+              <span id="set-arrow-machine-settings" style="font-size:14px;color:var(--text3);transition:transform .2s">›</span>
+            </div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px">재고 부족 기준 설정</div>
+          </div>
+          <div id="set-sub-machine-settings" style="display:none;margin-top:8px" onclick="event.stopPropagation()">
+            <div style="background:var(--bg3);border-radius:10px;padding:14px">
+              <div style="font-size:13px;font-weight:700;margin-bottom:10px">📦 재고 부족 기준</div>
+              <div id="low-stock-setting">
+                <label style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer">
+                  <input type="radio" name="low-stock-mode" value="fixed" checked onchange="toggleLowStockMode()" style="width:18px;height:18px;accent-color:var(--blue);flex-shrink:0;margin-top:2px"/>
+                  <div style="flex:1">
+                    <div style="font-size:13px;font-weight:600">고정 수량 기준</div>
+                    <div style="font-size:11px;color:var(--text3);margin-top:2px">설정한 수량 이하일 때 재고 부족 표시</div>
+                    <div id="ls-fixed-input" style="margin-top:6px;display:flex;align-items:center;gap:6px">
+                      <input type="number" id="ls-fixed-qty" value="5" min="1" max="100" style="width:70px;text-align:center;font-size:13px;padding:6px"/>
+                      <span style="font-size:13px;color:var(--text2)">개 이하</span>
+                    </div>
+                  </div>
+                </label>
+                <label style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;cursor:pointer">
+                  <input type="radio" name="low-stock-mode" value="average" onchange="toggleLowStockMode()" style="width:18px;height:18px;accent-color:var(--blue);flex-shrink:0;margin-top:2px"/>
+                  <div style="flex:1">
+                    <div style="font-size:13px;font-weight:600">평균 판매량 기준</div>
+                    <div style="font-size:11px;color:var(--text3);margin-top:2px">하루 평균 판매량 x 설정 일수 이하일 때 부족 표시</div>
+                    <div id="ls-avg-input" style="margin-top:6px;display:none;align-items:center;gap:6px">
+                      <input type="number" id="ls-avg-days" value="3" min="1" max="30" style="width:70px;text-align:center;font-size:13px;padding:6px"/>
+                      <span style="font-size:13px;color:var(--text2)">일 분량</span>
+                    </div>
+                  </div>
+                </label>
+              </div>
+              <button onclick="saveLowStockSetting()" style="width:100%;margin-top:10px;background:var(--blue);border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit">저장</button>
+              <div id="ls-save-msg" style="font-size:11px;margin-top:6px;text-align:center"></div>
             </div>
           </div>
         </div>
 
-        <!-- 자판기 설정 -->
-        <div class="card" style="margin-bottom:12px">
-          <div class="ch"><div class="ca" style="background:var(--blue)"></div><div><div class="ct">자판기 설정</div></div></div>
-          <div class="cb">
-            <div style="font-size:14px;font-weight:700;margin-bottom:12px">📦 재고 부족 기준</div>
-            <div id="low-stock-setting">
-              <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer">
-                <input type="radio" name="low-stock-mode" value="fixed" checked onchange="toggleLowStockMode()" style="width:18px;height:18px;accent-color:var(--blue);flex-shrink:0;margin-top:2px"/>
-                <div style="flex:1">
-                  <div style="font-size:14px;font-weight:600">고정 수량 기준</div>
-                  <div style="font-size:12px;color:var(--text3);margin-top:2px">설정한 수량 이하일 때 재고 부족 표시</div>
-                  <div id="ls-fixed-input" style="margin-top:8px;display:flex;align-items:center;gap:8px">
-                    <input type="number" id="ls-fixed-qty" value="5" min="1" max="100" style="width:80px;text-align:center;font-size:14px;padding:8px"/>
-                    <span style="font-size:14px;color:var(--text2)">개 이하</span>
-                  </div>
-                </div>
-              </label>
-              <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;cursor:pointer">
-                <input type="radio" name="low-stock-mode" value="average" onchange="toggleLowStockMode()" style="width:18px;height:18px;accent-color:var(--blue);flex-shrink:0;margin-top:2px"/>
-                <div style="flex:1">
-                  <div style="font-size:14px;font-weight:600">평균 판매량 기준</div>
-                  <div style="font-size:12px;color:var(--text3);margin-top:2px">하루 평균 판매량 x 설정 일수 이하일 때 부족 표시</div>
-                  <div id="ls-avg-input" style="margin-top:8px;display:none;align-items:center;gap:8px">
-                    <input type="number" id="ls-avg-days" value="3" min="1" max="30" style="width:80px;text-align:center;font-size:14px;padding:8px"/>
-                    <span style="font-size:14px;color:var(--text2)">일 분량</span>
-                  </div>
-                </div>
-              </label>
-            </div>
-            <button onclick="saveLowStockSetting()" style="width:100%;margin-top:12px;background:var(--blue);border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit">저장</button>
-            <div id="ls-save-msg" style="font-size:12px;margin-top:8px;text-align:center"></div>
-          </div>
+        <div style="height:1px;background:var(--border);margin:0 16px"></div>
+
+        <!-- 4. 초기화 -->
+        <div onclick="toggleSettingsMenu('reset')" style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer">
+          <div style="display:flex;align-items:center;gap:10px"><span style="font-size:18px">⚠️</span><span style="font-size:14px;font-weight:600;color:var(--red)">초기화</span></div>
+          <span id="set-arrow-reset" style="font-size:16px;color:var(--text3);transition:transform .2s">›</span>
         </div>
-        <!-- 쿠팡 계정 설정 -->
-        <div class="card" style="margin-bottom:12px">
-          <div class="ch"><div class="ca" style="background:var(--blue)"></div><div><div class="ct">🛒 쿠팡 계정</div><div class="cs">주문내역 자동 수집용</div></div></div>
-          <div class="cb">
-            <div id="coupang-account-status" style="font-size:14px;color:var(--text2);margin-bottom:12px">미등록</div>
-            <button onclick="openModal('coupang-account-modal')" style="width:100%;background:var(--blue);border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit" id="coupang-account-btn">쿠팡 계정 등록</button>
+        <div id="set-menu-reset" style="display:none;padding:0 16px 16px">
+          <div style="font-size:11px;color:var(--red);margin-bottom:10px;line-height:1.5">초기화된 데이터는 복구할 수 없습니다. 신중하게 진행하세요.</div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <button onclick="openResetConfirm('inventory')" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;text-align:left;cursor:pointer;font-family:inherit">
+              <div style="font-size:13px;font-weight:600">📦 재고 초기화</div>
+              <div style="font-size:11px;color:var(--text3);margin-top:2px">모든 자판기의 재고 및 재고 기록 삭제</div>
+            </button>
+            <button onclick="openResetConfirm('products')" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;text-align:left;cursor:pointer;font-family:inherit">
+              <div style="font-size:13px;font-weight:600">🏷️ 제품 초기화</div>
+              <div style="font-size:11px;color:var(--text3);margin-top:2px">등록된 제품 및 컬럼 매칭 삭제 (VMMS 재수집 가능)</div>
+            </button>
+            <button onclick="openResetConfirm('sales')" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;text-align:left;cursor:pointer;font-family:inherit">
+              <div style="font-size:13px;font-weight:600">📊 판매 내역 초기화</div>
+              <div style="font-size:11px;color:var(--text3);margin-top:2px">모든 자판기의 판매 내역 삭제</div>
+            </button>
+            <button onclick="openResetConfirm('all')" style="width:100%;background:rgba(224,88,88,.08);border:1px solid rgba(224,88,88,.3);border-radius:10px;padding:12px 14px;text-align:left;cursor:pointer;font-family:inherit">
+              <div style="font-size:13px;font-weight:700;color:var(--red)">🗑️ 전체 초기화</div>
+              <div style="font-size:11px;color:var(--text3);margin-top:2px">재고·제품·판매내역·자판기·VMMS·쿠팡 전부 삭제 (내 정보 유지)</div>
+            </button>
           </div>
         </div>
 
       </div>
-
-      <!-- 자판기 관리 패널 -->
-      <div id="set-panel-machines" style="display:none">
-        <button class="btn-p" style="margin-bottom:8px" onclick="openModal('add-location-modal')">➕ 위치(구역) 추가</button>
-        <div id="locations-list"></div>
-      </div>
-
-      <!-- VMMS 관리 패널 -->
-      <div id="set-panel-vmms" style="display:none">
-        <div id="vmms-locked" style="text-align:center;padding:30px 20px">
-          <div style="font-size:40px;margin-bottom:12px">🔒</div>
-          <div style="font-size:14px;font-weight:700;margin-bottom:8px">보안 확인 필요</div>
-          <div style="font-size:12px;color:var(--text2);margin-bottom:20px">VMMS 계정은 민감 정보예요.<br/>비밀번호를 입력해주세요.</div>
-          <input type="password" id="vmms-lock-pw" placeholder="로그인 비밀번호" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;margin-bottom:10px"/>
-          <button onclick="unlockVmms()" style="width:100%;background:var(--blue);border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit">확인</button>
-          <div id="vmms-lock-msg" style="font-size:12px;color:var(--red);margin-top:8px"></div>
-        </div>
-        <div id="vmms-panel" style="display:none">
-          <div class="card" style="margin-bottom:12px">
-            <div class="ch"><div class="ca" style="background:var(--blue)"></div><div><div class="ct">VMMS 계정</div></div></div>
-            <div class="cb" id="vmms-info"></div>
-          </div>
-          <button class="btn-p" onclick="openModal('edit-vmms-modal')">✏️ VMMS 계정 수정</button>
-        </div>
-      </div>
-
     </div>
   </div>
 
@@ -691,6 +766,21 @@
     <div id="dc-current-list" style="margin-bottom:14px"></div>
     <div id="dc-candidates" style="margin-bottom:14px"></div>
     <div id="dc-msg" style="font-size:12px;text-align:center;min-height:18px"></div>
+  </div>
+</div>
+
+<!-- 초기화 확인 모달 -->
+<div class="modal-bg" id="reset-confirm-modal">
+  <div class="modal" style="padding-bottom:24px">
+    <div class="mh"><div class="mt" id="reset-modal-title">⚠️ 초기화</div><button class="mc" onclick="closeModal('reset-confirm-modal')">✕</button></div>
+    <div id="reset-modal-desc" style="font-size:13px;color:var(--text2);margin-bottom:14px;line-height:1.6"></div>
+    <div style="background:rgba(224,88,88,.08);border:1px solid rgba(224,88,88,.25);border-radius:10px;padding:12px;margin-bottom:14px;font-size:12px;color:var(--red);line-height:1.6;font-weight:600">
+      모든 데이터가 삭제되며 복구할 수 없습니다.
+    </div>
+    <div class="fr"><label class="lbl">비밀번호 확인</label><input type="password" id="reset-pw" placeholder="로그인 비밀번호" onkeydown="if(event.key==='Enter')executeReset()"/></div>
+    <input type="hidden" id="reset-type" value=""/>
+    <button onclick="executeReset()" style="width:100%;background:var(--red);border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit">초기화 실행</button>
+    <div id="reset-msg" style="font-size:12px;margin-top:8px;text-align:center"></div>
   </div>
 </div>
 
