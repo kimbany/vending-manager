@@ -278,18 +278,16 @@ function editProd(id){
 
 function _openEditProdModal(p){
   document.getElementById('p-eid').value=p.id;
-  document.getElementById('prod-modal-title').textContent='제품 수정';
+  document.getElementById('prod-modal-title').textContent='판매가 수정';
   document.getElementById('p-save-btn').textContent='수정 완료';
   document.getElementById('p-name').value=p.name;
-  document.getElementById('p-buy').value=p.buyPrice;
-  document.getElementById('p-total').value=p.totalQty;
-  document.getElementById('p-sell').value=p.sellPrice;
-  loadDevnoOptions('p-devno', p.deviceNo||null);
+  document.getElementById('p-buy').value=p.buyPrice||0;
+  document.getElementById('p-total').value=p.totalQty||0;
+  document.getElementById('p-sell').value=p.sellPrice||'';
   var cols=Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
   document.getElementById('p-col').value=cols.join(', ');
   var discEl=document.getElementById('p-discontinued');
   if(discEl) discEl.checked=p.discontinued||false;
-  calcProduct();
   openModal('prod-modal');
 }
 

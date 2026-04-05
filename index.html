@@ -945,35 +945,19 @@
   <div class="modal">
     <div class="mh"><div class="mt" id="prod-modal-title">제품 등록</div><button class="mc" onclick="closeModal('prod-modal')">✕</button></div>
     <input type="hidden" id="p-eid"/>
-    <div class="fr"><label class="lbl">제품명 <span style="color:var(--text3);font-weight:400;font-size:11px">· VMMS 상품명과 동일하게 입력</span></label><input type="text" id="p-name" placeholder="VMMS에 등록된 상품명과 동일하게 입력"/></div>
-    <div class="f2">
-      <div><label class="lbl">구매가 (원)</label><input type="number" id="p-buy" placeholder="총 구매금액" oninput="calcProduct()"/></div>
-      <div><label class="lbl">초기 총수량 (개)</label><input type="number" id="p-total" placeholder="현재 재고 수량" oninput="calcProduct()"/></div>
+    <div class="fr"><label class="lbl">제품명</label><input type="text" id="p-name" readonly style="background:var(--bg3);color:var(--text2)"/></div>
+    <input type="hidden" id="p-buy" value="0"/>
+    <input type="hidden" id="p-total" value="0"/>
+    <div class="fr"><label class="lbl">판매가 (원)</label><input type="number" id="p-sell" placeholder="판매 가격"/></div>
+    <div id="p-unit" style="display:none"></div>
+    <div id="p-ma" style="display:none"></div>
+    <div id="p-mr" style="display:none"></div>
+    <div style="display:none">
+      <select id="p-devno"><option value="">단말기 선택</option></select>
     </div>
-    <div style="background:rgba(122,218,154,.08);border:1px solid rgba(122,218,154,.2);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:11px;color:var(--text2)">
-      💡 초기 총수량 = 현재 진열된 재고 수량 (또는 첫 설치 시 구매한 수량)
-    </div>
-    <div class="fr"><label class="lbl">낱개가 (자동계산)</label><div class="af" id="p-unit" style="color:var(--green)">구매가 ÷ 총수량</div></div>
-    <div class="fr"><label class="lbl">판매가 (원)</label><input type="number" id="p-sell" placeholder="판매 가격" oninput="calcProduct()"/></div>
-    <div class="f2">
-      <div><label class="lbl">마진가 (자동)</label><div class="af" id="p-ma" style="color:var(--blue)">-</div></div>
-      <div><label class="lbl">마진율 (자동)</label><div class="af" id="p-mr" style="color:var(--blue)">-</div></div>
-    </div>
-    <div class="fr">
-      <label class="lbl">단말기 번호 <span style="color:var(--text3);font-weight:400;font-size:11px">(어느 자판기에 배치?)</span></label>
-      <select id="p-devno" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-size:13px;font-family:inherit;width:100%">
-        <option value="">단말기 선택</option>
-      </select>
-    </div>
-    <div class="fr"><label class="lbl">컬럼 위치 <span style="color:var(--text3);font-weight:400;font-size:11px">· 쉼표=여러위치, ~=두칸차지</span></label><input type="text" id="p-col" placeholder="예) 47  /  45,47  /  45~46"/></div>
-    <label style="display:flex;align-items:center;gap:10px;padding:10px 0;cursor:pointer;border-top:1px solid var(--border);margin-top:4px">
-      <input type="checkbox" id="p-discontinued" style="width:18px;height:18px;accent-color:var(--red)"/>
-      <div>
-        <div style="font-size:13px;font-weight:600;color:var(--red)">🚫 판매 중단</div>
-        <div style="font-size:11px;color:var(--text3)">체크 시 제품 목록에서 중단 표시 · 매출 매칭에서 제외</div>
-      </div>
-    </label>
-    <button class="btn-p" style="margin-bottom:0" id="p-save-btn" onclick="saveProduct()">등록 완료</button>
+    <input type="hidden" id="p-col"/>
+    <input type="hidden" id="p-discontinued"/>
+    <button class="btn-p" style="margin-bottom:0" id="p-save-btn" onclick="saveProduct()">수정 완료</button>
   </div>
 </div>
 

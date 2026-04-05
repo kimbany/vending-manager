@@ -691,12 +691,6 @@ function openProdDetail(el){
     p = _vmViewProds.find(function(x){return x.id===id;});
   }
   if(!p) return;
-  var q = gq(id);
-  // 현재 보고 있는 자판기의 재고에서도 확인
-  if(q === 0 && typeof _vmViewInv !== 'undefined'){
-    var vi = _vmViewInv.find(function(x){return x.productId===id;});
-    if(vi) q = vi.qty;
-  }
   var cols = Array.isArray(p.column)?p.column:(p.column?[p.column]:[]);
   var colLabels = cols.map(function(c){return String(c).trim();});
 
@@ -708,21 +702,14 @@ function openProdDetail(el){
   });
   html += '</div>';
 
-  // 재고 현황
-  html += '<div style="background:'+(q<=5?'rgba(224,88,88,.08)':'rgba(122,218,154,.06)')+';border:1px solid '+(q<=5?'rgba(224,88,88,.3)':'rgba(122,218,154,.2)')+';border-radius:10px;padding:12px 14px;margin-bottom:14px">';
-  html += '<div style="font-size:13px;color:var(--text2);margin-bottom:4px">현재 재고</div>';
-  html += '<div style="font-size:28px;font-weight:800;color:'+(q<=5?'var(--red)':'var(--green)')+'">'+q+'<span style="font-size:14px;font-weight:500;color:var(--text2);margin-left:4px">개</span></div>';
+  // 판매가 표시
+  html += '<div style="background:var(--bg3);border-radius:10px;padding:14px;margin-bottom:14px;text-align:center">';
+  html += '<div style="font-size:13px;color:var(--text2);margin-bottom:4px">판매가</div>';
+  html += '<div style="font-size:28px;font-weight:800;color:var(--text)">'+fmt(p.sellPrice)+'<span style="font-size:14px;font-weight:500;color:var(--text2);margin-left:2px">원</span></div>';
   html += '</div>';
 
-  // 가격 정보 그리드
-  html += '<div class="pm" style="background:var(--bg3);border-radius:10px;margin-bottom:14px">';
-  [['구매가',fmt(p.buyPrice)+'원'],['낱개가',fmt(p.unitPrice)+'원'],['판매가',fmt(p.sellPrice)+'원'],['마진가',fmt(p.marginAmt)+'원'],['마진율',(p.marginRate||0)+'%'],['총수량',(p.totalQty!=null?fmt(p.totalQty):'–')+'개']].forEach(function(lv){
-    html += '<div class="pmb"><div class="pml">'+lv[0]+'</div><div class="pmv">'+lv[1]+'</div></div>';
-  });
-  html += '</div>';
-
-  // 스펙 수정 버튼
-  html += '<button onclick="closeModal(\'prod-detail-modal\');editProd(\''+id+'\')" style="width:100%;background:var(--blue);border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit">✏️ 제품 수정</button>';
+  // 판매가 수정 버튼
+  html += '<button onclick="closeModal(\'prod-detail-modal\');editProd(\''+id+'\')" style="width:100%;background:var(--blue);border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit">✏️ 판매가 수정</button>';
 
   document.getElementById('pdm-title').textContent = p.name;
   document.getElementById('pdm-body').innerHTML = html;
