@@ -406,6 +406,16 @@ function loadMachineData(locId, machineId){
     D.inventoryLogs =(val&&val.inventoryLogs)||[];
     D.salesData     =(val&&val.salesData)    ||[];
     REF=machineREF;
+    // 일회성 데이터 정리: 테스트용 초기 재고/로그 리셋 + totalQty 제거
+    var needsClean = false;
+    if(!val || !val._inventoryReset_v1){
+      D.inventory = [];
+      D.inventoryLogs = [];
+      D.products.forEach(function(p){ delete p.totalQty; });
+      machineREF.child('_inventoryReset_v1').set(true);
+      needsClean = true;
+    }
+    if(needsClean) save();
     renderAll();
   });
 }

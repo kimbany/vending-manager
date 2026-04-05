@@ -1,3 +1,6 @@
+// ─── 재고 페이지 제품 캐시 (openInvDetail에서 사용) ──────────────────────────
+var _invPageProds = [];
+
 // ─── 재고 서브탭 ──────────────────────────────────────────────────────────────
 var invSubCurrent = 'stock';
 
@@ -277,6 +280,10 @@ function renderInv(){
       });
     });
 
+    // 재고 페이지 제품 캐시 (openInvDetail에서 사용)
+    _invPageProds = [];
+    machineDataList.forEach(function(md){ _invPageProds = _invPageProds.concat(md.products); });
+
     if(machineDataList.length <= 1){
       var md = machineDataList[0]||{products:[], inventory:[]};
       _renderInvSingle(md.products, md.inventory, md.machineName||'');
@@ -488,6 +495,7 @@ function setIdmDir(d){
 
 function renderIdmDetail(){
   var p = D.products.find(function(x){return x.id===idmPid;});
+  if(!p) p = _invPageProds.find(function(x){return x.id===idmPid;});
   if(!p && typeof _vmViewProds !== 'undefined') p = _vmViewProds.find(function(x){return x.id===idmPid;});
   if(!p) return;
   var q = gq(idmPid);
