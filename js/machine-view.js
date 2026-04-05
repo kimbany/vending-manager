@@ -38,11 +38,7 @@ function navMachine(dir){
   if(!vmMachineList.length) return;
   vmMachineIdx = (vmMachineIdx + dir + vmMachineList.length) % vmMachineList.length;
   var mc = vmMachineList[vmMachineIdx];
-  if(mc._vmmsColumns){
-    _renderMachineFromVmms(mc);
-  } else {
-    renderMachineView(mc, [], []);
-  }
+  _renderMachineFromVmms(mc);
 }
 
 function renderMachine(){
@@ -137,6 +133,17 @@ function _renderMachineFromVmms(mc){
   var colData = mc._vmmsColumns || {};
   var columns = colData.columns || [];
   if(!Array.isArray(columns)) columns = Object.values(columns);
+
+  // VMMS 컬럼 데이터가 없으면 appData(D.products/D.inventory) 사용
+  if(!columns.length && mc.locId && mc.machineId){
+    db.ref('users/'+currentUser.uid+'/locations/'+mc.locId+'/machines/'+mc.machineId+'/appData').once('value').then(function(snap){
+      var val = snap.val()||{};
+      var prods = val.products||[];
+      var inv = val.inventory||[];
+      renderMachineView(mc, prods, inv);
+    });
+    return;
+  }
 
   // 2칸 제품 데이터 로드
   var devno = mc.devno||'';
