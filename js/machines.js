@@ -406,17 +406,36 @@ function loadMachineData(locId, machineId){
     D.inventoryLogs =(val&&val.inventoryLogs)||[];
     D.salesData     =(val&&val.salesData)    ||[];
     REF=machineREF;
-    // 일회성 데이터 정리: 테스트용 초기 재고/로그 리셋 + totalQty 제거
-    var flagRef = db.ref('users/'+currentUser.uid+'/migrations/inventoryReset_'+locId+'_'+machineId);
-    flagRef.once('value').then(function(flagSnap){
-      if(!flagSnap.val()){
-        D.inventory = [];
-        D.inventoryLogs = [];
-        D.products.forEach(function(p){ delete p.totalQty; });
-        save();
-        flagRef.set(true);
+    // 일회성: 테스트 재고 데이터 전체 리셋
+    db.ref('users/'+currentUser.uid+'/migrations/invReset2').once('value').then(function(fs){
+      if(!fs.val()){
+        // 모든 자판기의 inventory, inventoryLogs 삭제 + totalQty 제거
+        db.ref('users/'+currentUser.uid+'/locations').once('value').then(function(locSnap){
+          var locs = locSnap.val()||{};
+          var updates = {};
+          Object.keys(locs).forEach(function(lid){
+            var machines = (locs[lid]||{}).machines||{};
+            Object.keys(machines).forEach(function(mid){
+              updates[lid+'/machines/'+mid+'/appData/inventory'] = [];
+              updates[lid+'/machines/'+mid+'/appData/inventoryLogs'] = [];
+              var prods = ((machines[mid]||{}).appData||{}).products||[];
+              if(Array.isArray(prods)){
+                prods.forEach(function(p,i){ delete prods[i].totalQty; });
+                updates[lid+'/machines/'+mid+'/appData/products'] = prods;
+              }
+            });
+          });
+          db.ref('users/'+currentUser.uid+'/locations').update(updates).then(function(){
+            db.ref('users/'+currentUser.uid+'/migrations/invReset2').set(true);
+            D.inventory = [];
+            D.inventoryLogs = [];
+            D.products.forEach(function(p){ delete p.totalQty; });
+            renderAll();
+          });
+        });
+      } else {
+        renderAll();
       }
-      renderAll();
     });
   });
 }
