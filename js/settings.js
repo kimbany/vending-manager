@@ -564,8 +564,10 @@ function executeReset(){
           updates['locations/'+locId+'/machines/'+mid+'/appData/products'] = null;
         });
       });
-      // vmmsColumns 삭제 (컬럼 매칭)
+      // vmmsColumns 삭제 (컬럼 매칭) + vmmsProducts (제품 마스터) + doubleColumns (2칸 설정)
       updates['vmmsColumns'] = null;
+      updates['vmmsProducts'] = null;
+      updates['doubleColumns'] = null;
     }
 
     if(type==='sales' || type==='all'){
@@ -601,6 +603,10 @@ function executeReset(){
     }
     if(type==='products' || type==='all'){
       D.products=[];
+      // VMMS 메모리 데이터도 초기화
+      if(typeof _vmmsProducts !== 'undefined') _vmmsProducts = [];
+      if(typeof _vmmsColumns !== 'undefined') _vmmsColumns = {};
+      if(typeof _vmmsMachines !== 'undefined') _vmmsMachines = [];
     }
     if(type==='sales' || type==='all'){
       D.salesData=[];
