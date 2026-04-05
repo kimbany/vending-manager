@@ -10,6 +10,7 @@ firebase.initializeApp({
 });
 var db   = firebase.database();
 var auth = firebase.auth();
+if(firebase.functions) firebase.functions().useEmulator && firebase.functions().region || (function(){ /* functions region은 Cloud Function 배포 시 자동 설정 */ })();
 var currentUser = null;
 var REF = null;
 var CRAWL_REF = null;

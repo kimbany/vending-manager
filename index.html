@@ -21,6 +21,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-functions-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link rel="stylesheet" href="css/style.css"/>
 </head>
@@ -363,10 +364,14 @@
       <div id="vm-panel-products" style="display:none">
         <!-- VMMS 데이터 기반 제품 관리 -->
         <div id="vmms-product-panel">
-          <!-- 크롤링 데이터 불러오기 버튼 -->
-          <button class="btn-p" style="margin-bottom:8px" onclick="syncVmmsProducts()">📦 제품 등록 (VMMS 불러오기)</button>
-          <button class="btn-p" style="margin-bottom:10px;background:var(--bg2);color:var(--blue);border:2px solid var(--blue)" onclick="syncVmmsColumns()">🔗 컬럼 매칭 (VMMS 불러오기)</button>
+          <!-- VMMS 실시간 수집 -->
+          <button class="btn-p" style="margin-bottom:8px" onclick="crawlVmmsRealtime()">📦 VMMS 실시간 수집 (제품 + 컬럼 매칭)</button>
           <div id="vmms-sync-msg" style="font-size:12px;text-align:center;margin-bottom:10px;min-height:18px"></div>
+          <!-- 기존 데이터만 불러오기 (이미 수집된 경우) -->
+          <div style="display:flex;gap:6px;margin-bottom:10px">
+            <button onclick="syncVmmsProducts()" style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:12px;color:var(--text2);cursor:pointer;font-family:inherit">📦 제품 불러오기</button>
+            <button onclick="syncVmmsColumns()" style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:12px;color:var(--text2);cursor:pointer;font-family:inherit">🔗 컬럼 불러오기</button>
+          </div>
           <!-- 필터/검색 -->
           <div style="display:flex;gap:6px;margin-bottom:8px">
             <select id="vprod-filter" onchange="renderVmmsProducts()" style="flex-shrink:0;width:auto;font-size:13px;padding:8px 10px">

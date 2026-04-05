@@ -5,14 +5,36 @@ var _vmmsMachines = [];    // 자판기 목록
 var _vmmsColumns = {};     // 단말기별 컬럼매칭
 var _vmmsProdSort = 'name';
 
-// ─── 크롤링 데이터 불러오기 (버튼용) ─────────────────────────────────────────
+// ─── 실시간 VMMS 크롤링 (Cloud Function 호출) ────────────────────────────────
+function crawlVmmsRealtime(){
+  var msg = document.getElementById('vmms-sync-msg');
+  if(msg){ msg.style.color='var(--text2)'; msg.textContent='⏳ VMMS에서 제품 데이터를 수집하고 있어요... (1~2분 소요)'; }
+  var crawlFn = firebase.functions().httpsCallable('crawlVmmsProducts');
+  crawlFn().then(function(result){
+    var d = result.data;
+    if(msg){ msg.style.color='var(--green)'; msg.textContent='✅ '+d.message; }
+    // 수집된 데이터 바로 로드
+    syncVmmsProducts();
+    syncVmmsColumns();
+    setTimeout(function(){ if(msg) msg.textContent=''; }, 5000);
+  }).catch(function(e){
+    if(msg){
+      msg.style.color='var(--red)';
+      if(e.code==='functions/failed-precondition') msg.textContent=e.message;
+      else if(e.code==='functions/unauthenticated') msg.textContent='로그인이 필요합니다';
+      else msg.textContent='크롤링 실패: '+e.message;
+    }
+  });
+}
+
+// ─── 크롤링 데이터 불러오기 (Firebase에서 읽기) ─────────────────────────────
 function syncVmmsProducts(){
   var msg = document.getElementById('vmms-sync-msg');
   if(msg){ msg.style.color='var(--text2)'; msg.textContent='제품 데이터 불러오는 중...'; }
   db.ref('users/'+currentUser.uid+'/vmmsProducts').once('value').then(function(snap){
     var data = snap.val();
     if(!data || !data.items){
-      if(msg){ msg.style.color='var(--red)'; msg.textContent='VMMS 제품 데이터가 없습니다. GitHub Actions에서 크롤링을 실행해주세요.'; }
+      if(msg){ msg.style.color='var(--text2)'; msg.textContent='VMMS 제품 데이터가 없습니다. 아래 "VMMS 실시간 수집" 버튼을 눌러주세요.'; }
       return;
     }
     _vmmsProducts = data.items;
