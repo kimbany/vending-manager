@@ -251,6 +251,10 @@ function _applyCrawledData(isAuto, customDate){
           if(!Array.isArray(logs)) logs = Object.values(logs);
           if(!Array.isArray(sales)) sales = Object.values(sales);
 
+          // 해당 날짜의 기존 데이터 제거 (재수집 시 중복 방지)
+          var targetDate = today;
+          sales = sales.filter(function(s){ return s.date !== targetDate; });
+
           machRows.forEach(function(row){
             var txId = colTxId>=0 ? String(row[colTxId]||'').trim() : '';
             var colNo = String(row[colNum]||'').trim();

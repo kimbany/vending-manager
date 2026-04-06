@@ -543,6 +543,15 @@ async function crawlSalesData(vmmsId, vmmsPw, targetDate) {
           const txt = (await link.evaluate(el => el.textContent)).trim();
           if (txt === String(nextPg)) { await link.click(); await waitIdle(page); await delay(1000); clicked = true; break; }
         }
+        // 페이지 번호가 안 보이면 '>' 또는 '다음' 버튼 클릭
+        if (!clicked) {
+          for (const link of pageLinks) {
+            const txt = (await link.evaluate(el => el.textContent)).trim();
+            if (txt === '>' || txt === '›' || txt === '다음' || txt === '»') {
+              await link.click(); await waitIdle(page); await delay(1000); clicked = true; break;
+            }
+          }
+        }
       } catch (e) { /* ignore */ }
       if (!clicked) break;
       const rows = await collectRows();
