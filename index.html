@@ -749,6 +749,11 @@
     <div class="fr"><label class="lbl">VMMS 비밀번호</label><input type="password" id="ev-pw" placeholder="VMMS 로그인 비밀번호"/></div>
     <button class="btn-p" style="margin-bottom:0" onclick="saveVmms()">저장</button>
     <div id="ev-msg" style="font-size:12px;margin-top:8px;text-align:center"></div>
+    <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:14px">
+      <div class="fr"><label class="lbl">GitHub Token <span style="color:var(--text3);font-weight:400;font-size:11px">· 과거 날짜 크롤링 시 필요 (선택)</span></label><input type="password" id="ev-github-pat" placeholder="ghp_xxxx..."/></div>
+      <button class="btn-p" style="margin-bottom:0;background:var(--text2)" onclick="saveGithubPat()">GitHub 토큰 저장</button>
+      <div style="font-size:11px;color:var(--text3);margin-top:6px">GitHub → Settings → Developer settings → Personal access tokens → Generate new token (workflow 권한 필요)</div>
+    </div>
   </div>
 </div>
 
