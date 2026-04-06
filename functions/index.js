@@ -336,6 +336,238 @@ async function crawlVmms(vmmsId, vmmsPw) {
   }
 }
 
+// ── 판매 데이터 크롤링 (거래내역 페이지) ────────────────────────────────────
+const SALES_XP = {
+  MENU_MAIN:   '//*[@id="main-menu-navigation"]/li[3]/a',
+  MENU_TXN:    '//*[@id="main-menu-navigation"]/li[3]/ul/li[1]/a',
+  BTN_SEARCH:  '//*[@id="hide"]/div/div[2]/button',
+  TABLE:       '//*[@id="main"]/div/div/div/div/div[1]/table',
+  PAGINATION:  '//*[@id="main"]/div/div/div/div/div[2]/ul',
+};
+
+const FIXED_HEADERS = ['순번','거래일시','조직루트','단말기명','단말기번호','머신기코드',
+  '판매항목','컬럼','판매가','수단','입력','상태','카드번호',
+  '승인번호','일련번호','카드사','매입사','사업자번호','상점ID',
+  '마감일시','입금일','취소일'];
+
+async function crawlSalesData(vmmsId, vmmsPw) {
+  const chromium = require("@sparticuz/chromium");
+  const puppeteer = require("puppeteer-core");
+
+  const browser = await puppeteer.launch({
+    args: chromium.args,
+    defaultViewport: { width: 1280, height: 800 },
+    executablePath: await chromium.executablePath(),
+    headless: chromium.headless,
+  });
+
+  try {
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1280, height: 800 });
+    page.setDefaultTimeout(30000);
+
+    // 1. 로그인
+    await page.goto("https://vmms.ubcn.co.kr/login", { waitUntil: "domcontentloaded" });
+    await delay(2000);
+    await page.type('[id="id"]', vmmsId);
+    await delay(300);
+    await page.type('[id="pass"]', vmmsPw);
+    await delay(300);
+    await page.click('[id="loginBtn"]');
+    try { await page.waitForNavigation({ timeout: 12000 }); }
+    catch (e) { await waitIdle(page); }
+    await delay(1500);
+    await closePopup(page);
+
+    // 2. 거래내역 메뉴
+    await (await $x1(page, SALES_XP.MENU_MAIN)).click();
+    await delay(800);
+    await (await $x1(page, SALES_XP.MENU_TXN)).click();
+    await waitIdle(page);
+    await delay(2000);
+    await closePopup(page);
+
+    // 3. 오늘 날짜 설정
+    const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+    await page.evaluate((td) => {
+      document.querySelectorAll('input').forEach(inp => {
+        if (inp.value && /^\d{4}-\d{2}/.test(inp.value)) {
+          const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+          setter.call(inp, td);
+          inp.dispatchEvent(new Event('input', { bubbles: true }));
+          inp.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      });
+    }, today);
+    await delay(500);
+
+    // 4. 상세조회 → 전체 체크박스 선택
+    try {
+      const detailBtns = await page.$$('xpath///*[contains(text(),"상세조회")]');
+      for (const btn of detailBtns) {
+        if (await btn.isIntersectingViewport()) {
+          await btn.click();
+          await delay(1000);
+          break;
+        }
+      }
+      await page.evaluate(() => {
+        document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+          if (!cb.checked) { cb.checked = true; cb.dispatchEvent(new Event('change', { bubbles: true })); }
+        });
+      });
+      await delay(500);
+      // 상세조회 닫기
+      const closeBtns = await page.$$('xpath///*[contains(text(),"상세조회")]');
+      for (const btn of closeBtns) {
+        if (await btn.isIntersectingViewport()) { await btn.click(); await delay(800); break; }
+      }
+    } catch (e) { /* ignore */ }
+
+    // 5. 조회 클릭
+    let searchClicked = false;
+    try {
+      const searchBtn = await $x1(page, SALES_XP.BTN_SEARCH);
+      if (searchBtn) { await searchBtn.click(); searchClicked = true; }
+    } catch (e) { /* ignore */ }
+    if (!searchClicked) {
+      try {
+        await page.evaluate(() => {
+          const btns = document.querySelectorAll('button');
+          for (const b of btns) {
+            if (b.textContent.trim().includes('조회') && b.offsetParent !== null) { b.click(); return; }
+          }
+        });
+      } catch (e) { /* ignore */ }
+    }
+    await waitIdle(page);
+    await delay(3000);
+
+    // 5-1. 페이지 사이즈 최대로
+    try {
+      const selectors = ['select[name*="length"]', 'select[name*="pageSize"]', 'select[name*="size"]', '#main select', '.dataTables_length select'];
+      for (const sel of selectors) {
+        const selectEl = await page.$(sel);
+        if (selectEl) {
+          const maxVal = await page.evaluate((s) => {
+            const el = document.querySelector(s);
+            if (!el) return null;
+            let max = null;
+            el.querySelectorAll('option').forEach(o => {
+              if (o.value && /^\d+$/.test(o.value)) {
+                if (!max || parseInt(o.value) > parseInt(max)) max = o.value;
+              }
+            });
+            return max;
+          }, sel);
+          if (maxVal) { await page.select(sel, maxVal); await waitIdle(page); await delay(1500); }
+          break;
+        }
+      }
+    } catch (e) { /* ignore */ }
+
+    // 6. 헤더 수집
+    let headers = FIXED_HEADERS;
+    try {
+      const ths = await $x(page, `${SALES_XP.TABLE}//thead//th`);
+      if (ths.length > 3) {
+        headers = [];
+        for (const th of ths) headers.push(await th.evaluate(el => el.textContent.trim()));
+      }
+    } catch (e) { /* ignore */ }
+
+    // 7. 데이터 수집 (페이지네이션 포함)
+    async function collectRows() {
+      const rows = [];
+      try {
+        const trList = await $x(page, `${SALES_XP.TABLE}//tbody//tr`);
+        for (const tr of trList) {
+          const cells = await tr.$$('td');
+          if (cells.length <= 1) continue;
+          const row = [];
+          for (const c of cells) row.push(await c.evaluate(el => el.textContent.trim()));
+          if (row.some(v => v)) rows.push(row);
+        }
+      } catch (e) { /* ignore */ }
+      return rows;
+    }
+
+    const allRows = [];
+    const firstPage = await collectRows();
+    allRows.push(...firstPage);
+
+    // 페이지네이션
+    for (let nextPg = 2; nextPg < 200; nextPg++) {
+      let clicked = false;
+      try {
+        const pageLinks = await $x(page, `${SALES_XP.PAGINATION}/li/a`);
+        for (const link of pageLinks) {
+          const txt = (await link.evaluate(el => el.textContent)).trim();
+          if (txt === String(nextPg)) { await link.click(); await waitIdle(page); await delay(1000); clicked = true; break; }
+        }
+      } catch (e) { /* ignore */ }
+      if (!clicked) break;
+      const rows = await collectRows();
+      if (!rows.length) break;
+      allRows.push(...rows);
+    }
+
+    return { today, headers, rows: allRows };
+  } finally {
+    await browser.close();
+  }
+}
+
+// ── Cloud Function: 실시간 VMMS 판매 데이터 크롤링 ─────────────────────────
+exports.crawlVmmsSales = onCall(
+  {
+    memory: "2GiB",
+    timeoutSeconds: 300,
+    region: "asia-northeast3",
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "로그인이 필요합니다");
+    }
+    const uid = request.auth.uid;
+    const nowStr = new Date().toISOString().replace("T", " ").slice(0, 19);
+
+    const vmmsSnap = await admin.database().ref(`users/${uid}/vmms`).once("value");
+    const vmmsData = vmmsSnap.val();
+    if (!vmmsData || !vmmsData.id || !vmmsData.pw) {
+      throw new HttpsError("failed-precondition", "VMMS 계정이 등록되어 있지 않습니다. 설정에서 VMMS 계정을 먼저 등록해주세요.");
+    }
+
+    const vmmsId = decryptAES(vmmsData.id, uid);
+    const vmmsPw = decryptAES(vmmsData.pw, uid);
+    if (!vmmsId || !vmmsPw) {
+      throw new HttpsError("failed-precondition", "VMMS 계정 정보를 복호화할 수 없습니다");
+    }
+
+    try {
+      const result = await crawlSalesData(vmmsId, vmmsPw);
+
+      // Firebase 저장
+      await admin.database().ref(`users/${uid}/crawledSales/${result.today}`).set({
+        date: result.today,
+        updated_at: nowStr,
+        total_count: result.rows.length,
+        headers: result.headers,
+        rows: result.rows,
+      });
+
+      return {
+        success: true,
+        total: result.rows.length,
+        date: result.today,
+        message: `${result.today} 판매 데이터 ${result.rows.length}건 수집 완료`,
+      };
+    } catch (e) {
+      throw new HttpsError("internal", "VMMS 판매 크롤링 실패: " + e.message);
+    }
+  }
+);
+
 // ── Cloud Function: 실시간 VMMS 제품 크롤링 ─────────────────────────────────
 exports.crawlVmmsProducts = onCall(
   {

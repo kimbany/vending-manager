@@ -1,13 +1,12 @@
-// ─── 자동/수동 판매 데이터 수집 (Firebase Realtime DB 크롤러 연동) ──────────
-// 크롤러가 vendingApp/crawledSales/{날짜} 에 저장한 데이터를 읽어서 반영
+// ─── 자동/수동 판매 데이터 수집 (Cloud Function 실시간 크롤링 + Firebase 연동) ──
+// 버튼 클릭: Cloud Function으로 실시간 VMMS 크롤링 → Firebase 저장 → 데이터 반영
+// 자동수집: 매일 12:00, 19:00에 Cloud Function 호출
 
-// CRAWL_REF는 Auth 상태에서 설정됨
 var autoCollectTimer = null;
 
 function startAutoCollect(){
-  // 오후 12:00, 19:00 자동 수집
   checkAndAutoCollect();
-  autoCollectTimer = setInterval(checkAndAutoCollect, 60 * 1000); // 1분마다 체크
+  autoCollectTimer = setInterval(checkAndAutoCollect, 60 * 1000);
 }
 
 function checkAndAutoCollect(){
@@ -26,8 +25,9 @@ function updateAutoCollectStatus(){
   el.textContent = '자동수집: 매일 12:00 · 19:00' + (last ? ' · 마지막: '+last : '');
 }
 
-var _fetchInProgress = false; // 중복 실행 방지
+var _fetchInProgress = false;
 
+// ─── 실시간 판매 데이터 수집 (Cloud Function 호출 → Firebase 반영) ──────────
 function fetchTodaySales(isAuto){
   if(_fetchInProgress){
     if(!isAuto) showToast('⏳ 수집이 이미 진행 중이에요');
@@ -35,27 +35,57 @@ function fetchTodaySales(isAuto){
   }
   _fetchInProgress = true;
   var btn = document.getElementById('crawl-btn');
-  if(btn){ btn.textContent='⏳ 수집 중...'; btn.disabled=true; }
+  if(btn){ btn.textContent='⏳ VMMS에서 실시간 수집 중...'; btn.disabled=true; }
 
-  var today = td();
-  console.log('[수집] 시작, today='+today+', CRAWL_REF=', CRAWL_REF ? CRAWL_REF.toString() : 'null');
-
-  if(!CRAWL_REF){
-    if(btn){ btn.textContent='🔄 오늘 데이터 수집'; btn.disabled=false; } _fetchInProgress=false;
+  if(!currentUser){
+    if(btn){ btn.textContent='🔄 오늘 판매 데이터 수집'; btn.disabled=false; } _fetchInProgress=false;
     showToast('❌ 로그인 후 사용해주세요');
     return;
   }
 
+  // 1단계: Cloud Function 호출하여 실시간 크롤링
+  var crawlFn = firebase.app().functions('asia-northeast3').httpsCallable('crawlVmmsSales', {timeout: 300000});
+
+  if(!isAuto) showToast('⏳ VMMS에서 실시간 판매 데이터를 수집하고 있어요... (1~2분 소요)');
+
+  crawlFn().then(function(result){
+    var d = result.data;
+    console.log('[실시간수집] Cloud Function 완료:', d.message);
+    if(!isAuto) showToast('✅ ' + d.message + '\n데이터를 반영하고 있어요...');
+    if(btn){ btn.textContent='⏳ 데이터 반영 중...'; }
+    // 2단계: Firebase에서 크롤링된 데이터 가져와서 반영
+    return applyTodaySalesFromFirebase(isAuto);
+  }).catch(function(e){
+    console.log('[실시간수집] Cloud Function 실패:', e.code, e.message);
+    // Cloud Function 실패 시 기존 Firebase 데이터라도 반영 시도
+    if(e.code === 'functions/failed-precondition'){
+      if(btn){ btn.textContent='🔄 오늘 판매 데이터 수집'; btn.disabled=false; } _fetchInProgress=false;
+      showToast('⚠️ ' + e.message);
+      return;
+    }
+    if(!isAuto) showToast('⚠️ 실시간 수집 실패, 기존 데이터 확인 중...');
+    if(btn){ btn.textContent='⏳ 기존 데이터 확인 중...'; }
+    return applyTodaySalesFromFirebase(isAuto);
+  });
+}
+
+// ─── Firebase에서 크롤링 데이터 가져와 반영 (기존 로직) ────────────────────
+function applyTodaySalesFromFirebase(isAuto){
+  var btn = document.getElementById('crawl-btn');
+  var today = td();
+
+  if(!CRAWL_REF){
+    if(btn){ btn.textContent='🔄 오늘 판매 데이터 수집'; btn.disabled=false; } _fetchInProgress=false;
+    if(!isAuto) showToast('❌ 로그인 후 사용해주세요');
+    return;
+  }
+
   CRAWL_REF.child(today).once('value').then(function(snap){
-    var snapVal = snap.val();
-    console.log('[수집] 개인경로 snap exists:', snap.exists(), 'keys:', snapVal ? Object.keys(snapVal) : 'null', 'total_count:', snapVal ? snapVal.total_count : '-');
-    return snap;
-  }).then(function(snap){
     var val = snap.val();
     console.log('[수집] 최종 val:', val ? '있음 total='+val.total_count : 'null');
-    if(btn){ btn.textContent='🔄 오늘 데이터 수집'; btn.disabled=false; } _fetchInProgress=false;
+    if(btn){ btn.textContent='🔄 오늘 판매 데이터 수집'; btn.disabled=false; } _fetchInProgress=false;
     if(!val){
-      if(!isAuto) showToast('📭 오늘('+today+') 수집 데이터 없음. 크롤러를 실행해주세요');
+      if(!isAuto) showToast('📭 오늘('+today+') 수집 데이터 없음');
       return;
     }
     // rows가 Firebase에서 객체로 변환된 경우 배열로 변환
@@ -96,7 +126,6 @@ function fetchTodaySales(isAuto){
     // 헤더가 실제 rows와 불일치하는 경우 rows 첫 행으로 재탐색
     if(val.rows && val.rows.length > 0){
       var r0 = val.rows[0];
-      // rows에서 직접 헤더 필드 위치 찾기
       for(var ci=0; ci<r0.length; ci++){
         var v = String(r0[ci]||'').trim();
         if(v==='거래일시' && colDate<0) colDate=ci;
@@ -113,16 +142,12 @@ function fetchTodaySales(isAuto){
     console.log('[수집] 컬럼인덱스 재확인 - 날짜:'+colDate+' 항목:'+colItem+' 컬럼:'+colNum+' 단말기번호:'+colDevno+' 머신기코드:'+colMachineCode+' 금액:'+colAmt);
     if(val.rows && val.rows.length > 1) console.log('[수집] 첫행 샘플 - 판매가raw:', val.rows[1][colAmt], 'type:', typeof val.rows[1][colAmt]);
 
-    // 헤더-rows 불일치 자동 보정:
-    // 첫 번째 row로 컬럼 번호 위치를 실제로 찾기
+    // 헤더-rows 불일치 자동 보정
     if(val.rows && val.rows.length > 0){
       var sampleRow = val.rows[0];
-      // 숫자만 있는 짧은 값(컬럼번호)을 찾아서 실제 인덱스 보정
       for(var ci=0; ci<sampleRow.length; ci++){
         var v = String(sampleRow[ci]||'').trim();
-        // 1~2자리 숫자면 컬럼번호 후보
         if(/^\d{1,2}$/.test(v) && parseInt(v) >= 1 && parseInt(v) <= 99){
-          // 해당 위치가 헤더에서 '컬럼' 또는 '판매항목' 근처인지 확인
           if(Math.abs(ci - colNum) <= 2){
             console.log('컬럼번호 위치 보정:', colNum, '→', ci);
             colNum = ci;
@@ -145,13 +170,11 @@ function fetchTodaySales(isAuto){
 
     // 모든 위치/자판기 로드 → 단말기번호 기준으로 행 분배
     db.ref('users/'+currentUser.uid+'/locations').once('value').then(function(locSnap){
-      // 단말기번호 → {locId, machineId, products, inventory, inventoryLogs, salesData} 맵
       var machineByCode = {}, machineByName = {};
-      var machineDataMap = {}; // key = locId+'|'+machineId
+      var machineDataMap = {};
 
       if(!locSnap.exists()){
-        // locations 없으면 현재 자판기에 직접 저장 (fallback)
-        if(btn){ btn.textContent='🔄 오늘 데이터 수집'; btn.disabled=false; } _fetchInProgress=false;
+        if(btn){ btn.textContent='🔄 오늘 판매 데이터 수집'; btn.disabled=false; } _fetchInProgress=false;
         if(!isAuto) showToast('📭 위치/자판기를 먼저 등록해주세요');
         return;
       }
@@ -170,13 +193,12 @@ function fetchTodaySales(isAuto){
       console.log('[수집] machineByName:', JSON.stringify(machineByName));
 
       // 행을 자판기별로 분류
-      var rowsByMachine = {}; // key = locId+'|'+machineId
+      var rowsByMachine = {};
       var noMatchCount = 0;
       val.rows.forEach(function(row, ri){
         var rowMach = colMachine>=0 ? String(row[colMachine]||'').trim() : '';
         var rowCode = colMachineCode>=0 ? String(row[colMachineCode]||'').trim() : '';
         var rowCodeClean = rowCode.replace(/\(.*\)/, '').trim();
-        // 단말기번호 D열 우선
         if(colDevno>=0 && row[colDevno]) rowCodeClean = String(row[colDevno]).trim();
         var key = machineByCode[rowCodeClean] || machineByCode[rowCode] || machineByName[rowMach] || (currentLocationId&&currentMachineId ? currentLocationId+'|'+currentMachineId : null);
         if(!key){
@@ -189,15 +211,13 @@ function fetchTodaySales(isAuto){
       });
       if(noMatchCount) console.log('[수집] 단말기 매칭 실패: '+noMatchCount+'건');
 
-      // rows 내부 중복 체크 (크롤러 중복 수집 감지)
-      // 정확히 같은 행(모든 셀이 동일)만 중복으로 판단
+      // rows 내부 중복 체크
       var globalSeen = {};
       Object.keys(rowsByMachine).forEach(function(k){
         var deduped = [];
         rowsByMachine[k].forEach(function(row){
           var dateRaw = String(row[colDate]||'').trim();
           if(!dateRaw) return;
-          // 모든 셀을 합쳐서 정확한 중복키 생성
           var dk = row.map(function(c){return String(c||'').trim();}).join('|');
           if(globalSeen[dk]) return;
           globalSeen[dk] = true;
@@ -210,14 +230,13 @@ function fetchTodaySales(isAuto){
 
       var keys = Object.keys(rowsByMachine);
       if(!keys.length){
-        // 매칭된 자판기 없음 → 현재 선택 자판기에 저장 (fallback)
         if(currentLocationId && currentMachineId){
           rowsByMachine[currentLocationId+'|'+currentMachineId] = val.rows;
           keys = [currentLocationId+'|'+currentMachineId];
           if(!isAuto) showToast('⚠️ 단말기번호 미매칭 → 현재 자판기에 저장');
         } else {
           if(!isAuto) showToast('📭 등록된 자판기와 일치하는 데이터 없음\n설정에서 단말기번호를 확인해주세요');
-          if(btn){ btn.textContent='🔄 오늘 데이터 수집'; btn.disabled=false; } _fetchInProgress=false;
+          if(btn){ btn.textContent='🔄 오늘 판매 데이터 수집'; btn.disabled=false; } _fetchInProgress=false;
           return;
         }
       }
@@ -233,7 +252,6 @@ function fetchTodaySales(isAuto){
           var mLogs = mData.inventoryLogs||[], mSales = mData.salesData||[];
           var isCurrentMachine = (locId===currentLocationId && machineId===currentMachineId);
 
-          // 기존 중복키
           var existingKeysM = {};
           mSales.forEach(function(s){ if(s.dupKey) existingKeysM[s.dupKey]=true; });
           console.log('[수집] 기존 salesData 수:', mSales.length, '/ 중복키 수:', Object.keys(existingKeysM).length, '/ 자판기:', machineId.slice(-6));
@@ -245,7 +263,6 @@ function fetchTodaySales(isAuto){
           function findProd(colVal, name){ return findProduct(colVal, name, mProds); }
 
           (rowsByMachine[key]||[]).forEach(function(row, ri){
-            // 헤더 행 건너뛰기
             if(String(row[colDate]||'').trim() === '거래일시'){ skipReasons.header++; return; }
             var dateRaw = String(row[colDate]||'').trim();
             var itemName = String(row[colItem]||'').trim();
@@ -255,7 +272,6 @@ function fetchTodaySales(isAuto){
             var amt = colAmt>=0 ? (typeof row[colAmt]==='number' ? row[colAmt] : parseFloat(String(row[colAmt]||0).replace(/,/g,''))||0) : 0;
 
             if(!dateRaw){ skipReasons.noDate++; console.log('[스킵-날짜없음] row'+ri+':', JSON.stringify(row)); return; }
-            // 취소 판단: 상태 또는 취소일 기준 (취소건도 저장, cancelled 플래그로 구분)
             var cancelDateVal = colCancelDate>=0 ? String(row[colCancelDate]||'').trim() : '';
             var isCancelled = (state&&(state==='취소'||state==='취소완료'||state==='환불')) || (cancelDateVal && cancelDateVal!=='-' && cancelDateVal!=='null');
             if(isCancelled) skipReasons.cancel++;
@@ -273,7 +289,6 @@ function fetchTodaySales(isAuto){
             var hour = dateRaw.length>=13 ? parseInt(dateRaw.slice(11,13)) : -1;
             var minute = dateRaw.length>=16 ? parseInt(dateRaw.slice(14,16)) : -1;
             var prod = findProd(colVal, itemName);
-            // 미매칭도 저장 (itemName, amt 보존)
 
             mSales.push({id:Date.now().toString()+Math.random(), txId:txId, dupKey:dupKey, date:dateStr, hour:hour, minute:minute, productId:prod?prod.id:null, itemName:itemName, colVal:colVal, qty:1, amt:amt, cancelled:isCancelled});
             if(prod && !isCancelled) qtyMap[prod.id]=(qtyMap[prod.id]||0)+1;
@@ -300,7 +315,7 @@ function fetchTodaySales(isAuto){
       });
 
       Promise.all(promises).then(function(){
-        if(btn){ btn.textContent='🔄 오늘 데이터 수집'; btn.disabled=false; } _fetchInProgress=false;
+        if(btn){ btn.textContent='🔄 오늘 판매 데이터 수집'; btn.disabled=false; } _fetchInProgress=false;
         if(added>0 || dup>0 || noMatchCount>0){
           var totalRows = val.rows ? val.rows.length : 0;
           var details = [];
@@ -313,7 +328,6 @@ function fetchTodaySales(isAuto){
           localStorage.setItem('lastAutoCollect', today+' '+new Date().toTimeString().slice(0,5));
           updateAutoCollectStatus();
           renderAll();
-          // 신규 상품 감지
           if(typeof checkNewProducts === 'function') setTimeout(checkNewProducts, 500);
         } else {
           if(!isAuto) showToast(dup>0?'이미 모두 반영된 데이터예요 ('+dup+'건 중복)':'📭 새 데이터가 없어요');
@@ -321,7 +335,7 @@ function fetchTodaySales(isAuto){
       });
     });
   }).catch(function(e){
-    if(btn){ btn.textContent='🔄 오늘 데이터 수집'; btn.disabled=false; } _fetchInProgress=false;
+    if(btn){ btn.textContent='🔄 오늘 판매 데이터 수집'; btn.disabled=false; } _fetchInProgress=false;
     if(!isAuto) showToast('❌ 수집 실패: '+e.message);
   });
 }

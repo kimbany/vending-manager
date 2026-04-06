@@ -3,9 +3,8 @@ name: VMMS 자동 크롤링
 on:
   schedule:
     # 한국시간 기준 (UTC+9)
-    - cron: '0 0 * * *'   # 매일 오전 09:00 KST
-    - cron: '0 6 * * *'   # 매일 오후 03:00 KST
-    - cron: '0 9 * * *'   # 매일 오후 06:00 KST
+    - cron: '0 3 * * *'   # 매일 오후 12:00 KST
+    - cron: '0 10 * * *'  # 매일 오후 19:00 KST
   workflow_dispatch:       # 수동 실행 버튼
 
 jobs:
