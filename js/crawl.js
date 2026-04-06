@@ -240,7 +240,16 @@ function _applyCrawledData(isAuto){
           // VMMS 제품 목록으로 자동 매칭용 맵 생성 (상품명 → VMMS 제품정보)
           var vmmsNameMap = {};
           vmmsItems.forEach(function(vp){
-            if(vp.productName) vmmsNameMap[vp.productName.trim()] = vp;
+            if(vp.productName){
+              var name = vp.productName.trim();
+              vmmsNameMap[name] = vp;
+              // 쉼표 있는/없는 버전 모두 등록 (VMMS와 판매데이터 간 쉼표 차이 대응)
+              vmmsNameMap[name.replace(/,\s*/g, ' ')] = vp;
+              vmmsNameMap[name.replace(/\s+(\d)/g, ', $1')] = vp;
+              // 괄호 차이 대응: [] ↔ ()
+              vmmsNameMap[name.replace(/\[/g,'(').replace(/\]/g,')')] = vp;
+              vmmsNameMap[name.replace(/\(/g,'[').replace(/\)/g,']')] = vp;
+            }
           });
 
           var qtyMap = {};
@@ -271,8 +280,9 @@ function _applyCrawledData(isAuto){
             var prod = findProduct(colVal, itemName, mProds);
 
             // VMMS 제품 목록에서 상품명 매칭 → 자동 제품 등록
-            if(!prod && itemName && vmmsNameMap[itemName]){
-              var vp = vmmsNameMap[itemName];
+            var normalizedName = itemName.replace(/,\s*/g, ' ').replace(/\[/g,'(').replace(/\]/g,')');
+            if(!prod && itemName && (vmmsNameMap[itemName] || vmmsNameMap[normalizedName])){
+              var vp = vmmsNameMap[itemName] || vmmsNameMap[normalizedName];
               var newId = Date.now().toString() + Math.random().toString(36).slice(2,6);
               prod = {
                 id: newId,
@@ -305,6 +315,36 @@ function _applyCrawledData(isAuto){
             mLogs.push({id:Date.now().toString()+Math.random(),productId:pid,delta:-qty,memo:'자동수집 차감 '+today,date:today});
           });
 
+          // 기존 미매칭 판매 데이터 소급 매칭 (productId가 null인 건 재매칭)
+          var retroMatched = 0;
+          mSales.forEach(function(s){
+            if(!s.productId && s.itemName){
+              var name = s.itemName.trim();
+              var normalized = name.replace(/,\s*/g, ' ').replace(/\[/g,'(').replace(/\]/g,')');
+              var existProd = findProduct('', name, mProds);
+              if(existProd){
+                s.productId = existProd.id;
+                retroMatched++;
+              } else if(vmmsNameMap[name] || vmmsNameMap[normalized]){
+                var vp = vmmsNameMap[name] || vmmsNameMap[normalized];
+                // 이미 같은 이름으로 등록된 제품이 있는지 확인
+                var already = mProds.find(function(p){ return (p.name||'').trim() === vp.productName.trim(); });
+                if(already){
+                  s.productId = already.id;
+                  retroMatched++;
+                } else {
+                  var newId = Date.now().toString() + Math.random().toString(36).slice(2,6);
+                  var newProd = {id:newId, name:vp.productName, colNo:s.colVal||'', sellPrice:s.amt||0, buyPrice:0, totalQty:1, productCode:vp.productCode||'', barcode:vp.barcode||''};
+                  mProds.push(newProd);
+                  mInv.push({productId:newId, qty:0});
+                  s.productId = newId;
+                  retroMatched++;
+                  autoRegistered++;
+                }
+              }
+            }
+          });
+          if(retroMatched) console.log('[수집] 기존 미매칭 소급 매칭:', retroMatched, '건');
           if(autoRegistered) console.log('[수집] VMMS 매칭 자동등록:', autoRegistered, '건');
           var saveData={products:mProds,inventory:mInv,inventoryLogs:mLogs,salesData:mSales};
           if(isCurrentMachine){
