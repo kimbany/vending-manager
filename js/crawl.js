@@ -155,8 +155,16 @@ function _applyCrawledData(isAuto){
 
     var added=0, dup=0;
 
-    // 모든 위치/자판기 로드 → 단말기번호 기준으로 행 분배
-    db.ref('users/'+currentUser.uid+'/locations').once('value').then(function(locSnap){
+    // VMMS 제품 목록 로드 (상품명 자동 매칭용)
+    Promise.all([
+      db.ref('users/'+currentUser.uid+'/locations').once('value'),
+      db.ref('users/'+currentUser.uid+'/vmmsProducts').once('value')
+    ]).then(function(results){
+      var locSnap = results[0];
+      var vmmsProdSnap = results[1].val();
+      var vmmsItems = (vmmsProdSnap && vmmsProdSnap.items) ? vmmsProdSnap.items : [];
+      if(!Array.isArray(vmmsItems)) vmmsItems = Object.values(vmmsItems);
+      console.log('[수집] VMMS 제품 수:', vmmsItems.length);
       var machineByCode = {}, machineByName = {};
 
       if(!locSnap.exists()){
@@ -231,11 +239,9 @@ function _applyCrawledData(isAuto){
 
           // VMMS 제품 목록으로 자동 매칭용 맵 생성 (상품명 → VMMS 제품정보)
           var vmmsNameMap = {};
-          if(typeof _vmmsProducts !== 'undefined' && Array.isArray(_vmmsProducts)){
-            _vmmsProducts.forEach(function(vp){
-              if(vp.productName) vmmsNameMap[vp.productName.trim()] = vp;
-            });
-          }
+          vmmsItems.forEach(function(vp){
+            if(vp.productName) vmmsNameMap[vp.productName.trim()] = vp;
+          });
 
           var qtyMap = {};
           var machineAdded = 0;
