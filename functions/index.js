@@ -1,7 +1,8 @@
 /**
- * VMMS 실시간 크롤링 Cloud Function
- * - 이용자가 "제품 등록" 버튼을 누르면 실시간으로 VMMS에서 데이터를 가져옴
- * - Puppeteer로 VMMS 사이트에 로그인 → 상품/자판기/컬럼 데이터 수집 → Firebase 저장
+ * VMMS 실시간 크롤링 Cloud Functions
+ * - crawlVmmsProducts: 제품/자판기/컬럼 데이터 실시간 수집
+ * - crawlVmmsSales: 판매(거래내역) 데이터 실시간 수집
+ * - Puppeteer로 VMMS 사이트에 로그인 → 데이터 수집 → Firebase 저장
  */
 
 const { onCall, HttpsError } = require("firebase-functions/v2/https");

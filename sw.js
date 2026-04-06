@@ -1,4 +1,4 @@
-var CACHE_VERSION = 13;
+var CACHE_VERSION = 14;
 var CACHE_NAME = 'invedory-v' + CACHE_VERSION;
 var STATIC_FILES = [
   './',
@@ -61,7 +61,8 @@ self.addEventListener('fetch', function(e){
   if(url.indexOf('firebasedatabase') >= 0 ||
      url.indexOf('googleapis.com') >= 0 ||
      url.indexOf('gstatic.com/firebasejs') >= 0 ||
-     url.indexOf('api-gateway.coupang') >= 0){
+     url.indexOf('api-gateway.coupang') >= 0 ||
+     url.indexOf('cloudfunctions.net') >= 0){
     return;
   }
 
