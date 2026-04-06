@@ -93,6 +93,13 @@ function _doRenderSalesStats(machineDataList, range, panel){
   });
   var filtered = allFiltered;
 
+  // qty/amt 필드 보정 (이전 크롤링 데이터 호환)
+  filtered.forEach(function(s){
+    if(s.qty === undefined || s.qty === null || isNaN(s.qty)) s.qty = 1;
+    if((s.amt === undefined || s.amt === null) && s.amount) s.amt = s.amount;
+    if(s.amt === undefined || s.amt === null) s.amt = 0;
+  });
+
   if(!filtered.length){
     panel.innerHTML='<div class="empty" style="margin-top:20px"><div class="ei">📊</div><div class="et">해당 기간 판매 데이터 없어요</div></div>';
     return;

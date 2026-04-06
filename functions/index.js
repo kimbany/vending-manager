@@ -400,6 +400,7 @@ async function crawlSalesData(vmmsId, vmmsPw, targetDate) {
     // 3. 날짜 설정 (#sDate, #eDate 직접 사용)
     const today = targetDate || new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
     console.log("[Sales] 3. 날짜 설정:", today);
+    // 방법 1: JavaScript setter
     await page.evaluate((td) => {
       ['sDate', 'eDate'].forEach(id => {
         const inp = document.getElementById(id);
@@ -411,6 +412,19 @@ async function crawlSalesData(vmmsId, vmmsPw, targetDate) {
         }
       });
     }, today);
+    await delay(500);
+    // 방법 2: Puppeteer fill로 재설정 (확실하게)
+    for (const dateId of ['#sDate', '#eDate']) {
+      try {
+        const inp = await page.$(dateId);
+        if (inp) {
+          await inp.click({ clickCount: 3 }); // 전체 선택
+          await inp.type(today, { delay: 50 });
+          const val = await inp.evaluate(el => el.value);
+          console.log(`[Sales] 3. ${dateId} = ${val}`);
+        }
+      } catch (e) { console.log(`[Sales] 3. ${dateId} fill 실패:`, e.message); }
+    }
     await delay(500);
 
     // 4. 상세조회 → 전체 체크박스 선택
