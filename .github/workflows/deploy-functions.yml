@@ -1,0 +1,36 @@
+name: Firebase Functions 자동 배포
+
+on:
+  push:
+    branches: [main]
+    paths: ['functions/**']
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node.js 설정
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Functions 패키지 설치
+        run: cd functions && npm install
+
+      - name: Firebase CLI 설치
+        run: npm install -g firebase-tools
+
+      - name: Functions 배포
+        env:
+          FIREBASE_KEY: ${{ secrets.FIREBASE_KEY }}
+        run: |
+          echo "$FIREBASE_KEY" > /tmp/firebase_key.json
+          export GOOGLE_APPLICATION_CREDENTIALS=/tmp/firebase_key.json
+          firebase deploy --only functions --project vending-manager-2d64e --force
+          rm -f /tmp/firebase_key.json
