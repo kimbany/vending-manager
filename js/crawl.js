@@ -35,7 +35,7 @@ function fetchTodaySales(isAuto){
   }
   _fetchInProgress = true;
   var btn = document.getElementById('crawl-btn');
-  if(btn){ btn.textContent='⏳ VMMS에서 실시간 수집 중...'; btn.disabled=true; }
+  if(btn){ btn.textContent='⏳ 데이터 확인 중...'; btn.disabled=true; }
 
   if(!currentUser){
     if(btn){ btn.textContent='🔄 오늘 판매 데이터 수집'; btn.disabled=false; } _fetchInProgress=false;
@@ -43,29 +43,89 @@ function fetchTodaySales(isAuto){
     return;
   }
 
-  // 1단계: Cloud Function 호출하여 실시간 크롤링
-  var crawlFn = firebase.app().functions('asia-northeast3').httpsCallable('crawlVmmsSales', {timeout: 300000});
+  if(!CRAWL_REF){
+    if(btn){ btn.textContent='🔄 오늘 판매 데이터 수집'; btn.disabled=false; } _fetchInProgress=false;
+    showToast('❌ 로그인 후 사용해주세요');
+    return;
+  }
 
-  if(!isAuto) showToast('⏳ VMMS에서 실시간 판매 데이터를 수집하고 있어요... (1~2분 소요)');
+  var today = td();
+
+  // 1단계: Firebase에 이미 크롤링된 데이터가 있는지 먼저 확인
+  CRAWL_REF.child(today).once('value').then(function(snap){
+    var val = snap.val();
+    if(val && val.rows){
+      // 이미 데이터 있음 → 바로 반영 시도, 동시에 실시간 크롤링도 시도
+      console.log('[수집] 기존 데이터 발견 (total:'+val.total_count+'), 먼저 반영 후 실시간 업데이트');
+      if(!isAuto) showToast('📦 기존 데이터 반영 중... 실시간 업데이트도 시도합니다');
+      if(btn){ btn.textContent='⏳ 데이터 반영 중...'; }
+      // 기존 데이터 반영
+      _fetchInProgress = false;
+      applyTodaySalesFromFirebase(isAuto);
+      // 백그라운드로 실시간 크롤링 시도 (결과가 오면 다시 반영)
+      _triggerRealtimeCrawl(isAuto);
+    } else {
+      // 데이터 없음 → 실시간 크롤링 시도
+      console.log('[수집] 기존 데이터 없음, 실시간 크롤링 시도');
+      if(btn){ btn.textContent='⏳ VMMS에서 실시간 수집 중...'; }
+      if(!isAuto) showToast('⏳ VMMS에서 실시간 판매 데이터를 수집하고 있어요... (1~2분 소요)');
+      _doRealtimeCrawlAndApply(isAuto);
+    }
+  }).catch(function(e){
+    console.log('[수집] Firebase 확인 실패:', e.message);
+    if(btn){ btn.textContent='⏳ VMMS에서 실시간 수집 중...'; }
+    _doRealtimeCrawlAndApply(isAuto);
+  });
+}
+
+// Cloud Function으로 실시간 크롤링 후 반영
+function _doRealtimeCrawlAndApply(isAuto){
+  var btn = document.getElementById('crawl-btn');
+  var crawlFn;
+  try {
+    crawlFn = firebase.app().functions('asia-northeast3').httpsCallable('crawlVmmsSales', {timeout: 300000});
+  } catch(e){
+    console.log('[실시간수집] Cloud Function 초기화 실패:', e);
+    if(btn){ btn.textContent='🔄 오늘 판매 데이터 수집'; btn.disabled=false; } _fetchInProgress=false;
+    if(!isAuto) showToast('⚠️ 실시간 크롤링을 사용할 수 없어요.\nCloud Function 배포가 필요합니다.');
+    return;
+  }
 
   crawlFn().then(function(result){
     var d = result.data;
     console.log('[실시간수집] Cloud Function 완료:', d.message);
     if(!isAuto) showToast('✅ ' + d.message + '\n데이터를 반영하고 있어요...');
     if(btn){ btn.textContent='⏳ 데이터 반영 중...'; }
-    // 2단계: Firebase에서 크롤링된 데이터 가져와서 반영
     return applyTodaySalesFromFirebase(isAuto);
   }).catch(function(e){
     console.log('[실시간수집] Cloud Function 실패:', e.code, e.message);
-    // Cloud Function 실패 시 기존 Firebase 데이터라도 반영 시도
     if(e.code === 'functions/failed-precondition'){
       if(btn){ btn.textContent='🔄 오늘 판매 데이터 수집'; btn.disabled=false; } _fetchInProgress=false;
       showToast('⚠️ ' + e.message);
       return;
     }
-    if(!isAuto) showToast('⚠️ 실시간 수집 실패, 기존 데이터 확인 중...');
-    if(btn){ btn.textContent='⏳ 기존 데이터 확인 중...'; }
-    return applyTodaySalesFromFirebase(isAuto);
+    if(btn){ btn.textContent='🔄 오늘 판매 데이터 수집'; btn.disabled=false; } _fetchInProgress=false;
+    if(!isAuto) showToast('⚠️ 실시간 수집 실패: Cloud Function 배포가 필요합니다.\n터미널에서 firebase deploy --only functions 를 실행해주세요.');
+  });
+}
+
+// 백그라운드 실시간 크롤링 (기존 데이터 반영 후 최신화)
+function _triggerRealtimeCrawl(isAuto){
+  var btn = document.getElementById('crawl-btn');
+  var crawlFn;
+  try {
+    crawlFn = firebase.app().functions('asia-northeast3').httpsCallable('crawlVmmsSales', {timeout: 300000});
+  } catch(e){ return; }
+
+  crawlFn().then(function(result){
+    var d = result.data;
+    console.log('[백그라운드수집] Cloud Function 완료:', d.message);
+    // 새로운 데이터로 다시 반영
+    applyTodaySalesFromFirebase(isAuto);
+    if(!isAuto) showToast('🔄 실시간 데이터로 업데이트 완료! ' + d.message);
+  }).catch(function(e){
+    console.log('[백그라운드수집] Cloud Function 실패 (무시):', e.code, e.message);
+    // 백그라운드이므로 실패해도 무시 (기존 데이터는 이미 반영됨)
   });
 }
 
