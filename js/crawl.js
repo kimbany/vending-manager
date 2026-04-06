@@ -26,7 +26,7 @@ function updateAutoCollectStatus(){
 
 var _fetchInProgress = false;
 
-// 선택 날짜 크롤링
+// 선택 날짜 크롤링 (Cloud Function에 날짜 전달)
 function triggerCrawlForDate(){
   var dateInput = document.getElementById('crawl-date');
   var date = dateInput ? dateInput.value : '';
@@ -34,9 +34,8 @@ function triggerCrawlForDate(){
   if(!currentUser){showToast('❌ 로그인 필요');return;}
 
   var btn = document.getElementById('trigger-crawl-btn');
-  btn.textContent = '⏳ VMMS에서 수집 중...'; btn.disabled = true;
+  btn.textContent = '⏳ VMMS에서 '+date+' 수집 중...'; btn.disabled = true;
 
-  // Cloud Function 시도
   var crawlFn = firebase.app().functions('asia-northeast3').httpsCallable('crawlVmmsSales', {timeout: 300000});
   crawlFn({date: date}).then(function(result){
     var d = result.data;
@@ -46,31 +45,8 @@ function triggerCrawlForDate(){
   }).then(function(){
     btn.textContent = '⚡ 선택 날짜 크롤링 실행'; btn.disabled = false;
   }).catch(function(e){
-    console.log('[날짜수집] Cloud Function 실패, GitHub Actions 시도:', e.message);
-    // Cloud Function 실패 → GitHub Actions로 폴백
-    db.ref('users/'+currentUser.uid+'/settings/githubPat').once('value').then(function(snap){
-      var pat = snap.val();
-      if(!pat){
-        btn.textContent = '⚡ 선택 날짜 크롤링 실행'; btn.disabled = false;
-        showToast('⚠️ Cloud Function 미지원. 설정 → VMMS에서 GitHub 토큰을 등록하거나, GitHub Actions에서 직접 실행하세요');
-        return;
-      }
-      fetch('https://api.github.com/repos/kimbany/vending-manager/actions/workflows/crawl.yml/dispatches', {
-        method: 'POST',
-        headers: {'Authorization': 'token '+pat, 'Accept': 'application/vnd.github.v3+json'},
-        body: JSON.stringify({ref: 'main', inputs: {crawl_date: date}})
-      }).then(function(res){
-        btn.textContent = '⚡ 선택 날짜 크롤링 실행'; btn.disabled = false;
-        if(res.status === 204){
-          showToast('✅ GitHub에서 크롤링 시작! '+date+' (1~2분 후 데이터 수집 버튼으로 반영)');
-        } else {
-          showToast('❌ GitHub 요청 실패: '+res.status);
-        }
-      }).catch(function(){
-        btn.textContent = '⚡ 선택 날짜 크롤링 실행'; btn.disabled = false;
-        showToast('❌ 네트워크 오류');
-      });
-    });
+    btn.textContent = '⚡ 선택 날짜 크롤링 실행'; btn.disabled = false;
+    showToast('❌ 수집 실패: ' + (e.message || '알 수 없는 오류'));
   });
 }
 

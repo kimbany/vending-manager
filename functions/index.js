@@ -351,7 +351,7 @@ const FIXED_HEADERS = ['순번','거래일시','조직루트','단말기명','�
   '승인번호','일련번호','카드사','매입사','사업자번호','상점ID',
   '마감일시','입금일','취소일'];
 
-async function crawlSalesData(vmmsId, vmmsPw) {
+async function crawlSalesData(vmmsId, vmmsPw, targetDate) {
   const chromium = require("@sparticuz/chromium");
   const puppeteer = require("puppeteer-core");
 
@@ -397,12 +397,13 @@ async function crawlSalesData(vmmsId, vmmsPw) {
     await closePopup(page);
     console.log("[Sales] 2. 거래내역 페이지 도착");
 
-    // 3. 오늘 날짜 설정
-    const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+    // 3. 날짜 설정 (#sDate, #eDate 직접 사용)
+    const today = targetDate || new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
     console.log("[Sales] 3. 날짜 설정:", today);
     await page.evaluate((td) => {
-      document.querySelectorAll('input').forEach(inp => {
-        if (inp.value && /^\d{4}-\d{2}/.test(inp.value)) {
+      ['sDate', 'eDate'].forEach(id => {
+        const inp = document.getElementById(id);
+        if (inp) {
           const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
           setter.call(inp, td);
           inp.dispatchEvent(new Event('input', { bubbles: true }));
@@ -584,7 +585,8 @@ exports.crawlVmmsSales = onCall(
     // 크롤링 실행
     let result;
     try {
-      result = await crawlSalesData(vmmsId, vmmsPw);
+      const requestDate = request.data && request.data.date ? request.data.date : null;
+      result = await crawlSalesData(vmmsId, vmmsPw, requestDate);
     } catch (e) {
       console.error("crawlSalesData 실패:", e);
       throw new HttpsError("internal", "VMMS 판매 크롤링 실패: " + (e.message || String(e)));
