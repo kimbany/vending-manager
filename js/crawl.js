@@ -26,42 +26,30 @@ function updateAutoCollectStatus(){
 
 var _fetchInProgress = false;
 
-// GitHub Actions 크롤링 트리거 (선택 날짜)
+// 선택 날짜 크롤링 (Cloud Function 사용)
 function triggerCrawlForDate(){
   var dateInput = document.getElementById('crawl-date');
   var date = dateInput ? dateInput.value : '';
+  if(!date){showToast('❌ 날짜를 선택하세요');return;}
   if(!currentUser){showToast('❌ 로그인 필요');return;}
 
-  db.ref('users/'+currentUser.uid+'/settings/githubPat').once('value').then(function(snap){
-    var pat = snap.val();
-    if(!pat){
-      showToast('⚠️ 설정 → VMMS → GitHub 토큰을 먼저 등록하세요');
-      return;
-    }
-    var btn = document.getElementById('trigger-crawl-btn');
-    btn.textContent = '⏳ 요청 중...'; btn.disabled = true;
+  var btn = document.getElementById('trigger-crawl-btn');
+  btn.textContent = '⏳ VMMS에서 수집 중...'; btn.disabled = true;
 
-    fetch('https://api.github.com/repos/kimbany/vending-manager/actions/workflows/crawl.yml/dispatches', {
-      method: 'POST',
-      headers: {
-        'Authorization': 'token '+pat,
-        'Accept': 'application/vnd.github.v3+json'
-      },
-      body: JSON.stringify({
-        ref: 'main',
-        inputs: { crawl_date: date }
-      })
-    }).then(function(res){
-      btn.textContent = '⚡ 선택 날짜 크롤링 실행'; btn.disabled = false;
-      if(res.status === 204){
-        showToast('✅ 크롤링 요청 완료! '+(date||'오늘')+' 데이터를 수집합니다 (1~2분 소요)');
-      } else {
-        res.text().then(function(t){ showToast('❌ 요청 실패: '+res.status); console.error(t); });
-      }
-    }).catch(function(e){
-      btn.textContent = '⚡ 선택 날짜 크롤링 실행'; btn.disabled = false;
-      showToast('❌ 네트워크 오류');
-    });
+  var crawlFn = firebase.app().functions('asia-northeast3').httpsCallable('crawlVmmsSales', {timeout: 300000});
+
+  crawlFn({date: date}).then(function(result){
+    var d = result.data;
+    console.log('[날짜수집] 완료:', d.message);
+    showToast('✅ ' + d.message);
+    btn.textContent = '⏳ 데이터 반영 중...';
+    return _applyCrawledData(false, date);
+  }).then(function(){
+    btn.textContent = '⚡ 선택 날짜 크롤링 실행'; btn.disabled = false;
+  }).catch(function(e){
+    console.log('[날짜수집] 실패:', e.code, e.message);
+    btn.textContent = '⚡ 선택 날짜 크롤링 실행'; btn.disabled = false;
+    showToast('❌ 수집 실패: ' + (e.message || '알 수 없는 오류'));
   });
 }
 

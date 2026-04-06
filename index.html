@@ -302,12 +302,10 @@
 
     <!-- 판매통계 -->
     <div class="tab" id="tab-sales">
-      <div style="display:flex;gap:8px;margin-bottom:10px;align-items:stretch">
-        <button class="btn-p" style="flex:1;margin:0" id="crawl-btn" onclick="fetchTodaySales()">🔄 오늘 판매 데이터 수집</button>
-        <input type="date" id="crawl-date" style="border:1px solid var(--border);border-radius:10px;padding:8px 12px;font-size:13px;font-family:inherit;background:var(--bg2);color:var(--text)"/>
-      </div>
-      <div style="display:flex;gap:8px;margin-bottom:10px">
-        <button onclick="triggerCrawlForDate()" id="trigger-crawl-btn" style="flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;font-family:inherit">⚡ 선택 날짜 크롤링 실행</button>
+      <button class="btn-p" style="margin-bottom:10px" id="crawl-btn" onclick="fetchTodaySales()">🔄 오늘 판매 데이터 수집</button>
+      <div style="margin-bottom:10px">
+        <input type="date" id="crawl-date" style="width:100%;border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:14px;font-family:inherit;background:var(--bg2);color:var(--text);box-sizing:border-box;margin-bottom:8px"/>
+        <button onclick="triggerCrawlForDate()" id="trigger-crawl-btn" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;font-family:inherit">⚡ 선택 날짜 크롤링 실행</button>
       </div>
       <div onclick="openCsvModal()" style="display:flex;align-items:center;justify-content:space-between;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:6px;cursor:pointer;font-size:14px;font-weight:600;color:var(--text2);line-height:1">
         <span style="display:flex;align-items:center;gap:6px">📤 직접 업로드</span><span style="font-size:16px;color:var(--text3);line-height:1">›</span>
@@ -751,10 +749,6 @@
     <div class="fr"><label class="lbl">VMMS 비밀번호</label><input type="password" id="ev-pw" placeholder="VMMS 로그인 비밀번호"/></div>
     <button class="btn-p" style="margin-bottom:0" onclick="saveVmms()">저장</button>
     <div id="ev-msg" style="font-size:12px;margin-top:8px;text-align:center"></div>
-    <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:14px">
-      <div class="fr"><label class="lbl">GitHub Personal Access Token <span style="color:var(--text3);font-weight:400;font-size:11px">· 앱에서 크롤링 실행 시 필요</span></label><input type="password" id="ev-github-pat" placeholder="ghp_xxxx..."/></div>
-      <button class="btn-p" style="margin-bottom:0;background:var(--text2)" onclick="saveGithubPat()">GitHub 토큰 저장</button>
-    </div>
   </div>
 </div>
 
