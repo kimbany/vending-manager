@@ -229,8 +229,17 @@ function _applyCrawledData(isAuto){
           var existingKeysM = {};
           mSales.forEach(function(s){ if(s.dupKey) existingKeysM[s.dupKey]=true; });
 
+          // VMMS 제품 목록으로 자동 매칭용 맵 생성 (상품명 → VMMS 제품정보)
+          var vmmsNameMap = {};
+          if(typeof _vmmsProducts !== 'undefined' && Array.isArray(_vmmsProducts)){
+            _vmmsProducts.forEach(function(vp){
+              if(vp.productName) vmmsNameMap[vp.productName.trim()] = vp;
+            });
+          }
+
           var qtyMap = {};
           var machineAdded = 0;
+          var autoRegistered = 0;
 
           (rowsByMachine[key]||[]).forEach(function(row){
             if(String(row[colDate]||'').trim() === '거래일시') return;
@@ -255,6 +264,26 @@ function _applyCrawledData(isAuto){
             var minute = dateRaw.length>=16 ? parseInt(dateRaw.slice(14,16)) : -1;
             var prod = findProduct(colVal, itemName, mProds);
 
+            // VMMS 제품 목록에서 상품명 매칭 → 자동 제품 등록
+            if(!prod && itemName && vmmsNameMap[itemName]){
+              var vp = vmmsNameMap[itemName];
+              var newId = Date.now().toString() + Math.random().toString(36).slice(2,6);
+              prod = {
+                id: newId,
+                name: vp.productName,
+                colNo: colVal || '',
+                sellPrice: amt || 0,
+                buyPrice: 0,
+                totalQty: 1,
+                productCode: vp.productCode || '',
+                barcode: vp.barcode || ''
+              };
+              mProds.push(prod);
+              mInv.push({productId: newId, qty: 0});
+              autoRegistered++;
+              console.log('[자동등록] VMMS 매칭:', itemName, '→ 제품등록 (code:'+vp.productCode+')');
+            }
+
             mSales.push({id:Date.now().toString()+Math.random(), txId:txId, dupKey:dupKey, date:dateStr, hour:hour, minute:minute, productId:prod?prod.id:null, itemName:itemName, colVal:colVal, qty:1, amt:amt, cancelled:isCancelled});
             if(prod && !isCancelled) qtyMap[prod.id]=(qtyMap[prod.id]||0)+1;
             machineAdded++;
@@ -270,9 +299,10 @@ function _applyCrawledData(isAuto){
             mLogs.push({id:Date.now().toString()+Math.random(),productId:pid,delta:-qty,memo:'자동수집 차감 '+today,date:today});
           });
 
+          if(autoRegistered) console.log('[수집] VMMS 매칭 자동등록:', autoRegistered, '건');
           var saveData={products:mProds,inventory:mInv,inventoryLogs:mLogs,salesData:mSales};
           if(isCurrentMachine){
-            D.salesData=mSales; D.inventory=mInv; D.inventoryLogs=mLogs;
+            D.products=mProds; D.salesData=mSales; D.inventory=mInv; D.inventoryLogs=mLogs;
           }
           return appRef.set(saveData);
         });
