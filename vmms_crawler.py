@@ -206,31 +206,31 @@ async def crawl_for_user(vmms_id, vmms_pw, save_path, target_date=None):
             except:
                 pass
 
-            # 4. 오늘 날짜 설정
-            print(f"  [4] 오늘 날짜 설정: {today}")
-            # JavaScript로 날짜 입력 필드를 직접 설정 (가장 확실한 방법)
-            await page.evaluate(f'''() => {{
-                var inputs = document.querySelectorAll('input');
-                inputs.forEach(function(inp) {{
-                    if(inp.value && inp.value.match(/^\\d{{4}}-\\d{{2}}/)) {{
-                        var nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-                        nativeInputValueSetter.call(inp, "{today}");
+            # 4. 조회 날짜 설정 (시작일 = 끝일 = today)
+            print(f"  [4] 조회 날짜 설정: {today}")
+            # #sDate(시작날짜), #eDate(끝날짜) 직접 설정
+            for date_id in ['sDate', 'eDate']:
+                await page.evaluate(f'''() => {{
+                    var inp = document.getElementById("{date_id}");
+                    if(inp) {{
+                        var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+                        setter.call(inp, "{today}");
                         inp.dispatchEvent(new Event("input", {{bubbles:true}}));
                         inp.dispatchEvent(new Event("change", {{bubbles:true}}));
                     }}
-                }});
-            }}''')
+                }}''')
             await page.wait_for_timeout(500)
-            # 설정 후 검증
-            date_inputs = await page.locator('input[type="text"]').all()
-            for inp in date_inputs:
-                val = (await inp.input_value()).strip()
-                if len(val) >= 7 and val[:4].isdigit() and val[4] == '-':
-                    if val != today:
-                        await inp.fill(today)
-                        print(f"  [4] 날짜 재설정: {val} → {today}")
+            # 설정 검증
+            for date_id in ['sDate', 'eDate']:
+                try:
+                    val = await page.locator(f'#{date_id}').input_value()
+                    if val.strip() != today:
+                        await page.locator(f'#{date_id}').fill(today)
+                        print(f"  [4] {date_id} 재설정: {val} → {today}")
                     else:
-                        print(f"  [4] 날짜 확인 OK: {val}")
+                        print(f"  [4] {date_id} OK: {val}")
+                except:
+                    print(f"  [4] {date_id} 검증 실패 - 계속 진행")
             await page.wait_for_timeout(300)
 
             # 4-1. 상세조회 열고 전체 체크 후 닫기
