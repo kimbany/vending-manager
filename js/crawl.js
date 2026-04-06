@@ -268,22 +268,29 @@ function _applyCrawledData(isAuto, customDate){
             });
             if(isDup){ dup++; return; }
 
-            // 제품 매칭 (컬럼번호 기준)
+            // 제품 매칭 (제품명 기준 → 컬럼번호 폴백)
             var pid = '';
-            prods.forEach(function(p){
-              var cols = Array.isArray(p.column) ? p.column : (p.column ? [p.column] : []);
-              cols.forEach(function(c){
-                var cStr = String(c).trim();
-                if(cStr === colNo) pid = p.id;
-                // 범위 컬럼 (예: "22~23")
-                if(cStr.indexOf('~') >= 0){
-                  var range = cStr.split('~');
-                  var start = parseInt(range[0]), end = parseInt(range[1]);
-                  var cn = parseInt(colNo);
-                  if(cn >= start && cn <= end) pid = p.id;
-                }
+            // 1차: 제품명으로 매칭
+            if(itemName){
+              var nameMatch = prods.find(function(p){ return p.name && p.name.trim() === itemName.trim(); });
+              if(nameMatch) pid = nameMatch.id;
+            }
+            // 2차: 컬럼번호로 폴백
+            if(!pid){
+              prods.forEach(function(p){
+                var cols = Array.isArray(p.column) ? p.column : (p.column ? [p.column] : []);
+                cols.forEach(function(c){
+                  var cStr = String(c).trim();
+                  if(cStr === colNo) pid = p.id;
+                  if(cStr.indexOf('~') >= 0){
+                    var range = cStr.split('~');
+                    var start = parseInt(range[0]), end = parseInt(range[1]);
+                    var cn = parseInt(colNo);
+                    if(cn >= start && cn <= end) pid = p.id;
+                  }
+                });
               });
-            });
+            }
 
             sales.push({
               productId: pid,
