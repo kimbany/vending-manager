@@ -41,7 +41,7 @@ function triggerCrawlForDate(){
     var d = result.data;
     showToast('✅ ' + d.message);
     btn.textContent = '⏳ 데이터 반영 중...';
-    return _applyCrawledData(false, date);
+    return _applyCrawledData(true, date);
   }).then(function(){
     btn.textContent = '⚡ 선택 날짜 크롤링 실행'; btn.disabled = false;
   }).catch(function(e){
