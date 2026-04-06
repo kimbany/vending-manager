@@ -355,6 +355,7 @@ async function crawlSalesData(vmmsId, vmmsPw) {
   const chromium = require("@sparticuz/chromium");
   const puppeteer = require("puppeteer-core");
 
+  console.log("[Sales] 브라우저 시작");
   const browser = await puppeteer.launch({
     args: chromium.args,
     defaultViewport: { width: 1280, height: 800 },
@@ -368,6 +369,7 @@ async function crawlSalesData(vmmsId, vmmsPw) {
     page.setDefaultTimeout(30000);
 
     // 1. 로그인
+    console.log("[Sales] 1. 로그인");
     await page.goto("https://vmms.ubcn.co.kr/login", { waitUntil: "domcontentloaded" });
     await delay(2000);
     await page.type('[id="id"]', vmmsId);
@@ -379,17 +381,25 @@ async function crawlSalesData(vmmsId, vmmsPw) {
     catch (e) { await waitIdle(page); }
     await delay(1500);
     await closePopup(page);
+    console.log("[Sales] 1. 로그인 완료, URL:", page.url());
 
     // 2. 거래내역 메뉴
-    await (await $x1(page, SALES_XP.MENU_MAIN)).click();
+    console.log("[Sales] 2. 거래내역 메뉴 이동");
+    const menuMain = await $x1(page, SALES_XP.MENU_MAIN);
+    if (!menuMain) throw new Error("거래현황 메뉴를 찾을 수 없습니다");
+    await menuMain.click();
     await delay(800);
-    await (await $x1(page, SALES_XP.MENU_TXN)).click();
+    const menuTxn = await $x1(page, SALES_XP.MENU_TXN);
+    if (!menuTxn) throw new Error("거래내역 메뉴를 찾을 수 없습니다");
+    await menuTxn.click();
     await waitIdle(page);
     await delay(2000);
     await closePopup(page);
+    console.log("[Sales] 2. 거래내역 페이지 도착");
 
     // 3. 오늘 날짜 설정
     const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+    console.log("[Sales] 3. 날짜 설정:", today);
     await page.evaluate((td) => {
       document.querySelectorAll('input').forEach(inp => {
         if (inp.value && /^\d{4}-\d{2}/.test(inp.value)) {
@@ -403,15 +413,18 @@ async function crawlSalesData(vmmsId, vmmsPw) {
     await delay(500);
 
     // 4. 상세조회 → 전체 체크박스 선택
+    console.log("[Sales] 4. 상세조회 필터");
     try {
-      const detailBtns = await page.$$('xpath///*[contains(text(),"상세조회")]');
-      for (const btn of detailBtns) {
-        if (await btn.isIntersectingViewport()) {
-          await btn.click();
-          await delay(1000);
-          break;
+      await page.evaluate(() => {
+        const btns = document.querySelectorAll('button, a, span');
+        for (const b of btns) {
+          if (b.textContent.trim().includes('상세조회') && b.offsetParent !== null) {
+            b.click(); return true;
+          }
         }
-      }
+        return false;
+      });
+      await delay(1000);
       await page.evaluate(() => {
         document.querySelectorAll('input[type="checkbox"]').forEach(cb => {
           if (!cb.checked) { cb.checked = true; cb.dispatchEvent(new Event('change', { bubbles: true })); }
@@ -419,55 +432,60 @@ async function crawlSalesData(vmmsId, vmmsPw) {
       });
       await delay(500);
       // 상세조회 닫기
-      const closeBtns = await page.$$('xpath///*[contains(text(),"상세조회")]');
-      for (const btn of closeBtns) {
-        if (await btn.isIntersectingViewport()) { await btn.click(); await delay(800); break; }
-      }
-    } catch (e) { /* ignore */ }
+      await page.evaluate(() => {
+        const btns = document.querySelectorAll('button, a, span');
+        for (const b of btns) {
+          if (b.textContent.trim().includes('상세조회') && b.offsetParent !== null) {
+            b.click(); return;
+          }
+        }
+      });
+      await delay(800);
+    } catch (e) { console.log("[Sales] 4. 상세조회 설정 실패 (무시):", e.message); }
 
     // 5. 조회 클릭
+    console.log("[Sales] 5. 조회 버튼 클릭");
     let searchClicked = false;
     try {
       const searchBtn = await $x1(page, SALES_XP.BTN_SEARCH);
       if (searchBtn) { await searchBtn.click(); searchClicked = true; }
     } catch (e) { /* ignore */ }
     if (!searchClicked) {
-      try {
-        await page.evaluate(() => {
-          const btns = document.querySelectorAll('button');
-          for (const b of btns) {
-            if (b.textContent.trim().includes('조회') && b.offsetParent !== null) { b.click(); return; }
-          }
-        });
-      } catch (e) { /* ignore */ }
+      await page.evaluate(() => {
+        const btns = document.querySelectorAll('button');
+        for (const b of btns) {
+          if (b.textContent.trim().includes('조회') && b.offsetParent !== null) { b.click(); return; }
+        }
+      });
     }
     await waitIdle(page);
     await delay(3000);
+    console.log("[Sales] 5. 조회 완료");
 
     // 5-1. 페이지 사이즈 최대로
     try {
-      const selectors = ['select[name*="length"]', 'select[name*="pageSize"]', 'select[name*="size"]', '#main select', '.dataTables_length select'];
-      for (const sel of selectors) {
-        const selectEl = await page.$(sel);
-        if (selectEl) {
-          const maxVal = await page.evaluate((s) => {
-            const el = document.querySelector(s);
-            if (!el) return null;
-            let max = null;
-            el.querySelectorAll('option').forEach(o => {
-              if (o.value && /^\d+$/.test(o.value)) {
-                if (!max || parseInt(o.value) > parseInt(max)) max = o.value;
-              }
-            });
+      const maxVal = await page.evaluate(() => {
+        const selects = document.querySelectorAll('select');
+        for (const sel of selects) {
+          let max = null;
+          sel.querySelectorAll('option').forEach(o => {
+            if (o.value && /^\d+$/.test(o.value)) {
+              if (!max || parseInt(o.value) > parseInt(max)) max = o.value;
+            }
+          });
+          if (max && parseInt(max) >= 20) {
+            sel.value = max;
+            sel.dispatchEvent(new Event('change', { bubbles: true }));
             return max;
-          }, sel);
-          if (maxVal) { await page.select(sel, maxVal); await waitIdle(page); await delay(1500); }
-          break;
+          }
         }
-      }
+        return null;
+      });
+      if (maxVal) { console.log("[Sales] 페이지사이즈:", maxVal); await waitIdle(page); await delay(1500); }
     } catch (e) { /* ignore */ }
 
     // 6. 헤더 수집
+    console.log("[Sales] 6. 헤더 수집");
     let headers = FIXED_HEADERS;
     try {
       const ths = await $x(page, `${SALES_XP.TABLE}//thead//th`);
@@ -476,8 +494,10 @@ async function crawlSalesData(vmmsId, vmmsPw) {
         for (const th of ths) headers.push(await th.evaluate(el => el.textContent.trim()));
       }
     } catch (e) { /* ignore */ }
+    console.log("[Sales] 6. 헤더:", headers.length, "개");
 
     // 7. 데이터 수집 (페이지네이션 포함)
+    console.log("[Sales] 7. 데이터 수집");
     async function collectRows() {
       const rows = [];
       try {
@@ -487,15 +507,17 @@ async function crawlSalesData(vmmsId, vmmsPw) {
           if (cells.length <= 1) continue;
           const row = [];
           for (const c of cells) row.push(await c.evaluate(el => el.textContent.trim()));
-          if (row.some(v => v)) rows.push(row);
+          const joined = row.join('');
+          if (joined && !joined.includes('데이터가 없습니다')) rows.push(row);
         }
-      } catch (e) { /* ignore */ }
+      } catch (e) { console.log("[Sales] collectRows 오류:", e.message); }
       return rows;
     }
 
     const allRows = [];
     const firstPage = await collectRows();
     allRows.push(...firstPage);
+    console.log("[Sales] 7. 1페이지:", firstPage.length, "건");
 
     // 페이지네이션
     for (let nextPg = 2; nextPg < 200; nextPg++) {
@@ -511,8 +533,10 @@ async function crawlSalesData(vmmsId, vmmsPw) {
       const rows = await collectRows();
       if (!rows.length) break;
       allRows.push(...rows);
+      console.log("[Sales] 7.", nextPg, "페이지:", rows.length, "건 (누계:", allRows.length, ")");
     }
 
+    console.log("[Sales] 총", allRows.length, "건 수집 완료");
     return { today, headers, rows: allRows };
   } finally {
     await browser.close();
@@ -525,6 +549,7 @@ exports.crawlVmmsSales = onCall(
     memory: "2GiB",
     timeoutSeconds: 300,
     region: "asia-northeast3",
+    cors: true,
   },
   async (request) => {
     if (!request.auth) {
@@ -533,22 +558,40 @@ exports.crawlVmmsSales = onCall(
     const uid = request.auth.uid;
     const nowStr = new Date().toISOString().replace("T", " ").slice(0, 19);
 
-    const vmmsSnap = await admin.database().ref(`users/${uid}/vmms`).once("value");
-    const vmmsData = vmmsSnap.val();
+    // VMMS 계정 정보 읽기
+    let vmmsData;
+    try {
+      const vmmsSnap = await admin.database().ref(`users/${uid}/vmms`).once("value");
+      vmmsData = vmmsSnap.val();
+    } catch (e) {
+      throw new HttpsError("internal", "VMMS 계정 조회 실패: " + e.message);
+    }
     if (!vmmsData || !vmmsData.id || !vmmsData.pw) {
       throw new HttpsError("failed-precondition", "VMMS 계정이 등록되어 있지 않습니다. 설정에서 VMMS 계정을 먼저 등록해주세요.");
     }
 
-    const vmmsId = decryptAES(vmmsData.id, uid);
-    const vmmsPw = decryptAES(vmmsData.pw, uid);
+    let vmmsId, vmmsPw;
+    try {
+      vmmsId = decryptAES(vmmsData.id, uid);
+      vmmsPw = decryptAES(vmmsData.pw, uid);
+    } catch (e) {
+      throw new HttpsError("internal", "VMMS 계정 복호화 실패: " + e.message);
+    }
     if (!vmmsId || !vmmsPw) {
       throw new HttpsError("failed-precondition", "VMMS 계정 정보를 복호화할 수 없습니다");
     }
 
+    // 크롤링 실행
+    let result;
     try {
-      const result = await crawlSalesData(vmmsId, vmmsPw);
+      result = await crawlSalesData(vmmsId, vmmsPw);
+    } catch (e) {
+      console.error("crawlSalesData 실패:", e);
+      throw new HttpsError("internal", "VMMS 판매 크롤링 실패: " + (e.message || String(e)));
+    }
 
-      // Firebase 저장
+    // Firebase 저장
+    try {
       await admin.database().ref(`users/${uid}/crawledSales/${result.today}`).set({
         date: result.today,
         updated_at: nowStr,
@@ -556,16 +599,17 @@ exports.crawlVmmsSales = onCall(
         headers: result.headers,
         rows: result.rows,
       });
-
-      return {
-        success: true,
-        total: result.rows.length,
-        date: result.today,
-        message: `${result.today} 판매 데이터 ${result.rows.length}건 수집 완료`,
-      };
     } catch (e) {
-      throw new HttpsError("internal", "VMMS 판매 크롤링 실패: " + e.message);
+      console.error("Firebase 저장 실패:", e);
+      throw new HttpsError("internal", "데이터 저장 실패: " + e.message);
     }
+
+    return {
+      success: true,
+      total: result.rows.length,
+      date: result.today,
+      message: `${result.today} 판매 데이터 ${result.rows.length}건 수집 완료`,
+    };
   }
 );
 
@@ -574,7 +618,8 @@ exports.crawlVmmsProducts = onCall(
   {
     memory: "2GiB",
     timeoutSeconds: 300,
-    region: "asia-northeast3", // 서울
+    region: "asia-northeast3",
+    cors: true,
   },
   async (request) => {
     // 인증 확인
