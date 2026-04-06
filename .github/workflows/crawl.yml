@@ -6,6 +6,11 @@ on:
     - cron: '0 3 * * *'   # 매일 오후 12:00 KST
     - cron: '0 10 * * *'  # 매일 오후 19:00 KST
   workflow_dispatch:       # 수동 실행 버튼
+    inputs:
+      crawl_date:
+        description: '크롤링 날짜 (YYYY-MM-DD, 비워두면 오늘)'
+        required: false
+        default: ''
 
 jobs:
   crawl:
@@ -32,6 +37,7 @@ jobs:
           FIREBASE_KEY: ${{ secrets.FIREBASE_KEY }}
           VMMS_ID: ${{ secrets.VMMS_ID }}
           VMMS_PW: ${{ secrets.VMMS_PW }}
+          CRAWL_DATE: ${{ github.event.inputs.crawl_date }}
         run: python vmms_crawler.py
 
       - name: 스크린샷 업로드 (디버깅용)

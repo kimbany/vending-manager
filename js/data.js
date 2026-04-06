@@ -5,6 +5,8 @@ function startApp(){
   document.getElementById('loading').style.display='none';
   document.getElementById('app').style.display='flex';
   document.getElementById('home-date').value=td();
+  var crawlDate = document.getElementById('crawl-date');
+  if(crawlDate) crawlDate.value=td();
   if(currentUser){
     var name = currentUser.displayName || currentUser.email;
     document.getElementById('header-user').textContent = name + ' 님';

@@ -313,6 +313,14 @@ function saveVmms(){
   });
 }
 
+function saveGithubPat(){
+  var pat = document.getElementById('ev-github-pat').value.trim();
+  if(!pat){showToast('❌ 토큰을 입력하세요');return;}
+  db.ref('users/'+currentUser.uid+'/settings/githubPat').set(pat).then(function(){
+    showToast('✅ GitHub 토큰 저장 완료');
+  });
+}
+
 function switchVmSub(sub){
   var isStatus = sub === 'status';
   document.getElementById('vm-panel-status').style.display   = isStatus ? 'block' : 'none';

@@ -7,6 +7,7 @@ VMMS 거래내역 크롤러 (GitHub Actions용)
 import asyncio
 import json
 import os
+import sys
 import base64
 from datetime import datetime
 from playwright.async_api import async_playwright
@@ -139,10 +140,10 @@ async def click_page(page, page_num):
     return False
 
 # ── 메인 크롤링 ───────────────────────────────────────────────────────────────
-async def crawl_for_user(vmms_id, vmms_pw, save_path):
-    today   = datetime.now().strftime("%Y-%m-%d")
+async def crawl_for_user(vmms_id, vmms_pw, save_path, target_date=None):
+    today   = target_date or datetime.now().strftime("%Y-%m-%d")
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"  크롤링 시작 (계정: {vmms_id[:3]}***)")
+    print(f"  크롤링 시작 (계정: {vmms_id[:3]}***, 날짜: {today})")
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(
@@ -447,7 +448,21 @@ def migrate_user_emails():
 
 async def main_async():
     init_firebase()
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] VMMS 크롤러 시작")
+
+    # 환경변수 또는 CLI에서 날짜 받기 (없으면 오늘)
+    crawl_date = os.environ.get('CRAWL_DATE', '').strip()
+    if len(sys.argv) > 1 and sys.argv[1].strip():
+        crawl_date = sys.argv[1].strip()
+    if crawl_date:
+        try:
+            datetime.strptime(crawl_date, "%Y-%m-%d")
+        except ValueError:
+            print(f"❌ 잘못된 날짜 형식: {crawl_date} (YYYY-MM-DD 형식 필요)")
+            return
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] VMMS 크롤러 시작 (지정 날짜: {crawl_date})")
+    else:
+        crawl_date = None
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] VMMS 크롤러 시작 (오늘)")
 
     # userEmails 마이그레이션 (기존 계정 로그인 지원)
     migrate_user_emails()
@@ -459,7 +474,8 @@ async def main_async():
             try:
                 count = await crawl_for_user(
                     user['id'], user['pw'],
-                    f"users/{user['uid']}/crawledSales"
+                    f"users/{user['uid']}/crawledSales",
+                    target_date=crawl_date
                 )
                 print(f"  완료: {count}건")
             except Exception as e:
@@ -469,7 +485,8 @@ async def main_async():
         if DEFAULT_ID and DEFAULT_PW:
             try:
                 count = await crawl_for_user(
-                    DEFAULT_ID, DEFAULT_PW, "vendingApp/crawledSales"
+                    DEFAULT_ID, DEFAULT_PW, "vendingApp/crawledSales",
+                    target_date=crawl_date
                 )
                 print(f"  완료: {count}건")
             except Exception as e:
