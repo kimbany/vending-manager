@@ -288,6 +288,8 @@ function _applyCrawledData(isAuto, customDate){
             sales.push({
               productId: pid,
               column: colNo,
+              qty: 1,
+              amt: amt,
               amount: amt,
               date: dateStr.slice(0,10),
               time: dateStr,
