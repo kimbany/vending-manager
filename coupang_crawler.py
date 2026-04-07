@@ -231,15 +231,25 @@ async def crawl_coupang_orders(email, pw, save_path):
         browser = await p.chromium.launch(
             headless=True,
             args=['--no-sandbox', '--disable-dev-shm-usage',
-                  '--disable-blink-features=AutomationControlled']
+                  '--disable-blink-features=AutomationControlled',
+                  '--disable-features=IsolateOrigins,site-per-process']
         )
         context = await browser.new_context(
             viewport={'width': 1280, 'height': 800},
             user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
                        'AppleWebKit/537.36 (KHTML, like Gecko) '
-                       'Chrome/120.0.0.0 Safari/537.36'
+                       'Chrome/131.0.0.0 Safari/537.36',
+            locale='ko-KR',
+            timezone_id='Asia/Seoul',
         )
+        # 봇 감지 우회
         page = await context.new_page()
+        await page.add_init_script('''
+            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+            window.chrome = {runtime: {}};
+            Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
+            Object.defineProperty(navigator, 'languages', {get: () => ['ko-KR', 'ko', 'en-US', 'en']});
+        ''')
         page.set_default_timeout(30000)
 
         try:
