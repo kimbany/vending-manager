@@ -320,19 +320,17 @@ async def crawl_coupang_orders(email, pw, save_path):
                 for prod in o.get('products', []):
                     print(f"    - {prod.get('product_name', '')} x{prod.get('quantity', 1)} [{prod.get('delivery_status', '')}]")
 
-            # 4. Firebase 저장
-            if today_orders:
-                save_data = {
-                    'date': today,
-                    'updated_at': now_str,
-                    'total_orders': len(today_orders),
-                    'total_products': total_products,
-                    'orders': today_orders
-                }
-                rtdb.reference(f'{save_path}/{today}').set(save_data)
-                print(f"  [4] Firebase 저장 완료 ({save_path}/{today})")
-            else:
-                print("  [4] 저장할 주문 없음")
+            # 4. Firebase 저장 (0건이어도 저장 - 디버깅용)
+            save_data = {
+                'date': today,
+                'updated_at': now_str,
+                'total_orders': len(today_orders),
+                'total_products': total_products,
+                'orders': today_orders,
+                'login_url': current_url,
+            }
+            rtdb.reference(f'{save_path}/{today}').set(save_data)
+            print(f"  [4] Firebase 저장 완료 ({save_path}/{today}, {total_products}건)")
 
             return total_products
 
