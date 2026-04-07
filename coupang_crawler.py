@@ -319,7 +319,6 @@ async def crawl_coupang_orders(email, pw, save_path):
             for char in pw:
                 await pw_input.type(char, delay=50 + int(100 * __import__('random').random()))
             await page.wait_for_timeout(1000 + int(500 * __import__('random').random()))
-                await page.wait_for_timeout(300)
 
             # 로그인 버튼 클릭
             login_btn = page.locator('button[type="submit"], .login__button, [class*="login-btn"]')
