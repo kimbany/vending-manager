@@ -199,10 +199,11 @@ function crawlCoupangPurchases(){
   if(!currentUser){showToast('❌ 로그인 필요');return;}
   var btn = document.getElementById('coupang-crawl-btn');
 
-  db.ref('users/'+currentUser.uid+'/settings/githubPat').once('value').then(function(snap){
+  // 서버 공용 GitHub PAT 사용
+  db.ref('appConfig/githubPat').once('value').then(function(snap){
     var pat = snap.val();
     if(!pat){
-      showToast('⚠️ 설정 → VMMS → GitHub 토큰을 먼저 등록하세요');
+      showToast('❌ 서버 설정 오류 - 관리자에게 문의하세요');
       return;
     }
     btn.textContent = '⏳ 쿠팡 크롤링 요청 중...'; btn.disabled = true;
