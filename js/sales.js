@@ -160,10 +160,21 @@ function _doRenderSalesStats(machineDataList, range, panel){
   var periodLabel = range.from===range.to ? range.from : range.from+' ~ '+range.to;
   html += '<div style="background:var(--bg2);border-radius:14px;padding:16px;margin-bottom:12px;border:1px solid var(--border);box-shadow:0 1px 3px rgba(0,0,0,.04)">';
   html += '<div style="font-size:12px;color:var(--text3);margin-bottom:10px">'+periodLabel+'</div>';
+  // 이익 계산 (FIFO 기반)
+  var profit = (typeof calculateProfit === 'function') ? calculateProfit(range.from, range.to) : null;
+  var hasCost = profit && profit.cost > 0;
+
   html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px">';
   html += '<div style="text-align:center"><div style="font-size:12px;color:var(--text2);margin-bottom:3px">총 판매량</div><div style="font-size:22px;font-weight:800;color:var(--blue)">'+fmt(totalQty)+'<span style="font-size:12px;font-weight:400">개</span></div></div>';
   html += '<div style="text-align:center"><div style="font-size:12px;color:var(--text2);margin-bottom:3px">총 매출</div><div style="font-size:22px;font-weight:800;color:var(--green)">'+fmtK(totalAmt)+'</div></div>';
   html += '</div>';
+  if(hasCost){
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">';
+    html += '<div style="background:var(--bg);border-radius:8px;padding:8px 6px;text-align:center"><div style="font-size:10px;color:var(--text3)">총 원가</div><div style="font-size:14px;font-weight:700;color:var(--text2)">'+fmt(profit.cost)+'원</div></div>';
+    html += '<div style="background:rgba(122,218,154,.08);border-radius:8px;padding:8px 6px;text-align:center"><div style="font-size:10px;color:var(--text3)">순이익</div><div style="font-size:14px;font-weight:700;color:var(--green)">'+fmt(profit.profit)+'원</div></div>';
+    html += '<div style="background:rgba(0,100,255,.06);border-radius:8px;padding:8px 6px;text-align:center"><div style="font-size:10px;color:var(--text3)">이익률</div><div style="font-size:14px;font-weight:700;color:var(--blue)">'+profit.margin+'%</div></div>';
+    html += '</div>';
+  }
   html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
   html += '<div style="background:var(--bg);border-radius:8px;padding:8px 10px;text-align:center"><div style="font-size:11px;color:var(--text3)">정상 판매</div><div style="font-size:16px;font-weight:700;color:var(--text)">'+fmt(totalQty)+'개</div></div>';
   html += '<div style="background:var(--bg);border-radius:8px;padding:8px 10px;text-align:center"><div style="font-size:11px;color:var(--text3)">취소</div><div style="font-size:16px;font-weight:700;color:var(--red)">'+fmt(cancelledQty)+'개</div></div>';

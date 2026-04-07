@@ -271,7 +271,16 @@
 
       <!-- 재고현황 서브탭 -->
       <div id="inv-panel-stock">
-        <button class="btn-p" style="margin-bottom:10px" onclick="openModal('inv-type-modal')">➕ 재고 입력</button>
+        <!-- 쿠팡 구매 내역 크롤링 -->
+        <div style="display:flex;gap:8px;margin-bottom:10px">
+          <button class="btn-p" style="flex:1;margin:0" id="coupang-crawl-btn" onclick="crawlCoupangPurchases()">🛒 쿠팡 구매내역 불러오기</button>
+        </div>
+        <!-- 미입고 목록 -->
+        <div id="coupang-pending" style="display:none;background:rgba(0,100,255,.04);border:1px solid rgba(0,100,255,.15);border-radius:12px;padding:12px 14px;margin-bottom:12px">
+          <div style="font-size:12px;font-weight:700;color:var(--blue);margin-bottom:8px">📦 미입고 구매 내역</div>
+          <div id="coupang-pending-list"></div>
+        </div>
+        <button class="btn-p" style="margin-bottom:10px" onclick="openModal('inv-type-modal')">➕ 수기 재고 입력</button>
         <div class="stabs" style="margin-bottom:10px">
           <button class="stab active" id="isort-name" onclick="setInvSort('name',this)">제품명</button>
           <button class="stab" id="isort-col" onclick="setInvSort('col',this)">컬럼순</button>

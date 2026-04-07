@@ -194,6 +194,118 @@ function findMappedProduct(coupangName){
   return _productMappings.find(function(m){ return m.coupangProductName === coupangName; });
 }
 
+// ─── 쿠팡 구매내역 크롤링 ────────────────────────────────────────────────────
+function crawlCoupangPurchases(){
+  if(!currentUser){showToast('❌ 로그인 필요');return;}
+  var btn = document.getElementById('coupang-crawl-btn');
+  btn.textContent = '⏳ 쿠팡에서 구매내역 수집 중...'; btn.disabled = true;
+
+  var fn = firebase.app().functions('asia-northeast3').httpsCallable('crawlCoupangOrders', {timeout: 300000});
+  fn().then(function(result){
+    var d = result.data;
+    showToast('✅ ' + d.message);
+    btn.textContent = '🛒 쿠팡 구매내역 불러오기'; btn.disabled = false;
+    loadCoupangPending();
+  }).catch(function(e){
+    btn.textContent = '🛒 쿠팡 구매내역 불러오기'; btn.disabled = false;
+    showToast('❌ ' + (e.message || '쿠팡 크롤링 실패'));
+  });
+}
+
+// ─── 미입고 구매 목록 로드 ───────────────────────────────────────────────────
+function loadCoupangPending(){
+  if(!currentUser) return;
+  db.ref('users/'+currentUser.uid+'/purchases').once('value').then(function(snap){
+    var purchases = snap.val() || [];
+    if(!Array.isArray(purchases)) purchases = Object.values(purchases);
+    var pending = purchases.filter(function(p){ return p.status === 'pending'; });
+    var container = document.getElementById('coupang-pending');
+    var list = document.getElementById('coupang-pending-list');
+    if(!pending.length){
+      container.style.display = 'none';
+      return;
+    }
+    container.style.display = 'block';
+    list.innerHTML = pending.map(function(p, idx){
+      var mapped = findMappedProduct(p.coupangProductName);
+      var matchLabel = mapped ? '✅ 매칭됨' : '⚠️ 매칭 필요';
+      var matchColor = mapped ? 'var(--green)' : 'var(--red)';
+      return '<div style="padding:8px 0;border-bottom:1px solid rgba(0,100,255,.1)">'+
+        '<div style="font-size:13px;font-weight:600">'+p.coupangProductName+'</div>'+
+        '<div style="font-size:12px;color:var(--text3);margin-top:2px">'+
+          p.quantity+'개 · '+fmt(p.totalPrice)+'원 · '+p.purchaseDate+
+        '</div>'+
+        '<div style="display:flex;gap:6px;margin-top:6px;align-items:center">'+
+          '<span style="font-size:11px;color:'+matchColor+'">'+matchLabel+'</span>'+
+          (!mapped ? '<button onclick="openMatchingModal(\''+p.coupangProductName.replace(/'/g,"\\'")+'\')" style="font-size:11px;background:var(--blue);color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-family:inherit">제품 매칭</button>' : '')+
+          (mapped ? '<button onclick="stockInFromPurchase('+idx+')" style="font-size:11px;background:var(--green);color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-family:inherit">입고 처리</button>' : '')+
+        '</div>'+
+      '</div>';
+    }).join('');
+  });
+}
+
+// ─── 제품 매칭 모달 ──────────────────────────────────────────────────────────
+function openMatchingModal(coupangName){
+  var html = '<div style="margin-bottom:12px"><div style="font-size:13px;color:var(--text2);margin-bottom:4px">쿠팡 상품명</div>'+
+    '<div style="font-size:15px;font-weight:700;padding:8px;background:var(--bg3);border-radius:8px">'+coupangName+'</div></div>';
+  html += '<div class="fr" style="margin-bottom:8px"><label class="lbl">매칭할 제품 선택</label>'+
+    '<select id="match-product-sel" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;background:var(--bg2);color:var(--text)">'+
+    '<option value="">제품 선택</option>'+
+    D.products.map(function(p){return '<option value="'+p.id+'">'+p.name+'</option>';}).join('')+
+    '</select></div>';
+  html += '<div class="fr" style="margin-bottom:12px"><label class="lbl">박스당 낱개 수</label>'+
+    '<input type="number" id="match-units-per-box" value="1" min="1" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit"/></div>';
+  html += '<button onclick="confirmMatching(\''+coupangName.replace(/'/g,"\\'")+'\')" style="width:100%;background:var(--blue);color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">매칭 저장</button>';
+
+  document.getElementById('pdm-title').textContent = '제품 매칭';
+  document.getElementById('pdm-body').innerHTML = html;
+  openModal('prod-detail-modal');
+}
+
+function confirmMatching(coupangName){
+  var productId = document.getElementById('match-product-sel').value;
+  var unitsPerBox = parseInt(document.getElementById('match-units-per-box').value) || 1;
+  if(!productId){showToast('❌ 제품을 선택하세요');return;}
+  saveProductMapping(coupangName, productId, unitsPerBox);
+  closeModal('prod-detail-modal');
+  showToast('✅ 매칭 저장 완료');
+  loadCoupangPending();
+}
+
+// ─── 입고 처리 (쿠팡 구매 → stock_in) ───────────────────────────────────────
+function stockInFromPurchase(purchaseIdx){
+  if(!currentUser) return;
+  db.ref('users/'+currentUser.uid+'/purchases').once('value').then(function(snap){
+    var purchases = snap.val() || [];
+    if(!Array.isArray(purchases)) purchases = Object.values(purchases);
+    var p = purchases[purchaseIdx];
+    if(!p){showToast('❌ 구매 데이터 없음');return;}
+
+    var mapped = findMappedProduct(p.coupangProductName);
+    if(!mapped){showToast('❌ 제품 매칭이 필요합니다');return;}
+
+    var unitsPerBox = mapped.unitsPerBox || 1;
+    var totalUnits = p.quantity * unitsPerBox;
+    var unitCost = totalUnits > 0 ? Math.round(p.totalPrice / totalUnits) : 0;
+
+    initStockData();
+    addStockIn(mapped.productId, totalUnits, unitCost, 'coupang', '쿠팡 구매 ('+p.coupangProductName+')', p.purchaseDate || td());
+
+    // 구매 상태 업데이트
+    purchases[purchaseIdx].status = 'stocked';
+    purchases[purchaseIdx].matchedProductId = mapped.productId;
+    purchases[purchaseIdx].locationId = currentLocationId;
+    purchases[purchaseIdx].machineId = currentMachineId;
+    db.ref('users/'+currentUser.uid+'/purchases').set(purchases);
+
+    save();
+    showToast('✅ '+totalUnits+'개 입고 완료 (단가 '+fmt(unitCost)+'원)');
+    loadCoupangPending();
+    renderInv();
+  });
+}
+
 function saveProductMapping(coupangName, productId, unitsPerBox){
   var existing = _productMappings.findIndex(function(m){ return m.coupangProductName === coupangName; });
   var mapping = {

@@ -703,3 +703,168 @@ exports.crawlVmmsProducts = onCall(
     }
   }
 );
+
+// ── 쿠팡 주문내역 크롤링 ─────────────────────────────────────────────────────
+async function crawlCoupangOrders(email, pw) {
+  const chromium = require("@sparticuz/chromium");
+  const puppeteer = require("puppeteer-core");
+
+  const browser = await puppeteer.launch({
+    args: chromium.args,
+    defaultViewport: { width: 1280, height: 800 },
+    executablePath: await chromium.executablePath(),
+    headless: chromium.headless,
+  });
+
+  const page = await browser.newPage();
+  page.setDefaultTimeout(30000);
+  await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+
+  try {
+    // 1. 로그인
+    console.log("[Coupang] 1. 로그인");
+    await page.goto("https://login.coupang.com/login/login.pang", { waitUntil: "domcontentloaded" });
+    await delay(2000);
+
+    const emailInput = await page.$('input[type="email"], input[name="email"], #login-email-input');
+    const pwInput = await page.$('input[type="password"], input[name="password"], #login-password-input');
+    if (!emailInput || !pwInput) throw new Error("로그인 필드를 찾을 수 없습니다");
+
+    await emailInput.type(email, { delay: 50 });
+    await delay(300);
+    await pwInput.type(pw, { delay: 50 });
+    await delay(300);
+
+    const loginBtn = await page.$('button[type="submit"], .login__button, [class*="login-btn"]');
+    if (loginBtn) await loginBtn.click();
+    else await page.keyboard.press("Enter");
+    await delay(3000);
+
+    const url = page.url();
+    console.log("[Coupang] 1. 로그인 후:", url);
+    if (url.includes("login")) throw new Error("로그인 실패 - 이메일/비밀번호를 확인하세요");
+
+    // SMS 인증 체크
+    const bodyText = await page.evaluate(() => document.body.innerText);
+    if (bodyText.includes("인증") && (bodyText.includes("번호") || bodyText.includes("SMS"))) {
+      throw new Error("SMS 인증이 필요합니다. 쿠팡 앱에서 먼저 로그인하세요");
+    }
+
+    // 2. 주문내역 페이지
+    console.log("[Coupang] 2. 주문내역 이동");
+    await page.goto("https://mc.coupang.com/ssr/desktop/order/list", { waitUntil: "domcontentloaded" });
+    await delay(3000);
+
+    // 3. 주문 파싱
+    console.log("[Coupang] 3. 주문 파싱");
+    const orders = await page.evaluate(() => {
+      const results = [];
+      const text = document.body.innerText;
+      // "YYYY. M. D 주문" 패턴으로 블록 분리
+      const blocks = text.split(/(\d{4}\.\s*\d{1,2}\.\s*\d{1,2}\s*주문)/);
+
+      for (let i = 0; i < blocks.length; i++) {
+        const dateMatch = blocks[i].match(/(\d{4}\.\s*\d{1,2}\.\s*\d{1,2})\s*주문/);
+        if (dateMatch && i + 1 < blocks.length) {
+          const orderDate = dateMatch[1].replace(/\s/g, "");
+          const content = blocks[i + 1];
+          const lines = content.split("\n").map(l => l.trim()).filter(l => l);
+          const products = [];
+
+          for (const line of lines) {
+            // "상품명, 옵션, N개" 패턴
+            const qtyMatch = line.match(/(\d+)\s*개\s*$/);
+            if (qtyMatch && line.length > 5) {
+              const qty = parseInt(qtyMatch[1]);
+              const name = line.slice(0, qtyMatch.index).trim().replace(/,\s*$/, "");
+              if (name.length > 2) {
+                products.push({ product_name: name, quantity: qty });
+              }
+            }
+            // 금액 패턴
+            const priceMatch = line.match(/^([\d,]+)\s*원$/);
+            if (priceMatch && products.length > 0 && !products[products.length - 1].price) {
+              products[products.length - 1].price = parseInt(priceMatch[1].replace(/,/g, ""));
+            }
+          }
+
+          if (products.length) {
+            results.push({ order_date: orderDate, products });
+          }
+        }
+      }
+      return results;
+    });
+
+    console.log("[Coupang] 3. 주문", orders.length, "건");
+    const totalProducts = orders.reduce((sum, o) => sum + o.products.length, 0);
+    return { orders, totalProducts };
+
+  } finally {
+    await browser.close();
+  }
+}
+
+exports.crawlCoupangOrders = onCall(
+  {
+    memory: "2GiB",
+    timeoutSeconds: 300,
+    region: "asia-northeast3",
+    cors: true,
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "로그인이 필요합니다");
+    }
+    const uid = request.auth.uid;
+    const nowStr = new Date().toISOString().replace("T", " ").slice(0, 19);
+
+    // 쿠팡 계정 읽기
+    let coupangData;
+    try {
+      const snap = await admin.database().ref(`users/${uid}/coupangAccount`).once("value");
+      coupangData = snap.val();
+    } catch (e) {
+      throw new HttpsError("internal", "쿠팡 계정 조회 실패");
+    }
+    if (!coupangData || !coupangData.email || !coupangData.pw) {
+      throw new HttpsError("failed-precondition", "쿠팡 계정이 등록되어 있지 않습니다. 설정에서 먼저 등록해주세요.");
+    }
+
+    let email, pw;
+    try {
+      email = decryptAES(coupangData.email, uid);
+      pw = decryptAES(coupangData.pw, uid);
+    } catch (e) {
+      throw new HttpsError("internal", "쿠팡 계정 복호화 실패");
+    }
+
+    let result;
+    try {
+      result = await crawlCoupangOrders(email, pw);
+    } catch (e) {
+      throw new HttpsError("internal", "쿠팡 크롤링 실패: " + (e.message || String(e)));
+    }
+
+    // Firebase 저장
+    const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" });
+    try {
+      await admin.database().ref(`users/${uid}/coupangOrders/${today}`).set({
+        date: today,
+        updated_at: nowStr,
+        total_orders: result.orders.length,
+        total_products: result.totalProducts,
+        orders: result.orders,
+      });
+    } catch (e) {
+      throw new HttpsError("internal", "데이터 저장 실패");
+    }
+
+    return {
+      success: true,
+      total_orders: result.orders.length,
+      total_products: result.totalProducts,
+      message: `쿠팡 주문 ${result.orders.length}건, 상품 ${result.totalProducts}개 수집 완료`,
+    };
+  }
+);
