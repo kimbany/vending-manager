@@ -256,30 +256,69 @@ async def crawl_coupang_orders(email, pw, save_path):
             # 1. 로그인 페이지
             print("  [1] 쿠팡 로그인")
             debug_log.append("[1] 로그인 시도")
-            await page.goto("https://login.coupang.com/login/login.pang", wait_until="domcontentloaded")
-            await page.wait_for_timeout(3000)
+
+            # 먼저 쿠팡 메인 페이지 방문 (사람처럼 행동)
+            await page.goto("https://www.coupang.com", wait_until="domcontentloaded")
+            await page.wait_for_timeout(3000 + int(2000 * __import__('random').random()))
+
+            # 로그인 페이지로 이동
+            await page.goto("https://login.coupang.com/login/login.pang?rtnUrl=https%3A%2F%2Fwww.coupang.com%2F", wait_until="domcontentloaded")
+            await page.wait_for_timeout(5000 + int(3000 * __import__('random').random()))
 
             login_url = page.url
             debug_log.append(f"[1] URL: {login_url}")
 
-            # 이메일/비밀번호 입력
-            email_input = page.locator('input[type="email"], input[name="email"], #login-email-input')
-            pw_input = page.locator('input[type="password"], input[name="password"], #login-password-input')
+            # 이메일/비밀번호 입력 - 여러 셀렉터 시도
+            email_input = None
+            pw_input = None
 
-            email_count = await email_input.count()
-            pw_count = await pw_input.count()
-            debug_log.append(f"[1] email필드: {email_count}개, pw필드: {pw_count}개")
+            email_selectors = ['#login-email-input', 'input[name="email"]', 'input[type="email"]', 'input[placeholder*="이메일"]', 'input[placeholder*="아이디"]']
+            pw_selectors = ['#login-password-input', 'input[name="password"]', 'input[type="password"]']
 
-            if email_count > 0:
-                await email_input.first.fill(email)
-                await page.wait_for_timeout(300)
-            else:
+            for sel in email_selectors:
+                loc = page.locator(sel)
+                if await loc.count() > 0:
+                    email_input = loc.first
+                    debug_log.append(f"[1] email 찾음: {sel}")
+                    break
+
+            for sel in pw_selectors:
+                loc = page.locator(sel)
+                if await loc.count() > 0:
+                    pw_input = loc.first
+                    debug_log.append(f"[1] pw 찾음: {sel}")
+                    break
+
+            # 그래도 못 찾으면 모든 visible input 시도
+            if not email_input or not pw_input:
+                all_inputs = page.locator('input:not([type="hidden"])')
+                input_count = await all_inputs.count()
+                debug_log.append(f"[1] visible input: {input_count}개")
+                if input_count >= 2:
+                    email_input = all_inputs.nth(0)
+                    pw_input = all_inputs.nth(1)
+                    debug_log.append("[1] input 순서로 할당")
+
+            if not email_input or not pw_input:
+                # 페이지 HTML 일부 저장 (디버깅)
+                html_snippet = await page.evaluate('() => document.body.innerHTML.substring(0, 1000)')
+                debug_log.append(f"[1] HTML: {html_snippet[:500]}")
                 debug_log.append("[1] 이메일 필드 못 찾음")
                 rtdb.reference(f'{save_path}/_debug').set({'log': debug_log, 'updated_at': now_str})
                 return 0
 
-            if pw_count > 0:
-                await pw_input.first.fill(pw)
+            # 사람처럼 천천히 입력
+            await email_input.click()
+            await page.wait_for_timeout(500 + int(500 * __import__('random').random()))
+            for char in email:
+                await email_input.type(char, delay=50 + int(100 * __import__('random').random()))
+            await page.wait_for_timeout(800 + int(500 * __import__('random').random()))
+
+            await pw_input.click()
+            await page.wait_for_timeout(500 + int(500 * __import__('random').random()))
+            for char in pw:
+                await pw_input.type(char, delay=50 + int(100 * __import__('random').random()))
+            await page.wait_for_timeout(1000 + int(500 * __import__('random').random()))
                 await page.wait_for_timeout(300)
 
             # 로그인 버튼 클릭
