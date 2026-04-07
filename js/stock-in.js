@@ -194,21 +194,87 @@ function findMappedProduct(coupangName){
   return _productMappings.find(function(m){ return m.coupangProductName === coupangName; });
 }
 
-// ─── 쿠팡 구매내역 크롤링 ────────────────────────────────────────────────────
+// ─── 쿠팡 구매내역 크롤링 (GitHub Actions 트리거) ─────────────────────────────
 function crawlCoupangPurchases(){
   if(!currentUser){showToast('❌ 로그인 필요');return;}
   var btn = document.getElementById('coupang-crawl-btn');
-  btn.textContent = '⏳ 쿠팡에서 구매내역 수집 중...'; btn.disabled = true;
 
-  var fn = firebase.app().functions('asia-northeast3').httpsCallable('crawlCoupangOrders', {timeout: 300000});
-  fn().then(function(result){
-    var d = result.data;
-    showToast('✅ ' + d.message);
-    btn.textContent = '🛒 쿠팡 구매내역 불러오기'; btn.disabled = false;
-    loadCoupangPending();
-  }).catch(function(e){
-    btn.textContent = '🛒 쿠팡 구매내역 불러오기'; btn.disabled = false;
-    showToast('❌ ' + (e.message || '쿠팡 크롤링 실패'));
+  db.ref('users/'+currentUser.uid+'/settings/githubPat').once('value').then(function(snap){
+    var pat = snap.val();
+    if(!pat){
+      showToast('⚠️ 설정 → VMMS → GitHub 토큰을 먼저 등록하세요');
+      return;
+    }
+    btn.textContent = '⏳ 쿠팡 크롤링 요청 중...'; btn.disabled = true;
+
+    fetch('https://api.github.com/repos/kimbany/vending-manager/actions/workflows/coupang-crawl.yml/dispatches', {
+      method: 'POST',
+      headers: {'Authorization': 'token '+pat, 'Accept': 'application/vnd.github.v3+json'},
+      body: JSON.stringify({ref: 'main'})
+    }).then(function(res){
+      btn.textContent = '🛒 쿠팡 구매내역 불러오기'; btn.disabled = false;
+      if(res.status === 204){
+        showToast('✅ 쿠팡 크롤링 시작! 2~3분 후 아래 버튼으로 데이터를 가져오세요');
+        // 자동으로 2분 후 데이터 로드 시도
+        setTimeout(function(){ loadCoupangOrders(); }, 120000);
+      } else {
+        showToast('❌ 요청 실패: '+res.status);
+      }
+    }).catch(function(){
+      btn.textContent = '🛒 쿠팡 구매내역 불러오기'; btn.disabled = false;
+      showToast('❌ 네트워크 오류');
+    });
+  });
+}
+
+// ─── Firebase에서 쿠팡 주문 데이터 로드 → 미입고 구매 목록 생성 ──────────────
+function loadCoupangOrders(){
+  if(!currentUser) return;
+  showToast('⏳ 쿠팡 데이터 확인 중...');
+
+  db.ref('users/'+currentUser.uid+'/coupangOrders').orderByKey().limitToLast(7).once('value').then(function(snap){
+    var data = snap.val();
+    if(!data){showToast('📭 쿠팡 주문 데이터 없음');return;}
+
+    // 기존 purchases 로드
+    db.ref('users/'+currentUser.uid+'/purchases').once('value').then(function(pSnap){
+      var purchases = pSnap.val() || [];
+      if(!Array.isArray(purchases)) purchases = Object.values(purchases);
+      var existingNames = {};
+      purchases.forEach(function(p){ existingNames[p.coupangProductName+'_'+p.purchaseDate] = true; });
+
+      var added = 0;
+      Object.keys(data).forEach(function(dateKey){
+        var dayData = data[dateKey];
+        var orders = dayData.orders || [];
+        if(!Array.isArray(orders)) orders = Object.values(orders);
+        orders.forEach(function(order){
+          var products = order.products || [];
+          if(!Array.isArray(products)) products = Object.values(products);
+          var orderDate = (order.order_date||'').replace(/\./g,'-').replace(/\s/g,'');
+          products.forEach(function(prod){
+            var key = prod.product_name+'_'+orderDate;
+            if(existingNames[key]) return; // 중복 방지
+            purchases.push({
+              id: Date.now().toString()+Math.random().toString(36).substr(2,4),
+              coupangProductName: prod.product_name,
+              quantity: prod.quantity || 1,
+              totalPrice: prod.price || 0,
+              unitPrice: prod.price && prod.quantity ? Math.round(prod.price / prod.quantity) : 0,
+              purchaseDate: orderDate,
+              status: 'pending'
+            });
+            existingNames[key] = true;
+            added++;
+          });
+        });
+      });
+
+      db.ref('users/'+currentUser.uid+'/purchases').set(purchases).then(function(){
+        showToast('✅ 쿠팡 주문 '+added+'건 추가');
+        loadCoupangPending();
+      });
+    });
   });
 }
 
