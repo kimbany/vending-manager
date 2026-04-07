@@ -723,22 +723,27 @@ async function crawlCoupangOrders(email, pw) {
   try {
     // 1. 로그인
     console.log("[Coupang] 1. 로그인");
-    await page.goto("https://login.coupang.com/login/login.pang", { waitUntil: "domcontentloaded" });
-    await delay(2000);
+    await page.goto("https://login.coupang.com/login/login.pang", { waitUntil: "networkidle2" });
+    await delay(3000);
 
-    const emailInput = await page.$('input[type="email"], input[name="email"], #login-email-input');
-    const pwInput = await page.$('input[type="password"], input[name="password"], #login-password-input');
+    // 이메일 필드 대기 후 찾기
+    await page.waitForSelector('#login-email-input, input[name="email"]', { timeout: 10000 });
+    const emailInput = await page.$('#login-email-input') || await page.$('input[name="email"]');
+    const pwInput = await page.$('#login-password-input') || await page.$('input[name="password"]');
     if (!emailInput || !pwInput) throw new Error("로그인 필드를 찾을 수 없습니다");
 
-    await emailInput.type(email, { delay: 50 });
+    await emailInput.click();
+    await emailInput.type(email, { delay: 30 });
     await delay(300);
-    await pwInput.type(pw, { delay: 50 });
+    await pwInput.click();
+    await pwInput.type(pw, { delay: 30 });
     await delay(300);
 
-    const loginBtn = await page.$('button[type="submit"], .login__button, [class*="login-btn"]');
+    // 로그인 버튼
+    const loginBtn = await page.$('button[type="submit"]') || await page.$('.login__button');
     if (loginBtn) await loginBtn.click();
     else await page.keyboard.press("Enter");
-    await delay(3000);
+    await delay(5000);
 
     const url = page.url();
     console.log("[Coupang] 1. 로그인 후:", url);
