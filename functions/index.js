@@ -724,13 +724,43 @@ async function crawlCoupangOrders(email, pw) {
     // 1. 로그인
     console.log("[Coupang] 1. 로그인");
     await page.goto("https://login.coupang.com/login/login.pang", { waitUntil: "networkidle2" });
-    await delay(3000);
+    await delay(5000);
 
-    // 이메일 필드 대기 후 찾기
-    await page.waitForSelector('#login-email-input, input[name="email"]', { timeout: 10000 });
-    const emailInput = await page.$('#login-email-input') || await page.$('input[name="email"]');
-    const pwInput = await page.$('#login-password-input') || await page.$('input[name="password"]');
-    if (!emailInput || !pwInput) throw new Error("로그인 필드를 찾을 수 없습니다");
+    // 페이지 상태 디버깅
+    const pageUrl = page.url();
+    const inputCount = await page.evaluate(() => document.querySelectorAll('input').length);
+    console.log("[Coupang] URL:", pageUrl, "input 수:", inputCount);
+
+    // 모든 input 셀렉터 시도
+    let emailInput = null, pwInput = null;
+    const emailSelectors = ['#login-email-input', 'input[name="email"]', 'input[type="email"]', 'input[placeholder*="이메일"]', 'input[placeholder*="아이디"]'];
+    const pwSelectors = ['#login-password-input', 'input[name="password"]', 'input[type="password"]'];
+
+    for (const sel of emailSelectors) {
+      emailInput = await page.$(sel);
+      if (emailInput) { console.log("[Coupang] 이메일 필드:", sel); break; }
+    }
+    for (const sel of pwSelectors) {
+      pwInput = await page.$(sel);
+      if (pwInput) { console.log("[Coupang] 비밀번호 필드:", sel); break; }
+    }
+
+    // 그래도 못 찾으면 input 태그 순서로
+    if (!emailInput || !pwInput) {
+      const allInputs = await page.$$('input:not([type="hidden"])');
+      console.log("[Coupang] visible input 수:", allInputs.length);
+      if (allInputs.length >= 2) {
+        emailInput = allInputs[0];
+        pwInput = allInputs[1];
+        console.log("[Coupang] input 순서로 할당");
+      }
+    }
+
+    if (!emailInput || !pwInput) {
+      const html = await page.evaluate(() => document.body.innerHTML.substring(0, 500));
+      console.log("[Coupang] HTML:", html);
+      throw new Error("로그인 필드를 찾을 수 없습니다");
+    }
 
     await emailInput.click();
     await emailInput.type(email, { delay: 30 });
