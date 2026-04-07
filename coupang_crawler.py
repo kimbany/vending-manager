@@ -223,7 +223,9 @@ async def get_order_detail_amounts(page, detail_url):
 async def crawl_coupang_orders(email, pw, save_path):
     today = datetime.now().strftime("%Y-%m-%d")
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    debug_log = []  # Firebase에 저장할 디버그 로그
     print(f"  쿠팡 크롤링 시작 (계정: {email[:5]}***)")
+    debug_log.append(f"크롤링 시작: {email[:5]}***")
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(
@@ -243,22 +245,30 @@ async def crawl_coupang_orders(email, pw, save_path):
         try:
             # 1. 로그인 페이지
             print("  [1] 쿠팡 로그인")
+            debug_log.append("[1] 로그인 시도")
             await page.goto("https://login.coupang.com/login/login.pang", wait_until="domcontentloaded")
-            await page.wait_for_timeout(2000)
+            await page.wait_for_timeout(3000)
+
+            login_url = page.url
+            debug_log.append(f"[1] URL: {login_url}")
 
             # 이메일/비밀번호 입력
             email_input = page.locator('input[type="email"], input[name="email"], #login-email-input')
             pw_input = page.locator('input[type="password"], input[name="password"], #login-password-input')
 
-            if await email_input.count() > 0:
+            email_count = await email_input.count()
+            pw_count = await pw_input.count()
+            debug_log.append(f"[1] email필드: {email_count}개, pw필드: {pw_count}개")
+
+            if email_count > 0:
                 await email_input.first.fill(email)
                 await page.wait_for_timeout(300)
             else:
-                print("  [1] 이메일 입력 필드 못 찾음")
-                await page.screenshot(path="coupang_login_error.png")
+                debug_log.append("[1] 이메일 필드 못 찾음")
+                rtdb.reference(f'{save_path}/_debug').set({'log': debug_log, 'updated_at': now_str})
                 return 0
 
-            if await pw_input.count() > 0:
+            if pw_count > 0:
                 await pw_input.first.fill(pw)
                 await page.wait_for_timeout(300)
 
@@ -273,32 +283,31 @@ async def crawl_coupang_orders(email, pw, save_path):
 
             # 로그인 결과 확인
             current_url = page.url
-            print(f"  [1] 로그인 후 URL: {current_url}")
+            debug_log.append(f"[1] 로그인 후 URL: {current_url}")
 
             # SMS 인증 체크
             body_text = await page.inner_text('body')
             if '인증' in body_text and ('번호' in body_text or 'SMS' in body_text or '코드' in body_text):
-                print("  [1] ⚠️ SMS 인증 요구됨 - 크롤링 중단")
-                await page.screenshot(path="coupang_sms_required.png")
-                return -1  # SMS 인증 필요 신호
+                debug_log.append("[1] SMS 인증 요구됨")
+                rtdb.reference(f'{save_path}/_debug').set({'log': debug_log, 'updated_at': now_str, 'status': 'sms_required'})
+                return -1
 
             if 'login' in current_url.lower():
-                print("  [1] ❌ 로그인 실패")
-                await page.screenshot(path="coupang_login_fail.png")
+                debug_log.append("[1] 로그인 실패")
+                rtdb.reference(f'{save_path}/_debug').set({'log': debug_log, 'updated_at': now_str, 'status': 'login_failed'})
                 return 0
 
-            print("  [1] ✅ 로그인 성공")
+            debug_log.append("[1] 로그인 성공")
 
             # 2. 주문내역 페이지
-            print("  [2] 주문내역 페이지 이동")
+            debug_log.append("[2] 주문내역 페이지 이동")
             await page.goto(COUPANG_ORDER_URL, wait_until="domcontentloaded")
             await page.wait_for_timeout(3000)
 
-            await page.screenshot(path=f"coupang_orders_{email[:5]}.png")
-            print(f"  [2] 현재 URL: {page.url}")
+            debug_log.append(f"[2] URL: {page.url}")
 
             # 3. 주문 데이터 파싱
-            print("  [3] 주문 데이터 파싱")
+            debug_log.append("[3] 주문 파싱 시작")
             orders = await parse_order_page(page)
 
             # 오늘/최근 주문만 필터
@@ -312,15 +321,9 @@ async def crawl_coupang_orders(email, pw, save_path):
                 today_orders.append(order)
 
             total_products = sum(len(o.get('products', [])) for o in today_orders)
-            print(f"  [3] 주문 {len(today_orders)}건, 상품 {total_products}개")
+            debug_log.append(f"[3] 주문 {len(today_orders)}건, 상품 {total_products}개")
 
-            # 디버깅: 각 주문 출력
-            for o in today_orders:
-                print(f"  주문일: {o.get('order_date', '-')}")
-                for prod in o.get('products', []):
-                    print(f"    - {prod.get('product_name', '')} x{prod.get('quantity', 1)} [{prod.get('delivery_status', '')}]")
-
-            # 4. Firebase 저장 (0건이어도 저장 - 디버깅용)
+            # 4. Firebase 저장 (0건이어도 저장 + 디버그 로그 포함)
             save_data = {
                 'date': today,
                 'updated_at': now_str,
@@ -328,6 +331,7 @@ async def crawl_coupang_orders(email, pw, save_path):
                 'total_products': total_products,
                 'orders': today_orders,
                 'login_url': current_url,
+                'debug_log': debug_log,
             }
             rtdb.reference(f'{save_path}/{today}').set(save_data)
             print(f"  [4] Firebase 저장 완료 ({save_path}/{today}, {total_products}건)")
@@ -336,7 +340,9 @@ async def crawl_coupang_orders(email, pw, save_path):
 
         except Exception as e:
             print(f"  오류: {e}")
+            debug_log.append(f"오류: {str(e)}")
             try:
+                rtdb.reference(f'{save_path}/_debug').set({'log': debug_log, 'updated_at': now_str, 'status': 'error', 'error': str(e)})
                 await page.screenshot(path="coupang_error.png")
             except:
                 pass
