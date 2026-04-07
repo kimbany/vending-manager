@@ -889,21 +889,36 @@
     <!-- +/- 입력 -->
     <div style="margin-bottom:14px">
       <div class="fr" style="margin-bottom:8px">
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
-          <button class="dbtn plus active" id="idm-dir-plus" onclick="setIdmDir('plus')">➕ 입고</button>
-          <button class="dbtn minus" id="idm-dir-minus" onclick="setIdmDir('minus')">➖ 출고</button>
-          <button class="dbtn" id="idm-dir-set" onclick="setIdmDir('set')" style="font-size:14px">📝 재고설정</button>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+          <button class="dbtn plus active" id="idm-dir-plus" onclick="setIdmDir('plus')">➕ 수기 입고</button>
+          <button class="dbtn minus" id="idm-dir-minus" onclick="setIdmDir('minus')">➖ 수기 차감</button>
         </div>
       </div>
-      <div class="f2" style="margin-bottom:8px">
-        <div><label class="lbl">수량</label><input type="number" id="idm-qty" placeholder="수량" min="1"/></div>
-        <div><label class="lbl">메모</label><input type="text" id="idm-memo" placeholder="메모 (선택)"/></div>
+      <div id="idm-input-plus" style="margin-bottom:8px">
+        <div class="f2" style="margin-bottom:6px">
+          <div><label class="lbl">수량</label><input type="number" id="idm-qty" placeholder="수량" min="1"/></div>
+          <div><label class="lbl">총 금액 (원)</label><input type="number" id="idm-cost" placeholder="구매 총액"/></div>
+        </div>
+        <div class="f2" style="margin-bottom:6px">
+          <div><label class="lbl">날짜</label><input type="date" id="idm-date"/></div>
+          <div><label class="lbl">메모</label><input type="text" id="idm-memo" placeholder="슈퍼 구매 등"/></div>
+        </div>
+        <div id="idm-calc" style="font-size:12px;color:var(--text3);margin-bottom:6px"></div>
       </div>
-      <button class="btn-p" style="margin-bottom:0" onclick="submitIdmInventory()">확인</button>
+      <div id="idm-input-minus" style="display:none;margin-bottom:8px">
+        <div class="f2" style="margin-bottom:6px">
+          <div><label class="lbl">수량</label><input type="number" id="idm-minus-qty" placeholder="수량" min="1"/></div>
+          <div><label class="lbl">사유</label><input type="text" id="idm-minus-memo" placeholder="분실, 파손 등"/></div>
+        </div>
+      </div>
+      <button class="btn-p" style="margin-bottom:0" onclick="submitIdmStockChange()">확인</button>
     </div>
-    <!-- 내역 -->
-    <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px">📋 입출고 내역</div>
-    <div id="idm-logs" style="max-height:220px;overflow-y:auto"></div>
+    <!-- 입고 내역 -->
+    <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px">📦 입고 내역</div>
+    <div id="idm-stock-in-logs" style="max-height:180px;overflow-y:auto;margin-bottom:12px"></div>
+    <!-- 차감 내역 -->
+    <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px">📋 차감 내역</div>
+    <div id="idm-deduction-logs" style="max-height:150px;overflow-y:auto"></div>
   </div>
 </div>
 
@@ -1082,6 +1097,7 @@
 <script src="js/double-column.js"></script>
 <script src="js/bulk.js"></script>
 <script src="js/coupang.js"></script>
+<script src="js/stock-in.js"></script>
 <script src="js/crawl.js"></script>
 <script src="js/lock.js"></script>
 <script src="js/ui.js"></script>

@@ -453,7 +453,7 @@ function submitInventory(){
   renderAll();
 }
 
-// ─── 재고 상세 팝업 ───────────────────────────────────────────────────────────
+// ─── 재고 상세 팝업 (batch 기반) ──────────────────────────────────────────────
 var idmDir = 'plus';
 var idmPid = '';
 
@@ -461,8 +461,14 @@ function openInvDetail(el){
   var pid = (typeof el === 'string') ? el : el.dataset.pid;
   idmPid = pid;
   idmDir = 'plus';
+  initStockData();
   document.getElementById('idm-qty').value='';
+  document.getElementById('idm-cost').value='';
+  document.getElementById('idm-date').value=td();
   document.getElementById('idm-memo').value='';
+  document.getElementById('idm-minus-qty').value='';
+  document.getElementById('idm-minus-memo').value='';
+  document.getElementById('idm-calc').textContent='';
   setIdmDir('plus');
   renderIdmDetail();
   openModal('inv-detail-modal');
@@ -488,9 +494,8 @@ function setIdmDir(d){
   idmDir = d;
   document.getElementById('idm-dir-plus').className='dbtn plus'+(d==='plus'?' active':'');
   document.getElementById('idm-dir-minus').className='dbtn minus'+(d==='minus'?' active':'');
-  document.getElementById('idm-dir-set').className='dbtn'+(d==='set'?' active':'');
-  if(d==='set') document.getElementById('idm-dir-set').style.background=d==='set'?'rgba(0,100,255,.1)':'';
-  else document.getElementById('idm-dir-set').style.background='';
+  document.getElementById('idm-input-plus').style.display = d==='plus' ? 'block' : 'none';
+  document.getElementById('idm-input-minus').style.display = d==='minus' ? 'block' : 'none';
 }
 
 function renderIdmDetail(){
@@ -498,7 +503,8 @@ function renderIdmDetail(){
   if(!p) p = _invPageProds.find(function(x){return x.id===idmPid;});
   if(!p && typeof _vmViewProds !== 'undefined') p = _vmViewProds.find(function(x){return x.id===idmPid;});
   if(!p) return;
-  var q = gq(idmPid);
+  initStockData();
+  var q = getStockQty(idmPid);
   var lw = q<=5;
 
   // 상단 재고 현황
@@ -509,119 +515,79 @@ function renderIdmDetail(){
     '<span style="font-size:15px;font-weight:400;color:var(--text2);margin-left:6px">개</span></div>'+
     (lw?'<div style="font-size:11px;color:var(--red);margin-top:4px">⚠️ 재고 부족</div>':'');
 
-  // ── 입출고 로그 (수동) ──────────────────────────────────────────────────────
-  var invLogs = D.inventoryLogs.filter(function(l){ return l.productId===idmPid; });
-  var manualLogs = [];
-  invLogs.forEach(function(l){
-    var delta = (typeof l.delta !== 'undefined') ? l.delta : (l.dir==='minus' ? -(l.qty||0) : (l.qty||0));
-    var isSalesAuto = l.memo && (l.memo.indexOf('자동차감')>=0 || l.memo.indexOf('판매데이터')>=0 || l.memo.indexOf('환불')>=0);
-    if(!isSalesAuto){
-      manualLogs.push({delta:delta, date:l.date||'', memo:l.memo||'', isSales:false, isManual:true, isSet:l.type==='set', setQty:l.setQty});
-    }
-  });
-
-  // ── 판매 데이터 날짜별 합산 (실제 매출 날짜 기준) ──────────────────────────
-  var salesByDate = {};
-  D.salesData.filter(function(s){ return s.productId===idmPid && !s.cancelled; }).forEach(function(s){
-    var key = s.date||'';
-    if(!salesByDate[key]) salesByDate[key] = 0;
-    salesByDate[key] -= (s.qty||1); // 판매 = 재고 차감
-  });
-  var salesLogs = Object.keys(salesByDate).map(function(date){
-    return {delta:salesByDate[date], date:date, memo:'판매 차감', isSales:true};
-  });
-
-  // ── 환불 로그 (inventoryLogs 중 환불처리) ─────────────────────────────────
-  var refundLogs = [];
-  invLogs.forEach(function(l){
-    var delta = (typeof l.delta !== 'undefined') ? l.delta : (l.dir==='minus' ? -(l.qty||0) : (l.qty||0));
-    var isRefund = l.memo && l.memo.indexOf('환불')>=0;
-    if(isRefund){
-      refundLogs.push({delta:delta, date:l.date||'', memo:l.memo||'', isSales:false, isRefund:true});
-    }
-  });
-
-  // ── 전체 합쳐서 날짜 내림차순 정렬 ──────────────────────────────────────────
-  var allLogs = manualLogs.concat(salesLogs).concat(refundLogs)
-    .filter(function(l){ return l.date; })
-    .sort(function(a,b){
-      // 날짜 내림차순, 같은 날짜면 판매차감이 아래
-      var dc = b.date.localeCompare(a.date);
-      if(dc !== 0) return dc;
-      if(a.isSales && !b.isSales) return 1;
-      if(!a.isSales && b.isSales) return -1;
-      return 0;
-    });
-
-  if(!allLogs.length){
-    document.getElementById('idm-logs').innerHTML='<div style="text-align:center;padding:16px;color:var(--text3);font-size:13px">내역이 없어요</div>';
-    return;
+  // ── 입고 내역 (batch 리스트) ────────────────────────────────────────────────
+  var batches = getStockInHistory(idmPid);
+  var stockInEl = document.getElementById('idm-stock-in-logs');
+  if(!batches.length){
+    stockInEl.innerHTML='<div style="text-align:center;padding:12px;color:var(--text3);font-size:12px">입고 내역 없음</div>';
+  } else {
+    stockInEl.innerHTML = batches.map(function(b){
+      var status = b.remainingQty > 0 ? '판매중' : '소진';
+      var statusColor = b.remainingQty > 0 ? 'var(--green)' : 'var(--text3)';
+      var statusBg = b.remainingQty > 0 ? 'rgba(122,218,154,.12)' : 'var(--bg3)';
+      var sourceLabel = b.source==='coupang' ? '쿠팡' : '수기';
+      var sourceBg = b.source==='coupang' ? 'rgba(0,100,255,.08)' : 'rgba(232,184,109,.1)';
+      var sourceColor = b.source==='coupang' ? 'var(--blue)' : '#B8860B';
+      return '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px">'+
+        '<div style="flex:1;min-width:0">'+
+          '<div style="color:var(--text3);font-size:11px">'+b.date+(b.memo?' · '+b.memo:'')+'</div>'+
+          '<div style="margin-top:2px"><strong>'+b.quantity+'개</strong> × '+fmt(b.unitCost)+'원'+
+          ' <span style="color:var(--text3)">→ 남은 '+b.remainingQty+'개</span></div>'+
+        '</div>'+
+        '<span style="font-size:10px;background:'+sourceBg+';color:'+sourceColor+';border-radius:4px;padding:2px 6px;font-weight:600">'+sourceLabel+'</span>'+
+        '<span style="font-size:10px;background:'+statusBg+';color:'+statusColor+';border-radius:4px;padding:2px 6px;font-weight:600">'+status+'</span>'+
+      '</div>';
+    }).join('');
   }
 
-  document.getElementById('idm-logs').innerHTML = allLogs.map(function(l){
-    var isPlus  = l.delta >= 0;
-    var absQty  = Math.abs(l.delta);
-    var isSales = l.isSales;
-    var isRefund= l.isRefund;
-    var isSet   = l.isSet;
-
-    // 재고설정은 별도 표시
-    if(isSet){
-      return '<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">'+
-        '<div style="min-width:36px;text-align:center">'+
-          '<span style="font-size:18px;font-weight:800;color:var(--blue)">'+(l.setQty||absQty)+'</span>'+
-        '</div>'+
+  // ── 차감 내역 ──────────────────────────────────────────────────────────────
+  var deductions = getDeductionHistory(idmPid);
+  var deductEl = document.getElementById('idm-deduction-logs');
+  if(!deductions.length){
+    deductEl.innerHTML='<div style="text-align:center;padding:12px;color:var(--text3);font-size:12px">차감 내역 없음</div>';
+  } else {
+    deductEl.innerHTML = deductions.slice(0,20).map(function(d){
+      var isSale = d.reason==='sale';
+      var tagLabel = isSale ? '판매' : d.memo || '수기';
+      var tagColor = isSale ? 'var(--red)' : 'var(--text3)';
+      var tagBg = isSale ? 'rgba(224,88,88,.1)' : 'var(--bg3)';
+      return '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px">'+
+        '<span style="font-size:15px;font-weight:800;color:var(--red)">-'+d.quantity+'</span>'+
         '<div style="flex:1;min-width:0">'+
-          '<div style="font-size:11px;color:var(--text3)">'+l.date+'</div>'+
-          '<div style="font-size:12px;color:var(--blue);margin-top:1px;font-weight:600">'+l.memo+'</div>'+
+          '<div style="color:var(--text3);font-size:11px">'+d.date+'</div>'+
         '</div>'+
-        '<span style="font-size:10px;background:rgba(0,100,255,.1);color:var(--blue);border-radius:4px;padding:2px 7px;font-weight:600">재고설정</span>'+
+        '<span style="font-size:10px;background:'+tagBg+';color:'+tagColor+';border-radius:4px;padding:2px 6px;font-weight:600">'+tagLabel+'</span>'+
       '</div>';
-    }
-
-    // 태그/색상 결정
-    var tagLabel = isSales ? '판매차감' : isRefund ? '환불' : isPlus ? '입고' : '출고';
-    var tagBg    = isSales ? 'rgba(224,88,88,.15)'   : isRefund ? 'rgba(122,218,154,.15)' : isPlus ? 'rgba(122,218,154,.15)' : 'var(--bg3)';
-    var tagColor = isSales ? 'var(--red)'             : isRefund ? 'var(--green)'          : isPlus ? 'var(--green)'          : 'var(--text3)';
-    var numColor = isPlus  ? 'var(--green)' : 'var(--red)';
-    var memoColor= isSales ? 'var(--red)'   : isRefund ? 'var(--green)' : isPlus ? 'var(--green)' : 'var(--text2)';
-    return '<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">'+
-      '<div style="min-width:36px;text-align:center">'+
-        '<span style="font-size:18px;font-weight:800;color:'+numColor+'">'+(isPlus?'+':'-')+absQty+'</span>'+
-      '</div>'+
-      '<div style="flex:1;min-width:0">'+
-        '<div style="font-size:11px;color:var(--text3)">'+l.date+'</div>'+
-        '<div style="font-size:12px;color:'+memoColor+';margin-top:1px;font-weight:'+(isSales||isRefund?'600':'400')+'">'+l.memo+'</div>'+
-      '</div>'+
-      '<span style="font-size:10px;background:'+tagBg+';color:'+tagColor+';border-radius:4px;padding:2px 7px;font-weight:600">'+tagLabel+'</span>'+
-    '</div>';
-  }).join('');
+    }).join('');
+  }
 }
 
-function submitIdmInventory(){
-  var qty = parseInt(document.getElementById('idm-qty').value);
-  var memo = document.getElementById('idm-memo').value.trim();
-  if(isNaN(qty)||(idmDir!=='set'&&qty<=0)){showToast('❌ 수량을 입력하세요');return;}
-  if(idmDir==='set' && isNaN(qty)){showToast('❌ 수량을 입력하세요');return;}
-
-  if(idmDir==='set'){
-    // 재고 설정 (덮어쓰기)
-    var currentQty = gq(idmPid);
-    var delta = qty - currentQty;
-    var idx = D.inventory.findIndex(function(i){return i.productId===idmPid;});
-    if(idx>=0) D.inventory[idx].qty = qty;
-    else D.inventory.push({productId:idmPid, qty:qty});
-    D.inventoryLogs.push({id:Date.now().toString()+Math.random(), productId:idmPid, delta:delta, type:'set', setQty:qty, memo:memo||'재고 설정 ('+currentQty+'→'+qty+')', date:td()});
+function submitIdmStockChange(){
+  if(idmDir==='plus'){
+    // 수기 입고 → batch 생성
+    var qty = parseInt(document.getElementById('idm-qty').value);
+    var cost = parseFloat(document.getElementById('idm-cost').value) || 0;
+    var date = document.getElementById('idm-date').value || td();
+    var memo = document.getElementById('idm-memo').value.trim();
+    if(isNaN(qty)||qty<=0){showToast('❌ 수량을 입력하세요');return;}
+    var unitCost = qty > 0 ? Math.round(cost / qty) : 0;
+    addStockIn(idmPid, qty, unitCost, 'manual', memo, date);
     save();
-    showToast('✅ 재고 '+qty+'개로 설정 완료');
+    showToast('✅ +'+qty+'개 입고 완료 (단가 '+fmt(unitCost)+'원)');
+    document.getElementById('idm-qty').value='';
+    document.getElementById('idm-cost').value='';
+    document.getElementById('idm-memo').value='';
   } else {
-    var delta = idmDir==='plus' ? qty : -qty;
-    applyInventoryChange(idmPid, delta, memo);
+    // 수기 차감
+    var qty = parseInt(document.getElementById('idm-minus-qty').value);
+    var memo = document.getElementById('idm-minus-memo').value.trim();
+    if(isNaN(qty)||qty<=0){showToast('❌ 수량을 입력하세요');return;}
+    addManualDeduction(idmPid, qty, 'manual', memo);
     save();
-    showToast(idmDir==='plus'?'✅ +'+qty+'개 입고':'✅ -'+qty+'개 출고');
+    showToast('✅ -'+qty+'개 차감 완료');
+    document.getElementById('idm-minus-qty').value='';
+    document.getElementById('idm-minus-memo').value='';
   }
-  document.getElementById('idm-qty').value='';
-  document.getElementById('idm-memo').value='';
   renderIdmDetail();
   renderInv();
 }

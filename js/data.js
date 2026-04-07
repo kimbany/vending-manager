@@ -11,7 +11,7 @@ function startApp(){
     var name = currentUser.displayName || currentUser.email;
     document.getElementById('header-user').textContent = name + ' 님';
   }
-  D = {products:[], inventory:[], inventoryLogs:[], salesData:[]};
+  D = {products:[], inventory:[], inventoryLogs:[], salesData:[], stockIn:[], stockDeductions:[], salesCost:[]};
   startAutoCollect();
   if('Notification' in window && Notification.permission === 'default'){
     Notification.requestPermission();
@@ -28,7 +28,7 @@ function startApp(){
 function loadUserData(){
   db.ref('users/'+currentUser.uid+'/locations').once('value').then(function(snap){
     if(snap.exists() && snap.val() && Object.keys(snap.val()).length > 0){
-      D = {products:[], inventory:[], inventoryLogs:[], salesData:[]};
+      D = {products:[], inventory:[], inventoryLogs:[], salesData:[], stockIn:[], stockDeductions:[], salesCost:[]};
       startApp();
       return;
     }
@@ -90,7 +90,13 @@ function invalidateLocationsCache(){ _locationsCache=null; _locationsCacheTime=0
 // ─── 유틸 ─────────────────────────────────────────────────────────────────────
 function td(){ var d=new Date(Date.now()+9*3600000); return d.toISOString().slice(0,10); }
 function fmt(n){ return (Number(n)||0).toLocaleString('ko-KR'); }
-function gq(pid){ var i=D.inventory.find(function(x){return x.productId===pid;}); return i?i.qty:0; }
+function gq(pid){
+  // batch 기반 재고가 있으면 stockIn에서 계산, 없으면 기존 inventory에서
+  if(D.stockIn && D.stockIn.length){
+    var total=0; D.stockIn.forEach(function(b){ if(b.productId===pid) total+=(b.remainingQty||0); }); return total;
+  }
+  var i=D.inventory.find(function(x){return x.productId===pid;}); return i?i.qty:0;
+}
 function gp(id){ return D.products.find(function(p){return p.id===id;}); }
 function showToast(msg){
   var t=document.getElementById('toast');

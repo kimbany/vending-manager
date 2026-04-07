@@ -401,10 +401,13 @@ function loadMachineData(locId, machineId){
   var machineREF=db.ref('users/'+currentUser.uid+'/locations/'+locId+'/machines/'+machineId+'/appData');
   machineREF.once('value').then(function(snap){
     var val=snap.val();
-    D.products      =(val&&val.products)     ||[];
-    D.inventory     =(val&&val.inventory)    ||[];
-    D.inventoryLogs =(val&&val.inventoryLogs)||[];
-    D.salesData     =(val&&val.salesData)    ||[];
+    D.products        =(val&&val.products)       ||[];
+    D.inventory       =(val&&val.inventory)      ||[];
+    D.inventoryLogs   =(val&&val.inventoryLogs)  ||[];
+    D.salesData       =(val&&val.salesData)      ||[];
+    D.stockIn         =(val&&val.stockIn)        ||[];
+    D.stockDeductions =(val&&val.stockDeductions)||[];
+    D.salesCost       =(val&&val.salesCost)      ||[];
     REF=machineREF;
     // 일회성: 테스트 재고 데이터 전체 리셋
     db.ref('users/'+currentUser.uid+'/migrations/invReset2').once('value').then(function(fs){
