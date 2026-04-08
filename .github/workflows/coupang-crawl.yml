@@ -7,28 +7,19 @@ on:
 
 jobs:
   crawl:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 15
 
     steps:
       - name: 코드 체크아웃
         uses: actions/checkout@v4
 
-      - name: Python 설정
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: 패키지 설치
-        run: |
-          pip install playwright firebase-admin
-          playwright install chromium
-          playwright install-deps chromium
-
       - name: 쿠팡 주문 크롤링 실행
         env:
           FIREBASE_KEY: ${{ secrets.FIREBASE_KEY }}
-        run: python coupang_crawler.py
+        run: |
+          source ~/runner-env/bin/activate
+          python coupang_crawler.py
 
       - name: 스크린샷 업로드 (디버깅용)
         if: always()
