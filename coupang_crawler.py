@@ -78,6 +78,21 @@ def parse_orders_from_text(text):
                 orders.append({'order_date': order_date, 'products': products})
     return orders
 
+def ensure_display():
+    """Xvfb 가상 디스플레이 확보"""
+    import subprocess, os
+    if os.environ.get('DISPLAY'):
+        return
+    # Xvfb 시작
+    try:
+        subprocess.Popen(['Xvfb', ':99', '-screen', '0', '1280x800x24', '-ac'],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        import time; time.sleep(2)
+        os.environ['DISPLAY'] = ':99'
+        print("  Xvfb 시작됨 (DISPLAY=:99)")
+    except Exception as e:
+        print(f"  Xvfb 시작 실패: {e}")
+
 async def crawl_coupang_orders(email, pw, save_path):
     import nodriver as uc
 
@@ -86,6 +101,8 @@ async def crawl_coupang_orders(email, pw, save_path):
     debug_log = []
     print(f"  쿠팡 크롤링 시작 (계정: {email[:5]}***)")
     debug_log.append(f"크롤링 시작: {email[:5]}***")
+
+    ensure_display()
 
     browser = None
     try:
