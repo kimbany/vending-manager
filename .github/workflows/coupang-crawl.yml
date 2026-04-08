@@ -18,10 +18,19 @@ jobs:
         env:
           FIREBASE_KEY: ${{ secrets.FIREBASE_KEY }}
         run: |
+          pkill -f Xvfb || true
           pkill -f chrome || true
           pkill -f chromium || true
+          sleep 1
+          Xvfb :99 -screen 0 1280x800x24 -ac &
+          sleep 3
           export DISPLAY=:99
+          echo "DISPLAY=$DISPLAY"
+          xdpyinfo -display :99 | head -2 || echo "xdpyinfo failed"
+          free -m
           source ~/runner-env3/bin/activate
+          which python3.11
+          which google-chrome
           python3.11 coupang_crawler.py
 
       - name: 스크린샷 업로드 (디버깅용)
