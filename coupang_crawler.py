@@ -104,9 +104,9 @@ def crawl_coupang_orders(email, pw, save_path):
     options = uc.ChromeOptions()
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
-    options.add_argument('--headless=new')
     options.add_argument('--window-size=1280,800')
     options.add_argument('--lang=ko-KR')
+    # headless 사용 안 함 - Xvfb 가상 디스플레이로 실행 (봇 감지 우회)
 
     driver = None
     try:

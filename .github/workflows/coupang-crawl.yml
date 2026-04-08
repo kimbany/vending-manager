@@ -17,7 +17,10 @@ jobs:
       - name: 쿠팡 주문 크롤링 실행
         env:
           FIREBASE_KEY: ${{ secrets.FIREBASE_KEY }}
+          DISPLAY: ':99'
         run: |
+          Xvfb :99 -screen 0 1280x800x24 &
+          sleep 2
           source ~/runner-env/bin/activate
           python coupang_crawler.py
 
