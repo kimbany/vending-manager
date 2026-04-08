@@ -19,9 +19,10 @@ jobs:
           FIREBASE_KEY: ${{ secrets.FIREBASE_KEY }}
           DISPLAY: ':99'
         run: |
+          export DISPLAY=:99
           Xvfb :99 -screen 0 1280x800x24 &
           sleep 2
-          source ~/runner-env/bin/activate
+          source ~/runner-env2/bin/activate
           python coupang_crawler.py
 
       - name: 스크린샷 업로드 (디버깅용)

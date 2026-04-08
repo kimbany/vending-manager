@@ -1,14 +1,13 @@
 """
-쿠팡 주문내역 크롤러 (Self-hosted Runner용)
-- undetected-chromedriver로 봇 감지 우회
+쿠팡 주문내역 크롤러 (nodriver - CDP 직접 통신)
+- nodriver로 봇 감지 우회
 - Firebase에 저장된 유저별 쿠팡 계정으로 주문내역 크롤링
-- 수집 데이터를 users/{uid}/coupangOrders/{날짜} 에 저장
 """
 
 import json
 import os
 import re
-import time
+import asyncio
 import random
 import base64
 from datetime import datetime
@@ -18,7 +17,6 @@ from firebase_admin import credentials, db as rtdb
 DATABASE_URL = "https://vending-manager-2d64e-default-rtdb.asia-southeast1.firebasedatabase.app"
 COUPANG_ORDER_URL = "https://mc.coupang.com/ssr/desktop/order/list"
 
-# ── Firebase ──────────────────────────────────────────────────────────────────
 def init_firebase():
     if firebase_admin._apps:
         return
@@ -53,12 +51,9 @@ def get_all_user_coupang():
         print(f"  유저 목록 조회 실패: {e}")
     return users
 
-# ── 주문 파싱 ─────────────────────────────────────────────────────────────────
 def parse_orders_from_text(text):
-    """페이지 텍스트에서 주문 데이터 추출"""
     orders = []
     blocks = re.split(r'(\d{4}\.\s*\d{1,2}\.\s*\d{1,2}\s*주문)', text)
-
     for i, block in enumerate(blocks):
         date_match = re.match(r'(\d{4}\.\s*\d{1,2}\.\s*\d{1,2})\s*주문', block.strip())
         if date_match and i + 1 < len(blocks):
@@ -66,34 +61,25 @@ def parse_orders_from_text(text):
             content = blocks[i + 1]
             lines = content.strip().split('\n')
             products = []
-
             for line in lines:
                 line = line.strip()
                 if not line:
                     continue
-                # "상품명, 옵션, N개" 패턴
                 qty_match = re.search(r'(\d+)\s*개\s*$', line)
                 if qty_match and len(line) > 5:
                     qty = int(qty_match.group(1))
                     name = line[:qty_match.start()].strip().rstrip(',').strip()
                     if name and len(name) > 2:
                         products.append({'product_name': name, 'quantity': qty})
-                # 금액 패턴
                 price_match = re.match(r'^([\d,]+)\s*원$', line)
                 if price_match and products and 'price' not in products[-1]:
                     products[-1]['price'] = int(price_match.group(1).replace(',', ''))
-
             if products:
                 orders.append({'order_date': order_date, 'products': products})
-
     return orders
 
-# ── 메인 크롤링 (undetected-chromedriver) ─────────────────────────────────────
-def crawl_coupang_orders(email, pw, save_path):
-    import undetected_chromedriver as uc
-    from selenium.webdriver.common.by import By
-    from selenium.webdriver.support.ui import WebDriverWait
-    from selenium.webdriver.support import expected_conditions as EC
+async def crawl_coupang_orders(email, pw, save_path):
+    import nodriver as uc
 
     today = datetime.now().strftime("%Y-%m-%d")
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -101,51 +87,46 @@ def crawl_coupang_orders(email, pw, save_path):
     print(f"  쿠팡 크롤링 시작 (계정: {email[:5]}***)")
     debug_log.append(f"크롤링 시작: {email[:5]}***")
 
-    options = uc.ChromeOptions()
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-    options.add_argument('--window-size=1280,800')
-    options.add_argument('--lang=ko-KR')
-    # headless 사용 안 함 - Xvfb 가상 디스플레이로 실행 (봇 감지 우회)
-
-    driver = None
+    browser = None
     try:
-        driver = uc.Chrome(options=options, version_main=None)
-        debug_log.append("[0] 브라우저 시작")
+        browser = await uc.start(
+            headless=False,
+            lang="ko-KR",
+            browser_args=['--no-sandbox', '--disable-dev-shm-usage', '--window-size=1280,800']
+        )
+        debug_log.append("[0] 브라우저 시작 (nodriver)")
 
-        # 1. 쿠팡 메인 방문 (사람처럼)
+        # 1. 쿠팡 메인 방문
         debug_log.append("[1] 메인 페이지 방문")
-        driver.get("https://www.coupang.com")
-        time.sleep(3 + random.random() * 2)
+        page = await browser.get("https://www.coupang.com")
+        await asyncio.sleep(3 + random.random() * 2)
 
         # 2. 로그인 페이지
         debug_log.append("[2] 로그인 페이지 이동")
-        driver.get("https://login.coupang.com/login/login.pang?rtnUrl=https%3A%2F%2Fwww.coupang.com%2F")
-        time.sleep(3 + random.random() * 3)
+        page = await browser.get("https://login.coupang.com/login/login.pang?rtnUrl=https%3A%2F%2Fwww.coupang.com%2F")
+        await asyncio.sleep(4 + random.random() * 3)
 
-        login_url = driver.current_url
+        login_url = page.url if hasattr(page, 'url') else str(page)
         debug_log.append(f"[2] URL: {login_url}")
 
         # 이메일 필드 찾기
         email_input = None
         pw_input = None
-        selectors_email = ['#login-email-input', 'input[name="email"]', 'input[type="email"]']
-        selectors_pw = ['#login-password-input', 'input[name="password"]', 'input[type="password"]']
 
-        for sel in selectors_email:
+        for sel in ['#login-email-input', 'input[name="email"]', 'input[type="email"]']:
             try:
-                el = driver.find_element(By.CSS_SELECTOR, sel)
-                if el.is_displayed():
+                el = await page.select(sel)
+                if el:
                     email_input = el
                     debug_log.append(f"[2] email 찾음: {sel}")
                     break
             except:
                 continue
 
-        for sel in selectors_pw:
+        for sel in ['#login-password-input', 'input[name="password"]', 'input[type="password"]']:
             try:
-                el = driver.find_element(By.CSS_SELECTOR, sel)
-                if el.is_displayed():
+                el = await page.select(sel)
+                if el:
                     pw_input = el
                     debug_log.append(f"[2] pw 찾음: {sel}")
                     break
@@ -153,67 +134,75 @@ def crawl_coupang_orders(email, pw, save_path):
                 continue
 
         if not email_input or not pw_input:
-            # 모든 input 시도
-            inputs = driver.find_elements(By.CSS_SELECTOR, 'input:not([type="hidden"])')
-            visible = [i for i in inputs if i.is_displayed()]
-            debug_log.append(f"[2] visible input: {len(visible)}개")
-            if len(visible) >= 2:
-                email_input = visible[0]
-                pw_input = visible[1]
-            else:
-                html = driver.page_source[:500]
-                debug_log.append(f"[2] HTML: {html}")
-                debug_log.append("[2] 이메일 필드 못 찾음")
-                rtdb.reference(f'{save_path}/_debug').set({'log': debug_log, 'updated_at': now_str, 'status': 'no_input'})
-                return 0
-
-        # 3. 로그인 입력 (사람처럼 천천히)
-        debug_log.append("[3] 로그인 입력")
-        email_input.click()
-        time.sleep(0.5 + random.random() * 0.5)
-        for char in email:
-            email_input.send_keys(char)
-            time.sleep(0.05 + random.random() * 0.1)
-
-        time.sleep(0.8 + random.random() * 0.5)
-
-        pw_input.click()
-        time.sleep(0.5 + random.random() * 0.5)
-        for char in pw:
-            pw_input.send_keys(char)
-            time.sleep(0.05 + random.random() * 0.1)
-
-        time.sleep(1 + random.random() * 0.5)
-
-        # 로그인 버튼 클릭
-        login_btn = None
-        for sel in ['button[type="submit"]', '.login__button', 'button.login__submit']:
             try:
-                btn = driver.find_element(By.CSS_SELECTOR, sel)
-                if btn.is_displayed():
+                inputs = await page.select_all('input')
+                visible = []
+                for inp in inputs:
+                    inp_type = await inp.get_attribute('type') if hasattr(inp, 'get_attribute') else ''
+                    if inp_type != 'hidden':
+                        visible.append(inp)
+                debug_log.append(f"[2] visible input: {len(visible)}개")
+                if len(visible) >= 2:
+                    email_input = visible[0]
+                    pw_input = visible[1]
+                    debug_log.append("[2] input 순서로 할당")
+            except Exception as e:
+                debug_log.append(f"[2] input 검색 실패: {str(e)}")
+
+        if not email_input or not pw_input:
+            try:
+                html = await page.evaluate('document.body.innerHTML.substring(0, 500)')
+                debug_log.append(f"[2] HTML: {html}")
+            except:
+                pass
+            debug_log.append("[2] 이메일 필드 못 찾음")
+            rtdb.reference(f'{save_path}/_debug').set({'log': debug_log, 'updated_at': now_str, 'status': 'no_input'})
+            return 0
+
+        # 3. 로그인 입력
+        debug_log.append("[3] 로그인 입력")
+        await email_input.click()
+        await asyncio.sleep(0.5 + random.random() * 0.5)
+        await email_input.send_keys(email)
+        await asyncio.sleep(0.8 + random.random() * 0.5)
+
+        await pw_input.click()
+        await asyncio.sleep(0.5 + random.random() * 0.5)
+        await pw_input.send_keys(pw)
+        await asyncio.sleep(1 + random.random() * 0.5)
+
+        # 로그인 버튼
+        login_btn = None
+        for sel in ['button[type="submit"]', '.login__button']:
+            try:
+                btn = await page.select(sel)
+                if btn:
                     login_btn = btn
                     break
             except:
                 continue
 
         if login_btn:
-            login_btn.click()
+            await login_btn.click()
         else:
-            pw_input.send_keys('\n')  # Enter로 로그인
+            await pw_input.send_keys('\n')
 
-        time.sleep(5 + random.random() * 2)
+        await asyncio.sleep(5 + random.random() * 2)
 
-        current_url = driver.current_url
+        current_url = page.url if hasattr(page, 'url') else ''
         debug_log.append(f"[3] 로그인 후 URL: {current_url}")
 
-        # SMS 인증 체크
-        body_text = driver.find_element(By.TAG_NAME, 'body').text
-        if '인증' in body_text and ('번호' in body_text or 'SMS' in body_text):
-            debug_log.append("[3] SMS 인증 요구됨")
-            rtdb.reference(f'{save_path}/_debug').set({'log': debug_log, 'updated_at': now_str, 'status': 'sms_required'})
-            return -1
+        # SMS 체크
+        try:
+            body_text = await page.evaluate('document.body.innerText')
+            if '인증' in body_text and ('번호' in body_text or 'SMS' in body_text):
+                debug_log.append("[3] SMS 인증 요구됨")
+                rtdb.reference(f'{save_path}/_debug').set({'log': debug_log, 'updated_at': now_str, 'status': 'sms_required'})
+                return -1
+        except:
+            pass
 
-        if 'login' in current_url.lower():
+        if 'login' in str(current_url).lower():
             debug_log.append("[3] 로그인 실패")
             rtdb.reference(f'{save_path}/_debug').set({'log': debug_log, 'updated_at': now_str, 'status': 'login_failed'})
             return 0
@@ -222,15 +211,17 @@ def crawl_coupang_orders(email, pw, save_path):
 
         # 4. 주문내역 페이지
         debug_log.append("[4] 주문내역 페이지 이동")
-        driver.get(COUPANG_ORDER_URL)
-        time.sleep(3 + random.random() * 2)
-        debug_log.append(f"[4] URL: {driver.current_url}")
+        page = await browser.get(COUPANG_ORDER_URL)
+        await asyncio.sleep(3 + random.random() * 2)
+        debug_log.append(f"[4] URL: {page.url if hasattr(page, 'url') else ''}")
 
         # 5. 주문 파싱
         debug_log.append("[5] 주문 파싱")
-        body_text = driver.find_element(By.TAG_NAME, 'body').text
+        try:
+            body_text = await page.evaluate('document.body.innerText')
+        except:
+            body_text = ''
         orders = parse_orders_from_text(body_text)
-
         total_products = sum(len(o.get('products', [])) for o in orders)
         debug_log.append(f"[5] 주문 {len(orders)}건, 상품 {total_products}개")
 
@@ -245,7 +236,6 @@ def crawl_coupang_orders(email, pw, save_path):
         }
         rtdb.reference(f'{save_path}/{today}').set(save_data)
         print(f"  [6] Firebase 저장 완료 ({total_products}건)")
-
         return total_products
 
     except Exception as e:
@@ -257,16 +247,15 @@ def crawl_coupang_orders(email, pw, save_path):
             pass
         return 0
     finally:
-        if driver:
+        if browser:
             try:
-                driver.quit()
+                browser.stop()
             except:
                 pass
 
-# ── 진입점 ────────────────────────────────────────────────────────────────────
-def main():
+async def main_async():
     init_firebase()
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 쿠팡 주문 크롤러 시작 (undetected-chromedriver)")
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 쿠팡 주문 크롤러 시작 (nodriver)")
 
     users = get_all_user_coupang()
     if not users:
@@ -276,7 +265,7 @@ def main():
     for user in users:
         print(f"\n유저 {user['uid'][:8]}... 크롤링 시작")
         try:
-            count = crawl_coupang_orders(
+            count = await crawl_coupang_orders(
                 user['email'], user['pw'],
                 f"users/{user['uid']}/coupangOrders"
             )
@@ -286,6 +275,9 @@ def main():
                 print(f"  완료: {count}개 상품")
         except Exception as e:
             print(f"  실패: {e}")
+
+def main():
+    asyncio.run(main_async())
 
 if __name__ == "__main__":
     main()
