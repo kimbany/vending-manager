@@ -14,17 +14,13 @@ jobs:
       - name: 코드 체크아웃
         uses: actions/checkout@v4
 
-      - name: Xvfb 시작
-        run: |
-          Xvfb :99 -screen 0 1280x800x24 -ac &
-          sleep 3
-          echo "Xvfb started"
-
-      - name: 쿠팡 주문 크롤링 실행
+      - name: Xvfb 시작 + 쿠팡 크롤링
         env:
           FIREBASE_KEY: ${{ secrets.FIREBASE_KEY }}
-          DISPLAY: ':99'
         run: |
+          pkill -f chrome || true
+          pkill -f chromium || true
+          export DISPLAY=:99
           source ~/runner-env3/bin/activate
           python3.11 coupang_crawler.py
 
