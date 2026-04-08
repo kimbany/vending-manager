@@ -53,9 +53,9 @@ def get_all_user_coupang():
 
 def parse_orders_from_text(text):
     orders = []
-    blocks = re.split(r'(\d{4}\.\s*\d{1,2}\.\s*\d{1,2}\s*주문)', text)
+    blocks = re.split(r'(\d{4}\.\s*\d{1,2}\.\s*\d{1,2}\.\s*주문)', text)
     for i, block in enumerate(blocks):
-        date_match = re.match(r'(\d{4}\.\s*\d{1,2}\.\s*\d{1,2})\s*주문', block.strip())
+        date_match = re.match(r'(\d{4}\.\s*\d{1,2}\.\s*\d{1,2})\.\s*주문', block.strip())
         if date_match and i + 1 < len(blocks):
             order_date = date_match.group(1).replace(' ', '')
             content = blocks[i + 1]
@@ -89,11 +89,7 @@ async def crawl_coupang_orders(email, pw, save_path):
 
     browser = None
     try:
-        browser = await uc.start(
-            headless=False,
-            lang="ko-KR",
-            browser_args=['--no-sandbox', '--disable-dev-shm-usage', '--window-size=1280,800']
-        )
+        browser = await uc.start(sandbox=False)
         debug_log.append("[0] 브라우저 시작 (nodriver)")
 
         # 1. 쿠팡 메인 방문
@@ -104,60 +100,23 @@ async def crawl_coupang_orders(email, pw, save_path):
         # 2. 로그인 페이지
         debug_log.append("[2] 로그인 페이지 이동")
         page = await browser.get("https://login.coupang.com/login/login.pang?rtnUrl=https%3A%2F%2Fwww.coupang.com%2F")
-        await asyncio.sleep(4 + random.random() * 3)
+        await asyncio.sleep(4 + random.random() * 2)
 
-        login_url = page.url if hasattr(page, 'url') else str(page)
-        debug_log.append(f"[2] URL: {login_url}")
-
-        # 이메일 필드 찾기
-        email_input = None
-        pw_input = None
-
-        for sel in ['#login-email-input', 'input[name="email"]', 'input[type="email"]']:
-            try:
-                el = await page.select(sel)
-                if el:
-                    email_input = el
-                    debug_log.append(f"[2] email 찾음: {sel}")
-                    break
-            except:
-                continue
-
-        for sel in ['#login-password-input', 'input[name="password"]', 'input[type="password"]']:
-            try:
-                el = await page.select(sel)
-                if el:
-                    pw_input = el
-                    debug_log.append(f"[2] pw 찾음: {sel}")
-                    break
-            except:
-                continue
+        # 이메일/비밀번호 입력
+        email_input = await page.select('input[name=email]')
+        pw_input = await page.select('input[name=password]')
 
         if not email_input or not pw_input:
+            debug_log.append("[2] 이메일/비밀번호 필드 못 찾음")
             try:
-                inputs = await page.select_all('input')
-                visible = []
-                for inp in inputs:
-                    inp_type = await inp.get_attribute('type') if hasattr(inp, 'get_attribute') else ''
-                    if inp_type != 'hidden':
-                        visible.append(inp)
-                debug_log.append(f"[2] visible input: {len(visible)}개")
-                if len(visible) >= 2:
-                    email_input = visible[0]
-                    pw_input = visible[1]
-                    debug_log.append("[2] input 순서로 할당")
-            except Exception as e:
-                debug_log.append(f"[2] input 검색 실패: {str(e)}")
-
-        if not email_input or not pw_input:
-            try:
-                html = await page.evaluate('document.body.innerHTML.substring(0, 500)')
-                debug_log.append(f"[2] HTML: {html}")
+                text = await page.evaluate('document.body.innerText')
+                debug_log.append(f"[2] 페이지: {text[:200]}")
             except:
                 pass
-            debug_log.append("[2] 이메일 필드 못 찾음")
             rtdb.reference(f'{save_path}/_debug').set({'log': debug_log, 'updated_at': now_str, 'status': 'no_input'})
             return 0
+
+        debug_log.append("[2] 로그인 필드 찾음")
 
         # 3. 로그인 입력
         debug_log.append("[3] 로그인 입력")
@@ -171,57 +130,57 @@ async def crawl_coupang_orders(email, pw, save_path):
         await pw_input.send_keys(pw)
         await asyncio.sleep(1 + random.random() * 0.5)
 
-        # 로그인 버튼
-        login_btn = None
-        for sel in ['button[type="submit"]', '.login__button']:
-            try:
-                btn = await page.select(sel)
-                if btn:
-                    login_btn = btn
-                    break
-            except:
-                continue
-
-        if login_btn:
-            await login_btn.click()
-        else:
+        # 로그인 버튼 클릭
+        try:
+            login_btn = await page.select('button[type=submit]')
+            if login_btn:
+                await login_btn.click()
+            else:
+                await pw_input.send_keys('\n')
+        except:
             await pw_input.send_keys('\n')
 
         await asyncio.sleep(5 + random.random() * 2)
 
-        current_url = page.url if hasattr(page, 'url') else ''
-        debug_log.append(f"[3] 로그인 후 URL: {current_url}")
-
-        # SMS 체크
+        # 로그인 결과 확인
         try:
-            body_text = await page.evaluate('document.body.innerText')
-            if '인증' in body_text and ('번호' in body_text or 'SMS' in body_text):
-                debug_log.append("[3] SMS 인증 요구됨")
-                rtdb.reference(f'{save_path}/_debug').set({'log': debug_log, 'updated_at': now_str, 'status': 'sms_required'})
-                return -1
+            current_text = await page.evaluate('document.body.innerText')
+            debug_log.append(f"[3] 로그인 후 텍스트: {current_text[:100]}")
+        except:
+            current_text = ''
+
+        # SMS 인증 체크
+        if '인증' in current_text and ('번호' in current_text or 'SMS' in current_text):
+            debug_log.append("[3] SMS 인증 요구됨")
+            rtdb.reference(f'{save_path}/_debug').set({'log': debug_log, 'updated_at': now_str, 'status': 'sms_required'})
+            return -1
+
+        # 여전히 로그인 페이지인지 확인
+        try:
+            still_login = await page.select('input[name=email]')
+            if still_login:
+                debug_log.append("[3] 로그인 실패 (아직 로그인 페이지)")
+                rtdb.reference(f'{save_path}/_debug').set({'log': debug_log, 'updated_at': now_str, 'status': 'login_failed'})
+                return 0
         except:
             pass
-
-        if 'login' in str(current_url).lower():
-            debug_log.append("[3] 로그인 실패")
-            rtdb.reference(f'{save_path}/_debug').set({'log': debug_log, 'updated_at': now_str, 'status': 'login_failed'})
-            return 0
 
         debug_log.append("[3] 로그인 성공")
 
         # 4. 주문내역 페이지
         debug_log.append("[4] 주문내역 페이지 이동")
         page = await browser.get(COUPANG_ORDER_URL)
-        await asyncio.sleep(3 + random.random() * 2)
-        debug_log.append(f"[4] URL: {page.url if hasattr(page, 'url') else ''}")
+        await asyncio.sleep(4 + random.random() * 2)
+
+        try:
+            order_text = await page.evaluate('document.body.innerText')
+            debug_log.append(f"[4] 주문 페이지 텍스트 길이: {len(order_text)}")
+        except:
+            order_text = ''
 
         # 5. 주문 파싱
         debug_log.append("[5] 주문 파싱")
-        try:
-            body_text = await page.evaluate('document.body.innerText')
-        except:
-            body_text = ''
-        orders = parse_orders_from_text(body_text)
+        orders = parse_orders_from_text(order_text)
         total_products = sum(len(o.get('products', [])) for o in orders)
         debug_log.append(f"[5] 주문 {len(orders)}건, 상품 {total_products}개")
 
