@@ -79,19 +79,14 @@ def parse_orders_from_text(text):
     return orders
 
 def ensure_display():
-    """Xvfb 가상 디스플레이 확보"""
+    """Xvfb 가상 디스플레이 확보 + 메모리 정리"""
     import subprocess, os
-    if os.environ.get('DISPLAY'):
-        return
-    # Xvfb 시작
-    try:
-        subprocess.Popen(['Xvfb', ':99', '-screen', '0', '1280x800x24', '-ac'],
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        import time; time.sleep(2)
+    # 기존 크롬 프로세스 정리 (메모리 확보)
+    subprocess.run(['pkill', '-f', 'chrome'], capture_output=True)
+    subprocess.run(['pkill', '-f', 'chromium'], capture_output=True)
+    if not os.environ.get('DISPLAY'):
         os.environ['DISPLAY'] = ':99'
-        print("  Xvfb 시작됨 (DISPLAY=:99)")
-    except Exception as e:
-        print(f"  Xvfb 시작 실패: {e}")
+        print(f"  DISPLAY 설정: {os.environ['DISPLAY']}")
 
 async def crawl_coupang_orders(email, pw, save_path):
     import nodriver as uc
