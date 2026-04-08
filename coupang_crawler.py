@@ -89,7 +89,7 @@ async def crawl_coupang_orders(email, pw, save_path):
 
     browser = None
     try:
-        browser = await uc.start(sandbox=False)
+        browser = await uc.start(sandbox=False, headless=False)
         debug_log.append("[0] 브라우저 시작 (nodriver)")
 
         # 1. 쿠팡 메인 방문

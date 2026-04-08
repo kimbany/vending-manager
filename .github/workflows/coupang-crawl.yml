@@ -16,9 +16,9 @@ jobs:
 
       - name: Xvfb 시작
         run: |
-          sudo Xvfb :99 -screen 0 1280x800x24 &
+          Xvfb :99 -screen 0 1280x800x24 -ac &
           sleep 3
-          echo "DISPLAY=:99" >> $GITHUB_ENV
+          echo "Xvfb started"
 
       - name: 쿠팡 주문 크롤링 실행
         env:
