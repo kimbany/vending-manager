@@ -533,10 +533,13 @@ function switchAndOpenInvDetail(locId, machineId, pid){
     currentLocationId = locId;
     currentMachineId = machineId;
     REF = machineREF;
-    D.products = val.products||[];
-    D.inventory = val.inventory||[];
-    D.inventoryLogs = val.inventoryLogs||[];
-    D.salesData = val.salesData||[];
+    D.products        = val.products||[];
+    D.inventory       = val.inventory||[];
+    D.inventoryLogs   = val.inventoryLogs||[];
+    D.salesData       = val.salesData||[];
+    D.stockIn         = val.stockIn||[];
+    D.stockDeductions = val.stockDeductions||[];
+    D.salesCost       = val.salesCost||[];
     openInvDetail(pid);
   });
 }

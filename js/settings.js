@@ -580,12 +580,15 @@ function executeReset(){
     var updates = {};
 
     if(type==='inventory' || type==='all'){
-      // 모든 자판기의 inventory, inventoryLogs 삭제
+      // 모든 자판기의 재고 관련 데이터 삭제
       Object.keys(locations).forEach(function(locId){
         var machines = locations[locId].machines||{};
         Object.keys(machines).forEach(function(mid){
           updates['locations/'+locId+'/machines/'+mid+'/appData/inventory'] = null;
           updates['locations/'+locId+'/machines/'+mid+'/appData/inventoryLogs'] = null;
+          updates['locations/'+locId+'/machines/'+mid+'/appData/stockIn'] = null;
+          updates['locations/'+locId+'/machines/'+mid+'/appData/stockDeductions'] = null;
+          updates['locations/'+locId+'/machines/'+mid+'/appData/salesCost'] = null;
         });
       });
     }
@@ -633,7 +636,7 @@ function executeReset(){
     msg.style.color='var(--green)'; msg.textContent='✅ 초기화 완료';
     // 현재 데이터 초기화
     if(type==='inventory' || type==='all'){
-      D.inventory=[]; D.inventoryLogs=[];
+      D.inventory=[]; D.inventoryLogs=[]; D.stockIn=[]; D.stockDeductions=[]; D.salesCost=[];
     }
     if(type==='products' || type==='all'){
       D.products=[];
