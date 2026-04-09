@@ -210,8 +210,9 @@ function renderInv(){
         if(c.columnNo) seen[id].column.push(c.columnNo);
       });
 
-      // 현재 자판기면 D.inventory(메모리, 항상 최신) 사용, 아니면 Firebase에서 로드
+      // 현재 자판기면 D(메모리) 사용, 아니면 Firebase에서 로드
       var inv = [];
+      var stockIn = [];
       var existingProds = [];
       var isCurrent = false;
       if(locSnap){
@@ -222,15 +223,17 @@ function renderInv(){
             var devnos = Array.isArray(m.deviceNos)?m.deviceNos:(m.deviceNo?[m.deviceNo]:[]);
             if(devnos.indexOf(devno)>=0){
               if(locId === currentLocationId && mid === currentMachineId){
-                // 현재 자판기: 메모리 데이터 사용 (save 후 즉시 반영)
                 inv = D.inventory;
+                stockIn = D.stockIn||[];
                 existingProds = D.products;
                 isCurrent = true;
               } else {
                 var appData = m.appData||{};
                 inv = appData.inventory||[];
+                stockIn = appData.stockIn||[];
                 existingProds = appData.products||[];
                 if(!Array.isArray(inv)) inv = Object.values(inv);
+                if(!Array.isArray(stockIn)) stockIn = Object.values(stockIn);
                 if(!Array.isArray(existingProds)) existingProds = Object.values(existingProds);
               }
             }
@@ -307,6 +310,7 @@ function renderInv(){
         machineId: _foundMachineId,
         products: prods,
         inventory: inv,
+        stockIn: stockIn,
         isCurrent: isCurrent
       });
     });
@@ -378,6 +382,11 @@ function _renderInvMulti(machineDataList){
   machineDataList.forEach(function(md){
     function getQ(pid){
       if(md.isCurrent) return gq(pid);
+      // 다른 자판기: stockIn(batch) 우선, 없으면 inventory(구 시스템)
+      var si = md.stockIn||[];
+      if(si.length){
+        var total=0; si.forEach(function(b){ if(b.productId===pid) total+=(b.remainingQty||0); }); return total;
+      }
       var i=md.inventory.find(function(x){return x.productId===pid;}); return i?i.qty:0;
     }
     md.products.forEach(function(p){
@@ -402,6 +411,11 @@ function _renderInvMulti(machineDataList){
   machineDataList.forEach(function(md){
     function getQ(pid){
       if(md.isCurrent) return gq(pid);
+      // 다른 자판기: stockIn(batch) 우선, 없으면 inventory(구 시스템)
+      var si = md.stockIn||[];
+      if(si.length){
+        var total=0; si.forEach(function(b){ if(b.productId===pid) total+=(b.remainingQty||0); }); return total;
+      }
       var i=md.inventory.find(function(x){return x.productId===pid;}); return i?i.qty:0;
     }
     var sorted = md.products.slice();
