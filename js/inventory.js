@@ -271,8 +271,11 @@ function renderInv(){
       });
       if(needsSave) save();
 
-      // locSnap에서 deviceNo로 위치명 조회
+      // locSnap에서 deviceNo로 위치명/자판기종류/ID 조회
       var _foundLocName = '';
+      var _foundModel = '';
+      var _foundLocId = '';
+      var _foundMachineId = '';
       if(locSnap){
         Object.keys(locSnap).forEach(function(locId){
           var loc = locSnap[locId];
@@ -281,17 +284,30 @@ function renderInv(){
             var devnos = Array.isArray(m.deviceNos)?m.deviceNos:(m.deviceNo?[m.deviceNo]:[]);
             if(devnos.indexOf(devno)>=0){
               _foundLocName = loc.name||'';
+              _foundModel = m.model||m.name||'';
+              _foundLocId = locId;
+              _foundMachineId = mid;
             }
           });
         });
       }
 
+      // 자판기 종류 짧은 이름
+      var shortModel = '';
+      if(_foundModel.indexOf('음료')>=0) shortModel = '음료';
+      else if(_foundModel.indexOf('멀티')>=0) shortModel = '멀티';
+      else if(_foundModel.indexOf('아이스크림')>=0) shortModel = '아이스크림';
+      else if(_foundModel) shortModel = _foundModel.replace('자판기','');
+
       machineDataList.push({
         locName: _foundLocName,
         machineName: devno,
+        machineModel: shortModel,
+        locId: _foundLocId,
+        machineId: _foundMachineId,
         products: prods,
         inventory: inv,
-        isCurrent: false
+        isCurrent: isCurrent
       });
     });
 
@@ -360,7 +376,10 @@ function _renderInvMulti(machineDataList){
   var lowThreshold = getLowStockThreshold();
   var allLow = [];
   machineDataList.forEach(function(md){
-    function getQ(pid){ return gq(pid); }
+    function getQ(pid){
+      if(md.isCurrent) return gq(pid);
+      var i=md.inventory.find(function(x){return x.productId===pid;}); return i?i.qty:0;
+    }
     md.products.forEach(function(p){
       var q=getQ(p.id);
       if(q<=lowThreshold && !p.discontinued) allLow.push({p:p, q:q, machineName:md.machineName, locName:md.locName});
@@ -381,14 +400,17 @@ function _renderInvMulti(machineDataList){
 
   var html = '';
   machineDataList.forEach(function(md){
-    function getQ(pid){ return gq(pid); }
+    function getQ(pid){
+      if(md.isCurrent) return gq(pid);
+      var i=md.inventory.find(function(x){return x.productId===pid;}); return i?i.qty:0;
+    }
     var sorted = md.products.slice();
     if(invSort==='name') sorted.sort(function(a,b){return a.name.localeCompare(b.name,'ko');});
     else if(invSort==='qasc') sorted.sort(function(a,b){return getQ(a.id)-getQ(b.id);});
     else if(invSort==='qdesc') sorted.sort(function(a,b){return getQ(b.id)-getQ(a.id);});
 
     html += '<div style="font-size:13px;font-weight:700;color:var(--blue);padding:10px 0 6px;border-top:1px solid var(--border);margin-top:6px">'+
-      '📍 '+md.locName+' · 📟 '+md.machineName+' ('+sorted.length+'개)</div>';
+      '📍 '+md.locName+' · 📟 '+md.machineName+(md.machineModel?' '+md.machineModel:'')+' ('+sorted.length+'개)</div>';
     if(!sorted.length){
       html += '<div style="text-align:center;padding:12px;color:var(--text3);font-size:13px">등록된 제품 없음</div>';
       return;

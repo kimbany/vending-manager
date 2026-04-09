@@ -181,10 +181,13 @@ function _applyCrawledData(isAuto, customDate){
     // VMMS 제품 목록 로드 (상품명 자동 매칭용)
     Promise.all([
       db.ref('users/'+currentUser.uid+'/locations').once('value'),
-      db.ref('users/'+currentUser.uid+'/vmmsProducts').once('value')
+      db.ref('users/'+currentUser.uid+'/vmmsProducts').once('value'),
+      db.ref('users/'+currentUser.uid+'/vmmsColumns').once('value')
     ]).then(function(results){
       var locSnap = results[0];
       var vmmsProdSnap = results[1].val();
+      var vmmsColSnap = results[2].val();
+      var vmmsColumnsByDevice = (vmmsColSnap && vmmsColSnap.machines) ? vmmsColSnap.machines : {};
       var vmmsItems = (vmmsProdSnap && vmmsProdSnap.items) ? vmmsProdSnap.items : [];
       if(!Array.isArray(vmmsItems)) vmmsItems = Object.values(vmmsItems);
       console.log('[수집] VMMS 제품 수:', vmmsItems.length);
@@ -240,6 +243,16 @@ function _applyCrawledData(isAuto, customDate){
         var machRows = rowsByMachine[machineKey];
         var ref = db.ref('users/'+currentUser.uid+'/locations/'+locId+'/machines/'+mid+'/appData');
 
+        // 해당 자판기의 deviceNo 조회 (vmmsColumns 매칭용)
+        var _machDevnos = [];
+        if(locSnap.exists()){
+          var _loc = locSnap.child(locId).val();
+          if(_loc && _loc.machines && _loc.machines[mid]){
+            var _m = _loc.machines[mid];
+            _machDevnos = Array.isArray(_m.deviceNos)?_m.deviceNos:(_m.deviceNo?[_m.deviceNo]:[]);
+          }
+        }
+
         ref.once('value').then(function(machSnap){
           var machVal = machSnap.val() || {};
           var prods = machVal.products || [];
@@ -250,6 +263,17 @@ function _applyCrawledData(isAuto, customDate){
           if(!Array.isArray(inv)) inv = Object.values(inv);
           if(!Array.isArray(logs)) logs = Object.values(logs);
           if(!Array.isArray(sales)) sales = Object.values(sales);
+
+          // vmmsColumns에서 해당 자판기의 컬럼 데이터 로드
+          var vmmsColList = [];
+          _machDevnos.forEach(function(dno){
+            var colData = vmmsColumnsByDevice[dno];
+            if(colData && colData.columns){
+              var cols = colData.columns;
+              if(!Array.isArray(cols)) cols = Object.values(cols);
+              vmmsColList = vmmsColList.concat(cols);
+            }
+          });
 
           // 해당 날짜의 기존 데이터 제거 (재수집 시 중복 방지)
           var targetDate = today;
@@ -279,7 +303,7 @@ function _applyCrawledData(isAuto, customDate){
               var nameMatch = prods.find(function(p){ return p.name && p.name.trim() === itemName.trim(); });
               if(nameMatch) pid = nameMatch.id;
             }
-            // 2차: 컬럼번호로 폴백
+            // 2차: 컬럼번호로 폴백 (appData.products)
             if(!pid){
               prods.forEach(function(p){
                 var cols = Array.isArray(p.column) ? p.column : (p.column ? [p.column] : []);
@@ -294,6 +318,24 @@ function _applyCrawledData(isAuto, customDate){
                   }
                 });
               });
+            }
+            // 3차: vmmsColumns에서 컬럼번호/제품명으로 매칭
+            if(!pid && vmmsColList.length){
+              var vmCol = vmmsColList.find(function(vc){
+                return String(vc.columnNo||'').trim() === colNo;
+              }) || vmmsColList.find(function(vc){
+                return vc.productName && itemName && vc.productName.trim() === itemName.trim();
+              });
+              if(vmCol){
+                // vmmsColumns 제품 → appData.products에서 찾기
+                var vmProd = prods.find(function(p){ return p.name && vmCol.productName && p.name.trim() === vmCol.productName.trim(); });
+                if(vmProd) pid = vmProd.id;
+                else {
+                  // appData.products에 없으면 productCode를 ID로 사용
+                  pid = vmCol.productCode || vmCol.productName || '';
+                  if(!itemName) itemName = vmCol.productName||'';
+                }
+              }
             }
 
             sales.push({
