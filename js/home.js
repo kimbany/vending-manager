@@ -159,6 +159,7 @@ function renderAllMachineLowStock(){
 
       // locations에서 재고 가져오기
       var inv = [];
+      var stockIn = [];
       if(locSnap){
         Object.keys(locSnap).forEach(function(locId){
           var loc = locSnap[locId];
@@ -168,7 +169,9 @@ function renderAllMachineLowStock(){
             if(devnos.indexOf(devno)>=0){
               var appData = m.appData||{};
               inv = appData.inventory||[];
+              stockIn = appData.stockIn||[];
               if(!Array.isArray(inv)) inv = Object.values(inv);
+              if(!Array.isArray(stockIn)) stockIn = Object.values(stockIn);
             }
           });
         });
@@ -183,8 +186,10 @@ function renderAllMachineLowStock(){
         var id = code||name;
         if(seen[id]) return;
         seen[id] = true;
-        var qi = inv.find(function(x){return x.productId===id;});
-        var q = qi ? qi.qty : 0;
+        // stockIn(batch)에서 해당 제품 찾고, 없으면 inventory(구 시스템)
+        var q = 0, siFound = false;
+        stockIn.forEach(function(b){ if(b.productId===id){ q+=(b.remainingQty||0); siFound=true; } });
+        if(!siFound){ var qi = inv.find(function(x){return x.productId===id;}); q = qi ? qi.qty : 0; }
         if(q <= lt2) locLow.push({p:{name:name}, q:q, machineName:vm.machineName||''});
       });
       if(!locLow.length) return;
