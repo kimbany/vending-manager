@@ -69,16 +69,38 @@ function renderSalesStats(){
   db.ref('users/'+currentUser.uid+'/locations/'+currentLocationId+'/machines').once('value').then(function(snap){
     if(!snap.exists()){ _doRenderSalesStats([{sales:D.salesData,prods:D.products,inv:D.inventory,name:'',devno:''}], range, panel); return; }
     var machines = snap.val();
-    var promises = Object.keys(machines).map(function(mid){
-      var m = machines[mid];
-      var devnos = Array.isArray(m.deviceNos)?m.deviceNos:(m.deviceNo?[m.deviceNo]:[]);
-      return db.ref('users/'+currentUser.uid+'/locations/'+currentLocationId+'/machines/'+mid+'/appData').once('value').then(function(as){
-        var val = as.val()||{};
-        return {sales: val.salesData||[], prods: val.products||[], inv: val.inventory||[], name: m.name||mid, devno: devnos[0]||mid, locId: currentLocationId, machineId: mid};
+    // vmmsColumns도 함께 로드하여 제품 목록 보강
+    db.ref('users/'+currentUser.uid+'/vmmsColumns/machines').once('value').then(function(colSnap){
+      var vmmsColAll = colSnap.val()||{};
+      var promises = Object.keys(machines).map(function(mid){
+        var m = machines[mid];
+        var devnos = Array.isArray(m.deviceNos)?m.deviceNos:(m.deviceNo?[m.deviceNo]:[]);
+        return db.ref('users/'+currentUser.uid+'/locations/'+currentLocationId+'/machines/'+mid+'/appData').once('value').then(function(as){
+          var val = as.val()||{};
+          var prods = val.products||[];
+          if(!Array.isArray(prods)) prods = Object.values(prods);
+          // vmmsColumns에서 제품 보강 (appData.products에 없는 제품 추가)
+          devnos.forEach(function(dno){
+            var colData = vmmsColAll[dno];
+            if(!colData || !colData.columns) return;
+            var cols = colData.columns;
+            if(!Array.isArray(cols)) cols = Object.values(cols);
+            var seen = {};
+            prods.forEach(function(p){ seen[p.name]=true; });
+            cols.forEach(function(c){
+              var name = (c.productName||'').trim();
+              if(name && !seen[name]){
+                seen[name] = true;
+                prods.push({id: c.productCode||name, name: name, column: [c.columnNo], sellPrice: 0});
+              }
+            });
+          });
+          return {sales: val.salesData||[], prods: prods, inv: val.inventory||[], name: m.name||mid, devno: devnos[0]||mid, locId: currentLocationId, machineId: mid};
+        });
       });
-    });
-    Promise.all(promises).then(function(machineDataList){
-      _doRenderSalesStats(machineDataList, range, panel);
+      Promise.all(promises).then(function(machineDataList){
+        _doRenderSalesStats(machineDataList, range, panel);
+      });
     });
   });
 }
