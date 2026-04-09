@@ -182,11 +182,12 @@ async def crawl_coupang_orders(email, pw, save_path):
         # 4. 주문내역 페이지
         debug_log.append("[4] 주문내역 페이지 이동")
         page = await browser.get(COUPANG_ORDER_URL)
-        await asyncio.sleep(4 + random.random() * 2)
+        await asyncio.sleep(8 + random.random() * 3)
 
         try:
             order_text = await page.evaluate('document.body.innerText')
             debug_log.append(f"[4] 주문 페이지 텍스트 길이: {len(order_text)}")
+            debug_log.append(f"[4] 텍스트 내용: {order_text[:500]}")
         except:
             order_text = ''
 
