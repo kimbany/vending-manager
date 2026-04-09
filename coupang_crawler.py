@@ -91,8 +91,8 @@ def ensure_display():
 async def crawl_coupang_orders(email, pw, save_path):
     import nodriver as uc
 
-    today = datetime.now().strftime("%Y-%m-%d")
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    today = datetime.now(tz=__import__('datetime').timezone(__import__('datetime').timedelta(hours=9))).strftime("%Y-%m-%d")
+    now_str = datetime.now(tz=__import__('datetime').timezone(__import__('datetime').timedelta(hours=9))).strftime("%Y-%m-%d %H:%M:%S")
     debug_log = []
     print(f"  쿠팡 크롤링 시작 (계정: {email[:5]}***)")
     debug_log.append(f"크롤링 시작: {email[:5]}***")
