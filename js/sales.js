@@ -124,6 +124,11 @@ function _doRenderSalesStats(machineDataList, range, panel){
     var p = null;
     if(s._prods) p = s._prods.find(function(x){return x.id===s.productId;});
     if(!p && s.productId) p = gp(s.productId);
+    // ID로 못 찾으면 상품명(itemName)으로 재매칭
+    if(!p && s.itemName){
+      if(s._prods) p = s._prods.find(function(x){ return x.name && x.name.trim() === s.itemName.trim(); });
+      if(!p) p = D.products.find(function(x){ return x.name && x.name.trim() === s.itemName.trim(); });
+    }
 
     var sAmt = (s.amt && s.amt > 0) ? s.amt : (p ? s.qty*(p.sellPrice||0) : 0);
     totalQty += s.qty;
@@ -497,6 +502,10 @@ function renderSalesDetailItems(sorted){
   sorted.forEach(function(s){
     var p = s._prods ? s._prods.find(function(x){return x.id===s.productId;}) : null;
     if(!p) p = gp(s.productId);
+    if(!p && s.itemName){
+      if(s._prods) p = s._prods.find(function(x){ return x.name && x.name.trim() === s.itemName.trim(); });
+      if(!p) p = D.products.find(function(x){ return x.name && x.name.trim() === s.itemName.trim(); });
+    }
     if(!p) return;
     var isCancelled = s.cancelled === true;
     var timeStr = '';
