@@ -271,9 +271,24 @@ function renderInv(){
       });
       if(needsSave) save();
 
+      // locSnap에서 deviceNo로 위치명 조회
+      var _foundLocName = '';
+      if(locSnap){
+        Object.keys(locSnap).forEach(function(locId){
+          var loc = locSnap[locId];
+          Object.keys(loc.machines||{}).forEach(function(mid){
+            var m = loc.machines[mid];
+            var devnos = Array.isArray(m.deviceNos)?m.deviceNos:(m.deviceNo?[m.deviceNo]:[]);
+            if(devnos.indexOf(devno)>=0){
+              _foundLocName = loc.name||'';
+            }
+          });
+        });
+      }
+
       machineDataList.push({
-        locName: vm.machineName||'',
-        machineName: vm.machineName||'',
+        locName: _foundLocName,
+        machineName: devno,
         products: prods,
         inventory: inv,
         isCurrent: false
@@ -373,7 +388,7 @@ function _renderInvMulti(machineDataList){
     else if(invSort==='qdesc') sorted.sort(function(a,b){return getQ(b.id)-getQ(a.id);});
 
     html += '<div style="font-size:13px;font-weight:700;color:var(--blue);padding:10px 0 6px;border-top:1px solid var(--border);margin-top:6px">'+
-      '📍 '+md.locName+' · 🏪 '+md.machineName+' ('+sorted.length+'개)</div>';
+      '📍 '+md.locName+' · 📟 '+md.machineName+' ('+sorted.length+'개)</div>';
     if(!sorted.length){
       html += '<div style="text-align:center;padding:12px;color:var(--text3);font-size:13px">등록된 제품 없음</div>';
       return;

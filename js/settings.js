@@ -8,7 +8,7 @@ function initSettingsTab(){
 
 // 하위호환: 이전 탭 전환 함수
 function switchSettingsSub(sub){
-  if(sub==='profile'){ renderProfileSummary(); loadLowStockSetting(); }
+  if(sub==='profile'){ renderProfileSummary(); loadLowStockSetting(); renderVmmsAccountStatus(); renderCoupangAccountStatus(); }
   if(sub==='machines') renderMachinesList();
 }
 
@@ -201,117 +201,143 @@ function toggleSettingsSub(sub){
   if(!isOpen && sub==='machine-manage') renderMachinesList();
 }
 
-// ─── 2. 개인/보안 ──────────────────────────────────────────────────────────────
-function initSecuritySection(){
-  resetSetVmmsLock();
-  renderSetCoupangStatus();
+// ─── 계정 수정 통합 모달 (VMMS / 쿠팡) ──────────────────────────────────────
+var _acctEditType = '';
+
+function openAccountEditModal(type){
+  _acctEditType = type;
+  document.getElementById('acct-lock').style.display = 'block';
+  document.getElementById('acct-form').style.display = 'none';
+  document.getElementById('acct-lock-pw').value = '';
+  document.getElementById('acct-lock-msg').textContent = '';
+  document.getElementById('acct-id').value = '';
+  document.getElementById('acct-pw').value = '';
+  document.getElementById('acct-pw').type = 'password';
+  document.getElementById('acct-pw-eye').textContent = '👁';
+  document.getElementById('acct-msg').textContent = '';
+  if(type==='vmms'){
+    document.getElementById('acct-modal-title').textContent = '🔗 VMMS 계정 설정';
+    document.getElementById('acct-id-label').textContent = 'VMMS 아이디';
+    document.getElementById('acct-pw-label').textContent = 'VMMS 비밀번호';
+    document.getElementById('acct-id').placeholder = 'VMMS 로그인 아이디';
+    document.getElementById('acct-pw').placeholder = 'VMMS 로그인 비밀번호';
+  } else {
+    document.getElementById('acct-modal-title').textContent = '🛒 쿠팡 계정 설정';
+    document.getElementById('acct-id-label').textContent = '쿠팡 이메일';
+    document.getElementById('acct-pw-label').textContent = '쿠팡 비밀번호';
+    document.getElementById('acct-id').placeholder = '쿠팡 로그인 이메일';
+    document.getElementById('acct-pw').placeholder = '쿠팡 로그인 비밀번호';
+  }
+  openModal('account-edit-modal');
 }
 
-// VMMS
-function resetSetVmmsLock(){
-  var pw = document.getElementById('set-vmms-lock-pw');
-  if(pw) pw.value='';
-  var msg = document.getElementById('set-vmms-lock-msg');
-  if(msg) msg.textContent='';
-  var locked = document.getElementById('set-vmms-locked');
-  var panel = document.getElementById('set-vmms-panel');
-  if(locked) locked.style.display='block';
-  if(panel) panel.style.display='none';
-}
-
-function unlockSetVmms(){
-  var pw = document.getElementById('set-vmms-lock-pw').value;
-  var msg = document.getElementById('set-vmms-lock-msg');
+function unlockAccountEdit(){
+  var pw = document.getElementById('acct-lock-pw').value;
+  var msg = document.getElementById('acct-lock-msg');
   if(!pw){ msg.textContent='비밀번호를 입력하세요'; return; }
   var cred = firebase.auth.EmailAuthProvider.credential(currentUser.email, pw);
   currentUser.reauthenticateWithCredential(cred).then(function(){
-    document.getElementById('set-vmms-locked').style.display='none';
-    document.getElementById('set-vmms-panel').style.display='block';
-    renderSetVmmsInfo();
+    document.getElementById('acct-lock').style.display = 'none';
+    document.getElementById('acct-form').style.display = 'block';
+    _loadAccountData();
   }).catch(function(){
     msg.textContent='비밀번호가 올바르지 않아요';
   });
 }
 
-function renderSetVmmsInfo(){
+function _loadAccountData(){
+  if(_acctEditType==='vmms'){
+    db.ref('users/'+currentUser.uid+'/vmms').once('value').then(function(snap){
+      var v = snap.val()||{};
+      if(v.id && v.pw){
+        Promise.all([decryptAES(v.id, currentUser.uid), decryptAES(v.pw, currentUser.uid)]).then(function(r){
+          document.getElementById('acct-id').value = r[0]||'';
+          document.getElementById('acct-pw').value = r[1]||'';
+        });
+      }
+    });
+  } else {
+    db.ref('users/'+currentUser.uid+'/coupangAccount').once('value').then(function(snap){
+      var v = snap.val()||{};
+      if(v.email && v.pw){
+        try {
+          document.getElementById('acct-id').value = atob(v.email);
+          document.getElementById('acct-pw').value = atob(v.pw);
+        } catch(e){}
+      }
+    });
+  }
+}
+
+function toggleAcctPwVisible(){
+  var inp = document.getElementById('acct-pw');
+  var eye = document.getElementById('acct-pw-eye');
+  if(inp.type==='password'){ inp.type='text'; eye.textContent='🙈'; }
+  else { inp.type='password'; eye.textContent='👁'; }
+}
+
+function saveAccountEdit(){
+  var id = document.getElementById('acct-id').value.trim();
+  var pw = document.getElementById('acct-pw').value;
+  var msg = document.getElementById('acct-msg');
+  if(!id||!pw){ msg.style.color='var(--red)'; msg.textContent='아이디와 비밀번호를 입력하세요'; return; }
+  msg.style.color='var(--text2)'; msg.textContent='암호화 저장 중...';
+  if(_acctEditType==='vmms'){
+    Promise.all([encryptAES(id, currentUser.uid), encryptAES(pw, currentUser.uid)]).then(function(r){
+      return db.ref('users/'+currentUser.uid+'/vmms').set({id:r[0], pw:r[1], updatedAt:new Date().toISOString()});
+    }).then(function(){
+      msg.style.color='var(--green)'; msg.textContent='✅ 저장 완료';
+      setTimeout(function(){ closeModal('account-edit-modal'); renderVmmsAccountStatus(); }, 1000);
+    }).catch(function(){ msg.style.color='var(--red)'; msg.textContent='저장 실패'; });
+  } else {
+    db.ref('users/'+currentUser.uid+'/coupangAccount').set({
+      email: btoa(id), pw: btoa(pw), updatedAt: new Date().toISOString()
+    }).then(function(){
+      msg.style.color='var(--green)'; msg.textContent='✅ 저장 완료';
+      setTimeout(function(){ closeModal('account-edit-modal'); renderCoupangAccountStatus(); }, 1000);
+    }).catch(function(){ msg.style.color='var(--red)'; msg.textContent='저장 실패'; });
+  }
+}
+
+function renderVmmsAccountStatus(){
+  var el = document.getElementById('vmms-account-status');
+  var btn = document.getElementById('vmms-account-btn');
+  if(!el || !currentUser) return;
   db.ref('users/'+currentUser.uid+'/vmms').once('value').then(function(snap){
     var v = snap.val()||{};
-    var el = document.getElementById('set-vmms-info');
-    if(!el) return;
-    if(!v.id){
-      el.innerHTML='<div style="font-size:12px;color:var(--text3);padding:6px 0">계정이 등록되어 있지 않아요.</div>';
-      return;
+    if(v.id){
+      decryptAES(v.id, currentUser.uid).then(function(decId){
+        var masked = decId ? decId.slice(0,3)+'••••••' : '등록됨';
+        el.textContent = '등록됨: '+masked;
+        btn.textContent = 'VMMS 계정 변경';
+      });
+    } else {
+      el.textContent = '미등록 · VMMS 계정을 등록하면 판매 데이터가 자동 수집됩니다';
+      btn.textContent = 'VMMS 계정 등록';
     }
-    decryptAES(v.id, currentUser.uid).then(function(decId){
-      var masked = decId ? decId.slice(0,3)+'••••••' : '••••••';
-      el.innerHTML='<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px"><span style="color:var(--text2)">아이디</span><span style="font-weight:600">'+masked+'</span></div>'+
-        '<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px"><span style="color:var(--text2)">비밀번호</span><span style="font-weight:600">••••••••</span></div>';
-    });
   });
 }
 
-// 쿠팡
-function renderSetCoupangStatus(){
-  var el = document.getElementById('set-coupang-status');
-  var btn = document.getElementById('set-coupang-btn');
+function renderCoupangAccountStatus(){
+  var el = document.getElementById('coupang-account-status');
+  var btn = document.getElementById('coupang-account-btn');
   if(!el || !currentUser) return;
   db.ref('users/'+currentUser.uid+'/coupangAccount').once('value').then(function(snap){
     var v = snap.val();
     if(v && v.email){
       try {
         var email = atob(v.email);
-        el.textContent='등록됨: '+email.slice(0,5)+'••••••';
-        if(btn) btn.textContent='계정 변경';
-      } catch(e){ el.textContent='등록됨'; }
+        el.textContent = '등록됨: '+email.slice(0,5)+'••••••';
+        btn.textContent = '쿠팡 계정 변경';
+      } catch(e){ el.textContent = '등록됨'; }
     } else {
-      el.textContent='미등록';
-      if(btn) btn.textContent='계정 등록';
+      el.textContent = '미등록 · 쿠팡 계정을 등록하면 주문내역이 자동 수집됩니다';
+      btn.textContent = '쿠팡 계정 등록';
     }
   });
 }
 
-// 하위호환: renderCoupangAccountStatus
-function renderCoupangAccountStatus(){ renderSetCoupangStatus(); }
-
-// ─── 쿠팡 계정 저장 ──────────────────────────────────────────────────────────
-function saveCoupangAccount(){
-  var email = document.getElementById('ca-email').value.trim();
-  var pw = document.getElementById('ca-pw').value;
-  var msg = document.getElementById('ca-msg');
-  if(!email||!pw){ msg.style.color='var(--red)'; msg.textContent='이메일과 비밀번호를 입력하세요'; return; }
-  msg.style.color='var(--text2)'; msg.textContent='암호화 저장 중...';
-  db.ref('users/'+currentUser.uid+'/coupangAccount').set({
-    email: btoa(email), pw: btoa(pw), updatedAt: new Date().toISOString()
-  }).then(function(){
-    msg.style.color='var(--green)'; msg.textContent='✅ 저장 완료';
-    setTimeout(function(){ closeModal('coupang-account-modal'); renderSetCoupangStatus(); }, 1000);
-  }).catch(function(){
-    msg.style.color='var(--red)'; msg.textContent='저장 실패. 다시 시도해주세요';
-  });
-}
-
-// ─── VMMS 하위호환 ───────────────────────────────────────────────────────────
-function resetVmmsLock(){ resetSetVmmsLock(); }
-function unlockVmms(){ unlockSetVmms(); }
-function renderVmmsInfo(){ renderSetVmmsInfo(); }
-
-function saveVmms(){
-  var id  = document.getElementById('ev-id').value.trim();
-  var pw  = document.getElementById('ev-pw').value;
-  var msg = document.getElementById('ev-msg');
-  if(!id||!pw){ msg.style.color='var(--red)'; msg.textContent='아이디와 비밀번호를 입력하세요'; return; }
-  msg.style.color='var(--text2)'; msg.textContent='암호화 저장 중...';
-  Promise.all([encryptAES(id, currentUser.uid), encryptAES(pw, currentUser.uid)]).then(function(results){
-    return db.ref('users/'+currentUser.uid+'/vmms').set({
-      id: results[0], pw: results[1], updatedAt: new Date().toISOString()
-    });
-  }).then(function(){
-    msg.style.color='var(--green)'; msg.textContent='✅ 저장 완료 (AES 암호화)';
-    setTimeout(function(){ closeModal('edit-vmms-modal'); renderSetVmmsInfo(); }, 1000);
-  }).catch(function(e){
-    msg.style.color='var(--red)'; msg.textContent='저장 실패. 다시 시도해주세요';
-  });
-}
+function resetVmmsLock(){}
 
 function saveGithubPat(){
   var pat = document.getElementById('ev-github-pat').value.trim();
