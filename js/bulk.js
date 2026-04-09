@@ -585,6 +585,8 @@ function confirmSalesDel(){
         var mProds = r.val.products||[];
 
         // 오늘 데이터 재고 복구
+        var mStockIn = r.val.stockIn||[];
+        if(!Array.isArray(mStockIn)) mStockIn = Object.values(mStockIn);
         if(doRestore){
           var todayRows = r.rows.filter(function(s){ return s.date===today && !s.cancelled; });
           var restoreMap = {};
@@ -593,21 +595,29 @@ function confirmSalesDel(){
           });
           Object.keys(restoreMap).forEach(function(pid){
             var qty = restoreMap[pid];
-            var idx = mInv.findIndex(function(i){return i.productId===pid;});
-            if(idx>=0) mInv[idx].qty += qty;
+            // stockIn에 복구 batch 추가
+            if(mStockIn.length){
+              mStockIn.push({id:Date.now().toString()+Math.random().toString(36).substr(2,4), productId:pid, quantity:qty, remainingQty:qty, unitCost:0, totalCost:0, source:'restore', memo:'판매삭제 재고복구', date:today});
+            } else {
+              var idx = mInv.findIndex(function(i){return i.productId===pid;});
+              if(idx>=0) mInv[idx].qty += qty;
+              else mInv.push({productId:pid, qty:qty});
+            }
             mLogs.push({id:Date.now().toString()+Math.random(), productId:pid, delta:qty, memo:'판매삭제 재고복구 '+today, date:today});
           });
         }
 
         var newSales = (r.val.salesData||[]).filter(function(s){ return !(s.date>=range.from && s.date<=range.to); });
         var appRef = db.ref('users/'+currentUser.uid+'/locations/'+currentLocationId+'/machines/'+r.mid+'/appData');
-        // 현재 자판기면 D도 업데이트
         if(r.mid === currentMachineId){
           D.salesData = newSales;
-          if(doRestore){ D.inventory = mInv; D.inventoryLogs = mLogs; }
+          if(doRestore){ D.inventory = mInv; D.inventoryLogs = mLogs; D.stockIn = mStockIn; }
         }
         var updateData = {salesData: newSales};
-        if(doRestore){ updateData.inventory = mInv; updateData.inventoryLogs = mLogs; }
+        if(doRestore){
+          updateData.inventory = mInv; updateData.inventoryLogs = mLogs;
+          if(mStockIn.length) updateData.stockIn = mStockIn;
+        }
         return appRef.update(updateData);
       });
 
@@ -652,31 +662,52 @@ function toggleSaleCancel(id, locId, machineId){
     var mSales = val.salesData||[];
     var mInv = val.inventory||[];
     var mLogs = val.inventoryLogs||[];
+    var mStockIn = val.stockIn||[];
+    if(!Array.isArray(mStockIn)) mStockIn = Object.values(mStockIn);
     var si = mSales.findIndex(function(s){ return s.id===id; });
     if(si<0){ showToast('❌ 데이터를 찾을 수 없어요'); return; }
     var s = mSales[si];
     var mProds = val.products||[];
     var p = mProds.find(function(x){return x.id===s.productId;});
+    if(!p && s.itemName) p = {name:s.itemName, id:s.productId};
     var action2 = s.cancelled ? '복구' : '환불';
     if(!confirm((p?p.name:'제품')+' '+s.date+'\n\n'+action2+' 처리할까요?')) return;
     if(!s.cancelled){
       mSales[si].cancelled = true;
-      if(p){
-        var ii = mInv.findIndex(function(i){return i.productId===s.productId;});
-        if(ii>=0) mInv[ii].qty = Math.max(0, mInv[ii].qty + s.qty);
+      if(p && s.productId){
+        // 환불 → 재고 복구 (stockIn에 batch 추가)
+        if(mStockIn.length){
+          mStockIn.push({id:Date.now().toString()+Math.random().toString(36).substr(2,4), productId:s.productId, quantity:s.qty, remainingQty:s.qty, unitCost:0, totalCost:0, source:'refund', memo:s.date+' 환불처리 재고원복', date:td()});
+        } else {
+          var ii = mInv.findIndex(function(i){return i.productId===s.productId;});
+          if(ii>=0) mInv[ii].qty += s.qty;
+          else mInv.push({productId:s.productId, qty:s.qty});
+        }
         mLogs.push({id:Date.now().toString()+Math.random(), productId:s.productId, delta:s.qty, memo:s.date+' 환불처리 재고원복', date:s.date});
       }
       showToast('↩️ '+(p?p.name:'제품')+' 환불 처리');
     } else {
       mSales[si].cancelled = false;
-      if(p){
-        var ii2 = mInv.findIndex(function(i){return i.productId===s.productId;});
-        if(ii2>=0) mInv[ii2].qty = Math.max(0, mInv[ii2].qty - s.qty);
+      if(p && s.productId){
+        // 복구 → 재고 차감 (stockIn에서 FIFO)
+        var siBatches = mStockIn.filter(function(b){ return b.productId===s.productId && b.remainingQty>0; })
+          .sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+        var rem = s.qty;
+        for(var bi=0; bi<siBatches.length && rem>0; bi++){
+          var use = Math.min(rem, siBatches[bi].remainingQty);
+          siBatches[bi].remainingQty -= use; rem -= use;
+        }
+        if(rem > 0){
+          var ii2 = mInv.findIndex(function(i){return i.productId===s.productId;});
+          if(ii2>=0) mInv[ii2].qty = Math.max(0, mInv[ii2].qty - rem);
+        }
         mLogs.push({id:Date.now().toString()+Math.random(), productId:s.productId, delta:-s.qty, memo:s.date+' 환불취소 재고차감', date:s.date});
       }
       showToast('✅ '+(p?p.name:'제품')+' 복구 완료');
     }
-    appRef.set({products:mProds, inventory:mInv, inventoryLogs:mLogs, salesData:mSales}).then(function(){
+    var upd = {products:mProds, inventory:mInv, inventoryLogs:mLogs, salesData:mSales};
+    if(mStockIn.length) upd.stockIn = mStockIn;
+    appRef.set(upd).then(function(){
       renderSalesStats();
     });
   });

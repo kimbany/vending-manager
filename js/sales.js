@@ -424,16 +424,30 @@ function deductInventoryForPeriod(){
         sales.forEach(function(s){ qtyMap[s.productId]=(qtyMap[s.productId]||0)+s.qty; });
         var mInv = r.val.inventory||[];
         var mLogs = r.val.inventoryLogs||[];
+        var mStockIn = r.val.stockIn||[];
+        if(!Array.isArray(mStockIn)) mStockIn = Object.values(mStockIn);
         Object.keys(qtyMap).forEach(function(pid){
           var qty = qtyMap[pid];
-          var idx = mInv.findIndex(function(i){return i.productId===pid;});
-          if(idx>=0) mInv[idx].qty = Math.max(0, mInv[idx].qty - qty);
-          else mInv.push({productId:pid, qty:0});
+          // stockIn(batch)에서 FIFO 차감 시도
+          var siBatches = mStockIn.filter(function(b){ return b.productId===pid && b.remainingQty>0; })
+            .sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+          var rem = qty;
+          for(var bi=0; bi<siBatches.length && rem>0; bi++){
+            var use = Math.min(rem, siBatches[bi].remainingQty);
+            siBatches[bi].remainingQty -= use; rem -= use;
+          }
+          // 남은 수량은 inventory(구 시스템)에서 차감
+          if(rem > 0){
+            var idx = mInv.findIndex(function(i){return i.productId===pid;});
+            if(idx>=0) mInv[idx].qty = Math.max(0, mInv[idx].qty - rem);
+          }
           mLogs.push({id:Date.now().toString()+Math.random(), productId:pid, delta:-qty, memo:periodLabel+' 판매분 재고차감', date:range.to});
         });
         var appRef = db.ref('users/'+currentUser.uid+'/locations/'+currentLocationId+'/machines/'+r.mid+'/appData');
-        if(r.mid === currentMachineId){ D.inventory = mInv; D.inventoryLogs = mLogs; }
-        return appRef.update({inventory:mInv, inventoryLogs:mLogs});
+        if(r.mid === currentMachineId){ D.inventory = mInv; D.inventoryLogs = mLogs; D.stockIn = mStockIn; }
+        var upd = {inventory:mInv, inventoryLogs:mLogs};
+        if(mStockIn.length) upd.stockIn = mStockIn;
+        return appRef.update(upd);
       });
 
       Promise.all(savePromises).then(function(){

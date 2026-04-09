@@ -354,25 +354,38 @@ function _applyCrawledData(isAuto, customDate){
             });
             added++;
 
-            // 재고 차감 (취소가 아닌 경우)
+            // 재고 차감 (취소가 아닌 경우) - stockIn(batch) 우선, 없으면 inventory
             if(!isCancelled && pid){
-              var invIdx = inv.findIndex(function(x){ return x.productId === pid; });
-              if(invIdx >= 0){
-                inv[invIdx].qty = Math.max(0, inv[invIdx].qty - 1);
+              var siList = machVal.stockIn||[];
+              if(!Array.isArray(siList)) siList = Object.values(siList);
+              var siBatches = siList.filter(function(b){ return b.productId===pid && b.remainingQty>0; })
+                .sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+              if(siBatches.length){
+                var rem = 1;
+                for(var bi=0; bi<siBatches.length && rem>0; bi++){
+                  var use = Math.min(rem, siBatches[bi].remainingQty);
+                  siBatches[bi].remainingQty -= use;
+                  rem -= use;
+                }
+              } else {
+                var invIdx = inv.findIndex(function(x){ return x.productId === pid; });
+                if(invIdx >= 0) inv[invIdx].qty = Math.max(0, inv[invIdx].qty - 1);
               }
             }
           });
 
           // 현재 자판기면 D도 업데이트
+          var siList = machVal.stockIn||[];
+          if(!Array.isArray(siList)) siList = Object.values(siList);
           if(locId === currentLocationId && mid === currentMachineId){
             D.salesData = sales;
             D.inventory = inv;
+            D.stockIn = siList;
           }
 
-          ref.update({
-            salesData: sales,
-            inventory: inv
-          });
+          var updateObj = { salesData: sales, inventory: inv };
+          if(siList.length) updateObj.stockIn = siList;
+          ref.update(updateObj);
         });
       });
 
