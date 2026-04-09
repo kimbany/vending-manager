@@ -182,12 +182,31 @@ async def crawl_coupang_orders(email, pw, save_path):
         # 4. 주문내역 페이지
         debug_log.append("[4] 주문내역 페이지 이동")
         page = await browser.get(COUPANG_ORDER_URL)
-        await asyncio.sleep(8 + random.random() * 3)
+        await asyncio.sleep(10 + random.random() * 3)
+
+        # 페이지 완전 로딩 대기 (JS 렌더링)
+        for retry in range(5):
+            try:
+                order_text = await page.evaluate('document.body.innerText')
+                if len(order_text) > 300:
+                    break
+                debug_log.append(f"[4] 로딩 대기 중... ({len(order_text)}자, {retry+1}/5)")
+                await asyncio.sleep(3)
+            except:
+                await asyncio.sleep(3)
+                order_text = ''
+
+        # 스크롤 다운 (더 많은 주문 로드)
+        try:
+            await page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
+            await asyncio.sleep(3)
+        except:
+            pass
 
         try:
             order_text = await page.evaluate('document.body.innerText')
-            debug_log.append(f"[4] 주문 페이지 텍스트 길이: {len(order_text)}")
-            debug_log.append(f"[4] 텍스트 내용: {order_text[:500]}")
+            debug_log.append(f"[4] 최종 텍스트 길이: {len(order_text)}")
+            debug_log.append(f"[4] 텍스트: {order_text[:500]}")
         except:
             order_text = ''
 
