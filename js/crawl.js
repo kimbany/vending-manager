@@ -356,10 +356,18 @@ function _applyCrawledData(isAuto, customDate){
 
             // 재고 차감 (취소가 아닌 경우) - stockIn(batch) 우선, 없으면 inventory
             if(!isCancelled && pid){
-              var siList = machVal.stockIn||[];
-              if(!Array.isArray(siList)) siList = Object.values(siList);
-              var siBatches = siList.filter(function(b){ return b.productId===pid && b.remainingQty>0; })
-                .sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+              var siAll = machVal.stockIn||[];
+              if(!Array.isArray(siAll)) siAll = Object.values(siAll);
+              // pid로 매칭 시도, 없으면 itemName으로 폴백
+              var siBatches = siAll.filter(function(b){ return b.productId===pid && b.remainingQty>0; });
+              if(!siBatches.length && itemName){
+                // productId에 제품명이 포함된 경우 or vmmsColumns에서 이름으로 찾기
+                var altPid = '';
+                var vc = vmmsColList.find(function(c){ return c.productName && c.productName.trim()===itemName.trim(); });
+                if(vc) altPid = vc.productCode||vc.productName||'';
+                if(altPid && altPid !== pid) siBatches = siAll.filter(function(b){ return b.productId===altPid && b.remainingQty>0; });
+              }
+              siBatches.sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
               if(siBatches.length){
                 var rem = 1;
                 for(var bi=0; bi<siBatches.length && rem>0; bi++){

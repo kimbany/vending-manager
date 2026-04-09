@@ -399,12 +399,19 @@ function deductInventoryForPeriod(){
   }
 
   // 모든 자판기에서 해당 기간 판매 데이터 로드
-  db.ref('users/'+currentUser.uid+'/locations/'+currentLocationId+'/machines').once('value').then(function(snap){
+  Promise.all([
+    db.ref('users/'+currentUser.uid+'/locations/'+currentLocationId+'/machines').once('value'),
+    db.ref('users/'+currentUser.uid+'/vmmsColumns/machines').once('value')
+  ]).then(function(rs){
+    var snap = rs[0];
+    var vmmsColAll = rs[1].val()||{};
     if(!snap.exists()){ showToast('❌ 자판기 없음'); return; }
     var machines = snap.val();
     var promises = Object.keys(machines).map(function(mid){
+      var m = machines[mid];
+      var devnos = Array.isArray(m.deviceNos)?m.deviceNos:(m.deviceNo?[m.deviceNo]:[]);
       return db.ref('users/'+currentUser.uid+'/locations/'+currentLocationId+'/machines/'+mid+'/appData').once('value').then(function(as){
-        return {mid:mid, val:as.val()||{}};
+        return {mid:mid, val:as.val()||{}, devnos:devnos};
       });
     });
 
@@ -426,17 +433,23 @@ function deductInventoryForPeriod(){
         var mLogs = r.val.inventoryLogs||[];
         var mStockIn = r.val.stockIn||[];
         if(!Array.isArray(mStockIn)) mStockIn = Object.values(mStockIn);
+        // vmmsColumns에서 제품 ID 매핑 (판매 productId ↔ stockIn productId)
+        var colList = [];
+        (r.devnos||[]).forEach(function(dno){ var cd=vmmsColAll[dno]; if(cd&&cd.columns){ var c=cd.columns; if(!Array.isArray(c))c=Object.values(c); colList=colList.concat(c); }});
         Object.keys(qtyMap).forEach(function(pid){
           var qty = qtyMap[pid];
-          // stockIn(batch)에서 FIFO 차감 시도
-          var siBatches = mStockIn.filter(function(b){ return b.productId===pid && b.remainingQty>0; })
-            .sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+          var siBatches = mStockIn.filter(function(b){ return b.productId===pid && b.remainingQty>0; });
+          // pid로 못 찾으면 vmmsColumns로 대체 ID 시도
+          if(!siBatches.length){
+            var altIds = []; colList.forEach(function(c){ var code=c.productCode||'',name=c.productName||''; if(code===pid||name===pid){ if(code)altIds.push(code); if(name)altIds.push(name); }});
+            for(var ai=0; ai<altIds.length && !siBatches.length; ai++){ siBatches=mStockIn.filter(function(b){return b.productId===altIds[ai]&&b.remainingQty>0;}); }
+          }
+          siBatches.sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
           var rem = qty;
           for(var bi=0; bi<siBatches.length && rem>0; bi++){
             var use = Math.min(rem, siBatches[bi].remainingQty);
             siBatches[bi].remainingQty -= use; rem -= use;
           }
-          // 남은 수량은 inventory(구 시스템)에서 차감
           if(rem > 0){
             var idx = mInv.findIndex(function(i){return i.productId===pid;});
             if(idx>=0) mInv[idx].qty = Math.max(0, mInv[idx].qty - rem);
