@@ -382,11 +382,11 @@ function _renderInvMulti(machineDataList){
   machineDataList.forEach(function(md){
     function getQ(pid){
       if(md.isCurrent) return gq(pid);
-      // 다른 자판기: stockIn(batch) 우선, 없으면 inventory(구 시스템)
+      // 다른 자판기: stockIn(batch)에서 해당 제품 찾고, 없으면 inventory
       var si = md.stockIn||[];
-      if(si.length){
-        var total=0; si.forEach(function(b){ if(b.productId===pid) total+=(b.remainingQty||0); }); return total;
-      }
+      var siTotal=0, siFound=false;
+      si.forEach(function(b){ if(b.productId===pid){ siTotal+=(b.remainingQty||0); siFound=true; } });
+      if(siFound) return siTotal;
       var i=md.inventory.find(function(x){return x.productId===pid;}); return i?i.qty:0;
     }
     md.products.forEach(function(p){
@@ -411,11 +411,11 @@ function _renderInvMulti(machineDataList){
   machineDataList.forEach(function(md){
     function getQ(pid){
       if(md.isCurrent) return gq(pid);
-      // 다른 자판기: stockIn(batch) 우선, 없으면 inventory(구 시스템)
+      // 다른 자판기: stockIn(batch)에서 해당 제품 찾고, 없으면 inventory
       var si = md.stockIn||[];
-      if(si.length){
-        var total=0; si.forEach(function(b){ if(b.productId===pid) total+=(b.remainingQty||0); }); return total;
-      }
+      var siTotal=0, siFound=false;
+      si.forEach(function(b){ if(b.productId===pid){ siTotal+=(b.remainingQty||0); siFound=true; } });
+      if(siFound) return siTotal;
       var i=md.inventory.find(function(x){return x.productId===pid;}); return i?i.qty:0;
     }
     var sorted = md.products.slice();
