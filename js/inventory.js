@@ -240,39 +240,14 @@ function renderInv(){
           });
         });
       }
-      // 항상 D.products로 이름 매칭 (D.products = 현재 자판기의 최신 데이터)
-      // VMMS 제품 ID → D.products ID 매칭 (이름 기준) 및 속성 병합
-      var needsSave = false;
+      // 해당 자판기의 기존 제품(existingProds)과 이름 매칭하여 속성 병합
       prods.forEach(function(vp){
-        var origId = vp.id; // 원본 VMMS 코드
-        var dProd = D.products.find(function(ep){ return ep.name.trim() === vp.name.trim(); });
-        if(dProd){
-          vp.id = dProd.id;
-          if(dProd.sellPrice!=null) vp.sellPrice = dProd.sellPrice;
-          if(dProd.buyPrice!=null) vp.buyPrice = dProd.buyPrice;
-          if(dProd.totalQty!=null) vp.totalQty = dProd.totalQty;
-          if(dProd.marginAmt!=null) vp.marginAmt = dProd.marginAmt;
-          if(dProd.marginRate!=null) vp.marginRate = dProd.marginRate;
-          // D.inventory에 VMMS 코드로 저장된 항목 → D.products ID로 마이그레이션
-          if(origId !== dProd.id){
-            var vmmsIdx = D.inventory.findIndex(function(x){ return x.productId === origId; });
-            if(vmmsIdx >= 0){
-              var dprodEntry = D.inventory.find(function(x){ return x.productId === dProd.id; });
-              if(dprodEntry){
-                if(D.inventory[vmmsIdx].qty > 0) dprodEntry.qty = D.inventory[vmmsIdx].qty;
-                D.inventory.splice(vmmsIdx, 1);
-              } else {
-                D.inventory[vmmsIdx].productId = dProd.id;
-              }
-              D.inventoryLogs.forEach(function(l){
-                if(l.productId === origId) l.productId = dProd.id;
-              });
-              needsSave = true;
-            }
-          }
+        var ep = existingProds.find(function(p){ return p.name && p.name.trim() === vp.name.trim(); });
+        if(ep){
+          if(ep.sellPrice!=null) vp.sellPrice = ep.sellPrice;
+          if(ep.buyPrice!=null) vp.buyPrice = ep.buyPrice;
         }
       });
-      if(needsSave) save();
 
       // locSnap에서 deviceNo로 위치명/자판기종류/ID 조회
       var _foundLocName = '';
