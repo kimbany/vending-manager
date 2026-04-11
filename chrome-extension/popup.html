@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { width: 320px; padding: 16px; font-family: -apple-system, sans-serif; margin: 0; }
+    h2 { font-size: 16px; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
+    .logo { width: 24px; height: 24px; }
+    label { font-size: 12px; color: #666; display: block; margin-bottom: 4px; }
+    input { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; box-sizing: border-box; margin-bottom: 10px; }
+    button { width: 100%; padding: 10px; background: #4A7AFF; color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; }
+    button:hover { background: #3A6AEE; }
+    .status { font-size: 12px; color: #999; margin-top: 10px; text-align: center; }
+    .status.ok { color: #4CAF50; }
+    .status.err { color: #E05858; }
+    .info { font-size: 11px; color: #999; margin-top: 12px; padding-top: 10px; border-top: 1px solid #eee; line-height: 1.5; }
+    .toggle { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+    .toggle input { width: auto; margin: 0; }
+    .toggle label { margin: 0; font-size: 13px; color: #333; }
+  </style>
+</head>
+<body>
+  <h2>📦 Invendory 쿠팡 연동</h2>
+
+  <label>Invendory 사용자 ID (UID)</label>
+  <input type="text" id="uid" placeholder="앱 설정에서 확인">
+
+  <div class="toggle">
+    <input type="checkbox" id="autoSync" checked>
+    <label for="autoSync">주문내역 페이지 열면 자동 동기화</label>
+  </div>
+
+  <button id="saveBtn">설정 저장</button>
+
+  <div id="status" class="status"></div>
+
+  <button id="syncBtn" style="margin-top:10px;background:#FF6B00">지금 동기화 (주문내역 페이지에서)</button>
+
+  <div class="info">
+    <strong>사용법:</strong><br>
+    1. 위에 UID를 입력하고 저장<br>
+    2. 쿠팡에서 로그인<br>
+    3. <a href="https://mc.coupang.com/ssr/desktop/order/list" target="_blank">주문내역 페이지</a> 열기<br>
+    4. 자동으로 Invendory에 동기화됨
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

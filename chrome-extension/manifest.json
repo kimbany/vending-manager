@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "Invendory - 쿠팡 구매내역 연동",
+  "version": "1.0.0",
+  "description": "쿠팡 주문내역을 Invendory 앱에 자동으로 연동합니다",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://mc.coupang.com/*",
+    "https://*.firebasedatabase.app/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://mc.coupang.com/ssr/desktop/order/list*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}
