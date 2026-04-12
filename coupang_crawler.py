@@ -148,17 +148,25 @@ async def crawl_coupang_orders(email, pw, save_path):
         page = await browser.get("https://www.coupang.com/")
         await asyncio.sleep(3 + random.random() * 2)
 
-        # 2. 상단 바 로그인 버튼 클릭
-        #    XPath: //*[@id="wa-top-bar"]/div/menu[1]/li[4]/a
-        debug_log.append("[2] 로그인 버튼 클릭")
-        clicked = await _xpath_click(page, '//*[@id="wa-top-bar"]/div/menu[1]/li[4]/a')
-        if not clicked:
-            # 폴백: 로그인 페이지로 직접 이동
-            debug_log.append("[2] 로그인 버튼 못 찾음 → 로그인 URL 직접 이동")
+        # 2. 로그인 페이지로 이동
+        #    상단바 로그인 버튼(//*[@id="wa-top-bar"]/div/menu[1]/li[4]/a)은
+        #    새 탭/팝업을 열 수 있어 page 객체가 어긋남. 안정성을 위해
+        #    login.coupang.com으로 직접 이동하는 것을 1차 경로로 사용.
+        debug_log.append("[2] 로그인 페이지 이동")
+        try:
             page = await browser.get(
                 "https://login.coupang.com/login/login.pang?rtnUrl=https%3A%2F%2Fwww.coupang.com%2F"
             )
+        except Exception as _e:
+            debug_log.append(f"[2] 로그인 URL 이동 실패: {_e}")
         await asyncio.sleep(4 + random.random() * 2)
+
+        # 페이지 확인
+        try:
+            cur = await page.evaluate('location.href')
+            debug_log.append(f"[2] URL: {cur}")
+        except:
+            pass
 
         # 3. 이메일/비밀번호 입력 (사용자 제공 ID 기준)
         #    //*[@id="login-email-input"], //*[@id="login-password-input"]
@@ -192,39 +200,126 @@ async def crawl_coupang_orders(email, pw, save_path):
         await asyncio.sleep(1 + random.random() * 0.5)
 
         # 로그인 제출
+        # 소셜 로그인(네이버/카카오 등) 버튼이 button[type=submit]로 잡힐 위험이
+        # 있어서 Enter 키 전송을 우선으로 사용.
+        submitted_via = 'enter'
         try:
-            login_btn = await page.select('button[type=submit]')
-            if login_btn:
-                await login_btn.click()
-            else:
-                await pw_input.send_keys('\n')
-        except:
             await pw_input.send_keys('\n')
+        except Exception as _e:
+            # Enter 실패 시 form 내부 로그인 버튼 탐색
+            try:
+                btn = None
+                for sel in [
+                    'form button[type=submit]',
+                    '.login__button',
+                    'button.login__button',
+                    '#login-submit',
+                    'button#login-submit-button',
+                ]:
+                    btn = await page.select(sel)
+                    if btn:
+                        break
+                if btn:
+                    await btn.click()
+                    submitted_via = 'button'
+            except Exception as _e2:
+                pass
+        debug_log.append(f"[3] 제출: {submitted_via}")
 
         await asyncio.sleep(5 + random.random() * 2)
 
         # 로그인 결과 확인
         try:
             current_text = await page.evaluate('document.body.innerText')
-            debug_log.append(f"[3] 로그인 후 텍스트: {current_text[:100]}")
+            debug_log.append(f"[3] 로그인 후 텍스트: {current_text[:150]}")
         except:
             current_text = ''
 
-        # SMS 인증 체크
-        if '인증' in current_text and ('번호' in current_text or 'SMS' in current_text):
-            debug_log.append("[3] SMS 인증 요구됨")
-            rtdb.reference(f'{save_path}/_debug').set({'log': debug_log, 'updated_at': now_str, 'status': 'sms_required'})
+        # 현재 URL / 페이지 정보
+        try:
+            current_url = await page.evaluate('location.href')
+            page_title = await page.evaluate('document.title')
+            debug_log.append(f"[3] URL: {current_url}")
+            debug_log.append(f"[3] title: {page_title}")
+        except:
+            current_url = ''
+            page_title = ''
+
+        # SMS / 2차 인증 / 캡차 체크 (감지 범위 확대)
+        auth_keywords = ['SMS 인증', '휴대폰 인증', '본인 인증', '보안 인증', '2단계 인증', '인증번호', '캡차', 'CAPTCHA', '자동입력 방지', '보안문자']
+        if any(k in current_text for k in auth_keywords):
+            debug_log.append(f"[3] 추가 인증 감지됨")
+            rtdb.reference(f'{save_path}/_debug').set({
+                'log': debug_log,
+                'updated_at': now_str,
+                'status': 'sms_required',
+                'url': current_url,
+                'title': page_title,
+                'text_sample': current_text[:500],
+            })
             return -1
 
-        # 여전히 로그인 페이지면 실패
+        # 여전히 로그인 페이지면 실패 — 에러 원인 진단 강화
         try:
             still_login = await page.select('#login-email-input') or await page.select('input[name=email]')
-            if still_login:
-                debug_log.append("[3] 로그인 실패 (아직 로그인 페이지)")
-                rtdb.reference(f'{save_path}/_debug').set({'log': debug_log, 'updated_at': now_str, 'status': 'login_failed'})
-                return 0
         except:
-            pass
+            still_login = None
+
+        if still_login:
+            # 로그인 폼 근처 에러 메시지 수집
+            try:
+                error_msg = await page.evaluate('''(() => {
+                    const sels = [
+                        '.error-message', '.error', '.form-error',
+                        '.login__error', '[class*="error"]', '.msg-error',
+                        '[role="alert"]'
+                    ];
+                    for (const s of sels) {
+                        const el = document.querySelector(s);
+                        if (el && el.innerText && el.innerText.trim()) {
+                            return el.innerText.trim().slice(0, 300);
+                        }
+                    }
+                    return '';
+                })()''')
+            except:
+                error_msg = ''
+
+            # 캡차 이미지 탐지
+            try:
+                has_captcha = await page.evaluate('''(() => {
+                    const imgs = document.querySelectorAll('img');
+                    for (const i of imgs) {
+                        const s = (i.src||'') + ' ' + (i.alt||'') + ' ' + (i.id||'') + ' ' + (i.className||'');
+                        if (/captcha|secu/i.test(s)) return true;
+                    }
+                    return !!document.querySelector('input[name*="captcha"], input[id*="captcha"]');
+                })()''')
+            except:
+                has_captcha = False
+
+            # 스크린샷 저장 (workflow가 coupang_*.png 아티팩트로 업로드)
+            try:
+                await page.save_screenshot('coupang_login_failed.png')
+                debug_log.append("[3] 스크린샷 저장")
+            except Exception as _e:
+                debug_log.append(f"[3] 스크린샷 실패: {_e}")
+
+            debug_log.append(f"[3] 로그인 실패 (아직 로그인 페이지)")
+            debug_log.append(f"[3] 에러메시지: {error_msg or '(없음)'}")
+            debug_log.append(f"[3] 캡차감지: {has_captcha}")
+
+            rtdb.reference(f'{save_path}/_debug').set({
+                'log': debug_log,
+                'updated_at': now_str,
+                'status': 'login_failed',
+                'url': current_url,
+                'title': page_title,
+                'error_message': error_msg,
+                'has_captcha': has_captcha,
+                'text_sample': current_text[:500],
+            })
+            return 0
 
         debug_log.append("[3] 로그인 성공")
 
