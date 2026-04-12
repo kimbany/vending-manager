@@ -319,8 +319,12 @@ async def crawl_coupang_orders(email, pw, save_path):
             })
             return 0
 
-        # 3. 이메일/비밀번호 입력 (사용자 제공 ID 기준)
-        #    //*[@id="login-email-input"], //*[@id="login-password-input"]
+        # 3. 이메일/비밀번호 입력
+        #    전략 우선순위:
+        #      (a) nodriver CSS select: #login-email-input / #login-password-input
+        #      (b) nodriver CSS select: input[name=email|password]
+        #      (c) 사용자 제공 XPath (label>span>input 래핑 구조)
+        #      (d) 타입 기반 최종 폴백: input[type=email|password]
         email_input = await page.select('#login-email-input')
         pw_input = await page.select('#login-password-input')
         if not email_input:
@@ -328,34 +332,95 @@ async def crawl_coupang_orders(email, pw, save_path):
         if not pw_input:
             pw_input = await page.select('input[name=password]')
 
+        filled_via = 'nodriver'
         if not email_input or not pw_input:
-            debug_log.append("[3] 이메일/비밀번호 필드 못 찾음")
+            # (c) XPath + JS native setter 폴백
+            debug_log.append("[3] CSS select 실패 → XPath/JS 폴백 시도")
+            js_fill = '''((xpEmail, xpPw, emailVal, pwVal) => {
+                const getXp = (xp) => {
+                    try {
+                        return document.evaluate(xp, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+                    } catch (_) { return null; }
+                };
+                const fill = (el, val) => {
+                    if (!el) return false;
+                    try {
+                        el.focus();
+                        const proto = window.HTMLInputElement.prototype;
+                        const setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
+                        setter.call(el, val);
+                        el.dispatchEvent(new Event('input', {bubbles: true}));
+                        el.dispatchEvent(new Event('change', {bubbles: true}));
+                        el.dispatchEvent(new KeyboardEvent('keyup', {bubbles: true}));
+                        return true;
+                    } catch (_) { return false; }
+                };
+                let e = getXp(xpEmail);
+                let p = getXp(xpPw);
+                if (!e) e = document.querySelector('input[type=email]') || document.querySelector('input[name=email]');
+                if (!p) p = document.querySelector('input[type=password]') || document.querySelector('input[name=password]');
+                return {
+                    emailOk: fill(e, emailVal),
+                    pwOk: fill(p, pwVal),
+                    emailFound: !!e,
+                    pwFound: !!p,
+                    emailTag: e ? (e.outerHTML||'').slice(0, 150) : '',
+                    pwTag: p ? (p.outerHTML||'').slice(0, 150) : ''
+                };
+            })'''
+            xp_email = '/html/body/div[2]/div[1]/div[2]/div[1]/form/div[1]/div[1]/div[1]/label/span[2]/input'
+            xp_pw = '/html/body/div[2]/div[1]/div[2]/div[1]/form/div[1]/div[2]/div[1]/label/span[2]/input'
             try:
-                text = await page.evaluate('document.body.innerText')
-                debug_log.append(f"[3] 페이지: {text[:200]}")
-            except:
-                pass
-            rtdb.reference(f'{save_path}/_debug').set({'log': debug_log, 'updated_at': now_str, 'status': 'no_input'})
-            return 0
+                call_js = f'({js_fill})({json.dumps(xp_email)}, {json.dumps(xp_pw)}, {json.dumps(email)}, {json.dumps(pw)})'
+                result = await page.evaluate(call_js)
+            except Exception as _e:
+                debug_log.append(f"[3] JS 폴백 실행 실패: {_e}")
+                result = None
 
-        debug_log.append("[3] 로그인 필드 찾음")
+            if result and result.get('emailOk') and result.get('pwOk'):
+                filled_via = 'xpath_js'
+                debug_log.append(f"[3] JS 폴백 성공 (emailTag={result.get('emailTag','')[:80]})")
+                # pw_input 객체는 없지만 페이지에서 Enter/폼 제출은 별도 처리
+                email_input = None
+                pw_input = None
+            else:
+                found = (result or {}).get
+                debug_log.append(f"[3] JS 폴백 실패 (emailFound={found('emailFound') if result else '?'}, pwFound={found('pwFound') if result else '?'})")
+                try:
+                    text = await page.evaluate('document.body.innerText')
+                    debug_log.append(f"[3] 페이지: {text[:200]}")
+                except:
+                    pass
+                rtdb.reference(f'{save_path}/_debug').set({'log': debug_log, 'updated_at': now_str, 'status': 'no_input'})
+                return 0
 
-        await email_input.click()
-        await asyncio.sleep(0.5 + random.random() * 0.5)
-        await email_input.send_keys(email)
-        await asyncio.sleep(0.8 + random.random() * 0.5)
+        if filled_via == 'nodriver':
+            debug_log.append("[3] 로그인 필드 찾음 (nodriver)")
+            await email_input.click()
+            await asyncio.sleep(0.5 + random.random() * 0.5)
+            await email_input.send_keys(email)
+            await asyncio.sleep(0.8 + random.random() * 0.5)
 
-        await pw_input.click()
-        await asyncio.sleep(0.5 + random.random() * 0.5)
-        await pw_input.send_keys(pw)
-        await asyncio.sleep(1 + random.random() * 0.5)
+            await pw_input.click()
+            await asyncio.sleep(0.5 + random.random() * 0.5)
+            await pw_input.send_keys(pw)
+            await asyncio.sleep(1 + random.random() * 0.5)
 
         # 로그인 제출
         # 소셜 로그인(네이버/카카오 등) 버튼이 button[type=submit]로 잡힐 위험이
-        # 있어서 Enter 키 전송을 우선으로 사용.
+        # 있어서 pw_input Enter → form.submit() 순서로 시도.
         submitted_via = 'enter'
         try:
-            await pw_input.send_keys('\n')
+            if pw_input is not None:
+                await pw_input.send_keys('\n')
+            else:
+                # JS 폴백 경로: form을 직접 submit
+                await page.evaluate('''(() => {
+                    const pw = document.querySelector('input[type=password]');
+                    if (pw && pw.form) { pw.form.submit(); return true; }
+                    return false;
+                })()''')
+                submitted_via = 'form.submit()'
         except Exception as _e:
             # Enter 실패 시 form 내부 로그인 버튼 탐색
             try:
