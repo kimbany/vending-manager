@@ -51,31 +51,52 @@ def get_all_user_coupang():
         print(f"  유저 목록 조회 실패: {e}")
     return users
 
+def parse_day_block(text):
+    """
+    주문내역 일별 디테일 div의 innerText를 파싱해서
+    {order_date, products:[{product_name, quantity, price}]} 1건을 반환
+    """
+    if not text:
+        return None
+    # 날짜 추출
+    date_match = re.search(r'(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})', text)
+    if not date_match:
+        return None
+    y, m, d = date_match.group(1), date_match.group(2).zfill(2), date_match.group(3).zfill(2)
+    order_date = f"{y}.{m}.{d}"
+
+    lines = [l.strip() for l in text.split('\n') if l.strip()]
+    products = []
+    for line in lines:
+        # "상품명, 옵션, N개" 형태
+        qty_match = re.search(r'(\d+)\s*개\s*$', line)
+        if qty_match and len(line) > 5:
+            qty = int(qty_match.group(1))
+            name = line[:qty_match.start()].strip().rstrip(',').strip()
+            # 날짜/상태/결제방식 라인 제외
+            if name and len(name) > 2 and '주문' not in name and '배송' not in name:
+                products.append({'product_name': name, 'quantity': qty})
+            continue
+        # 금액 라인
+        price_match = re.match(r'^([\d,]+)\s*원$', line)
+        if price_match and products and 'price' not in products[-1]:
+            products[-1]['price'] = int(price_match.group(1).replace(',', ''))
+
+    if not products:
+        return None
+    return {'order_date': order_date, 'products': products}
+
+
 def parse_orders_from_text(text):
+    """(구버전 호환) 전체 innerText 블록에서 여러 주문 추출"""
     orders = []
     blocks = re.split(r'(\d{4}\.\s*\d{1,2}\.\s*\d{1,2}\.\s*주문)', text)
     for i, block in enumerate(blocks):
         date_match = re.match(r'(\d{4}\.\s*\d{1,2}\.\s*\d{1,2})\.\s*주문', block.strip())
         if date_match and i + 1 < len(blocks):
-            order_date = date_match.group(1).replace(' ', '')
-            content = blocks[i + 1]
-            lines = content.strip().split('\n')
-            products = []
-            for line in lines:
-                line = line.strip()
-                if not line:
-                    continue
-                qty_match = re.search(r'(\d+)\s*개\s*$', line)
-                if qty_match and len(line) > 5:
-                    qty = int(qty_match.group(1))
-                    name = line[:qty_match.start()].strip().rstrip(',').strip()
-                    if name and len(name) > 2:
-                        products.append({'product_name': name, 'quantity': qty})
-                price_match = re.match(r'^([\d,]+)\s*원$', line)
-                if price_match and products and 'price' not in products[-1]:
-                    products[-1]['price'] = int(price_match.group(1).replace(',', ''))
-            if products:
-                orders.append({'order_date': order_date, 'products': products})
+            parsed = parse_day_block(blocks[i].strip() + '\n' + blocks[i + 1])
+            if parsed:
+                orders.append(parsed)
     return orders
 
 def ensure_display():
@@ -87,6 +108,24 @@ def ensure_display():
     if not os.environ.get('DISPLAY'):
         os.environ['DISPLAY'] = ':99'
         print(f"  DISPLAY 설정: {os.environ['DISPLAY']}")
+
+async def _xpath_click(page, xpath):
+    """document.evaluate로 XPath 노드 클릭"""
+    js = f'''(() => {{
+        const r = document.evaluate({json.dumps(xpath)}, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+        const el = r.singleNodeValue;
+        if (!el) return false;
+        el.click();
+        return true;
+    }})()'''
+    try:
+        return bool(await page.evaluate(js))
+    except Exception:
+        return False
+
+
+MAX_PAGES = 10
+
 
 async def crawl_coupang_orders(email, pw, save_path):
     import nodriver as uc
@@ -105,33 +144,43 @@ async def crawl_coupang_orders(email, pw, save_path):
         debug_log.append("[0] 브라우저 시작 (nodriver)")
 
         # 1. 쿠팡 메인 방문
-        debug_log.append("[1] 메인 페이지 방문")
-        page = await browser.get("https://www.coupang.com")
+        debug_log.append("[1] 메인 페이지 방문: https://www.coupang.com/")
+        page = await browser.get("https://www.coupang.com/")
         await asyncio.sleep(3 + random.random() * 2)
 
-        # 2. 로그인 페이지
-        debug_log.append("[2] 로그인 페이지 이동")
-        page = await browser.get("https://login.coupang.com/login/login.pang?rtnUrl=https%3A%2F%2Fwww.coupang.com%2F")
+        # 2. 상단 바 로그인 버튼 클릭
+        #    XPath: //*[@id="wa-top-bar"]/div/menu[1]/li[4]/a
+        debug_log.append("[2] 로그인 버튼 클릭")
+        clicked = await _xpath_click(page, '//*[@id="wa-top-bar"]/div/menu[1]/li[4]/a')
+        if not clicked:
+            # 폴백: 로그인 페이지로 직접 이동
+            debug_log.append("[2] 로그인 버튼 못 찾음 → 로그인 URL 직접 이동")
+            page = await browser.get(
+                "https://login.coupang.com/login/login.pang?rtnUrl=https%3A%2F%2Fwww.coupang.com%2F"
+            )
         await asyncio.sleep(4 + random.random() * 2)
 
-        # 이메일/비밀번호 입력
-        email_input = await page.select('input[name=email]')
-        pw_input = await page.select('input[name=password]')
+        # 3. 이메일/비밀번호 입력 (사용자 제공 ID 기준)
+        #    //*[@id="login-email-input"], //*[@id="login-password-input"]
+        email_input = await page.select('#login-email-input')
+        pw_input = await page.select('#login-password-input')
+        if not email_input:
+            email_input = await page.select('input[name=email]')
+        if not pw_input:
+            pw_input = await page.select('input[name=password]')
 
         if not email_input or not pw_input:
-            debug_log.append("[2] 이메일/비밀번호 필드 못 찾음")
+            debug_log.append("[3] 이메일/비밀번호 필드 못 찾음")
             try:
                 text = await page.evaluate('document.body.innerText')
-                debug_log.append(f"[2] 페이지: {text[:200]}")
+                debug_log.append(f"[3] 페이지: {text[:200]}")
             except:
                 pass
             rtdb.reference(f'{save_path}/_debug').set({'log': debug_log, 'updated_at': now_str, 'status': 'no_input'})
             return 0
 
-        debug_log.append("[2] 로그인 필드 찾음")
+        debug_log.append("[3] 로그인 필드 찾음")
 
-        # 3. 로그인 입력
-        debug_log.append("[3] 로그인 입력")
         await email_input.click()
         await asyncio.sleep(0.5 + random.random() * 0.5)
         await email_input.send_keys(email)
@@ -142,7 +191,7 @@ async def crawl_coupang_orders(email, pw, save_path):
         await pw_input.send_keys(pw)
         await asyncio.sleep(1 + random.random() * 0.5)
 
-        # 로그인 버튼 클릭
+        # 로그인 제출
         try:
             login_btn = await page.select('button[type=submit]')
             if login_btn:
@@ -167,9 +216,9 @@ async def crawl_coupang_orders(email, pw, save_path):
             rtdb.reference(f'{save_path}/_debug').set({'log': debug_log, 'updated_at': now_str, 'status': 'sms_required'})
             return -1
 
-        # 여전히 로그인 페이지인지 확인
+        # 여전히 로그인 페이지면 실패
         try:
-            still_login = await page.select('input[name=email]')
+            still_login = await page.select('#login-email-input') or await page.select('input[name=email]')
             if still_login:
                 debug_log.append("[3] 로그인 실패 (아직 로그인 페이지)")
                 rtdb.reference(f'{save_path}/_debug').set({'log': debug_log, 'updated_at': now_str, 'status': 'login_failed'})
@@ -179,54 +228,140 @@ async def crawl_coupang_orders(email, pw, save_path):
 
         debug_log.append("[3] 로그인 성공")
 
-        # 4. 주문내역 페이지
-        debug_log.append("[4] 주문내역 페이지 이동")
-        page = await browser.get(COUPANG_ORDER_URL)
-        await asyncio.sleep(10 + random.random() * 3)
+        # 4. 마이쿠팡 링크 클릭
+        #    //*[@id="wa-mycoupang-link"]/img
+        debug_log.append("[4] 마이쿠팡 이동")
+        mycoupang_clicked = await _xpath_click(page, '//*[@id="wa-mycoupang-link"]')
+        if not mycoupang_clicked:
+            mycoupang_clicked = await _xpath_click(page, '//*[@id="wa-mycoupang-link"]/img')
+        await asyncio.sleep(3 + random.random() * 2)
 
-        # 페이지 완전 로딩 대기 (JS 렌더링)
-        for retry in range(5):
-            try:
-                order_text = await page.evaluate('document.body.innerText')
-                if len(order_text) > 300:
+        # 5. 주문목록 클릭
+        #    //*[@id="wa-header"]/div[2]/div[1]/div[2]/div[1]/ul/li[1]/p/span/a[1]
+        debug_log.append("[5] 주문목록 이동")
+        order_clicked = await _xpath_click(
+            page, '//*[@id="wa-header"]/div[2]/div[1]/div[2]/div[1]/ul/li[1]/p/span/a[1]'
+        )
+        if not order_clicked:
+            debug_log.append("[5] 주문목록 링크 못 찾음 → 주문 URL 직접 이동")
+            page = await browser.get(COUPANG_ORDER_URL)
+        await asyncio.sleep(6 + random.random() * 3)
+
+        # 6. 주문목록 페이지네이션 순회
+        #    주문목록 내용: //*[@id="__next"]/div[2]/div[2]/div
+        #    일별 디테일:   //*[@id="__next"]/div[2]/div[2]/div/div[3]/div[i]
+        #    다음페이지:    //*[@id="__next"]/div[2]/div[2]/div/div[3]/div[6]/button[2]
+        debug_log.append("[6] 주문목록 순회 시작")
+
+        all_orders = []
+        seen_keys = set()
+
+        for page_no in range(1, MAX_PAGES + 1):
+            # JS 렌더링 대기
+            loaded = False
+            for retry in range(8):
+                try:
+                    cnt = await page.evaluate('''(() => {
+                        const r = document.evaluate('//*[@id="__next"]/div[2]/div[2]/div/div[3]', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+                        const el = r.singleNodeValue;
+                        if (!el) return 0;
+                        return el.children ? el.children.length : 0;
+                    })()''')
+                except:
+                    cnt = 0
+                if cnt and cnt > 0:
+                    loaded = True
                     break
-                debug_log.append(f"[4] 로딩 대기 중... ({len(order_text)}자, {retry+1}/5)")
-                await asyncio.sleep(3)
+                await asyncio.sleep(2)
+
+            if not loaded:
+                debug_log.append(f"[6] 페이지{page_no}: 주문목록 컨테이너 비어있음")
+                break
+
+            # 스크롤 (Lazy-render 안정화)
+            try:
+                await page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
+                await asyncio.sleep(1.5)
+                await page.evaluate('window.scrollTo(0, 0)')
+                await asyncio.sleep(0.5)
             except:
-                await asyncio.sleep(3)
-                order_text = ''
+                pass
 
-        # 스크롤 다운 (더 많은 주문 로드)
-        try:
-            await page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
-            await asyncio.sleep(3)
-        except:
-            pass
+            # 일별 디테일 div들의 innerText 배열로 수집
+            day_texts = await page.evaluate('''(() => {
+                const r = document.evaluate('//*[@id="__next"]/div[2]/div[2]/div/div[3]', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+                const el = r.singleNodeValue;
+                if (!el) return [];
+                const out = [];
+                for (const c of el.children) {
+                    const t = (c.innerText || '').trim();
+                    if (!t) continue;
+                    // 날짜 포함한 자식만 주문 블록으로 간주 (마지막 페이지네이션 div는 제외됨)
+                    if (/\\d{4}\\.\\s*\\d{1,2}\\.\\s*\\d{1,2}/.test(t)) out.push(t);
+                }
+                return out;
+            })()''') or []
 
-        try:
-            order_text = await page.evaluate('document.body.innerText')
-            debug_log.append(f"[4] 최종 텍스트 길이: {len(order_text)}")
-            debug_log.append(f"[4] 텍스트: {order_text[:500]}")
-        except:
-            order_text = ''
+            debug_log.append(f"[6] 페이지{page_no}: 일별 블록 {len(day_texts)}개")
 
-        # 5. 주문 파싱
-        debug_log.append("[5] 주문 파싱")
-        orders = parse_orders_from_text(order_text)
-        total_products = sum(len(o.get('products', [])) for o in orders)
-        debug_log.append(f"[5] 주문 {len(orders)}건, 상품 {total_products}개")
+            new_on_page = 0
+            for text in day_texts:
+                parsed = parse_day_block(text)
+                if not parsed:
+                    continue
+                key = parsed['order_date'] + '|' + ','.join(
+                    p['product_name'] + 'x' + str(p.get('quantity', 1)) for p in parsed['products']
+                )
+                if key in seen_keys:
+                    continue
+                seen_keys.add(key)
+                all_orders.append(parsed)
+                new_on_page += 1
 
-        # 6. Firebase 저장
+            if new_on_page == 0 and page_no > 1:
+                debug_log.append(f"[6] 페이지{page_no}: 신규 주문 없음 → 종료")
+                break
+
+            # 다음 페이지 버튼 클릭
+            #   button[2] = 2번째 버튼 (1=이전, 2=다음)
+            next_clicked = False
+            try:
+                next_clicked = await page.evaluate('''(() => {
+                    const r = document.evaluate('//*[@id="__next"]/div[2]/div[2]/div/div[3]/div[6]/button[2]', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+                    let btn = r.singleNodeValue;
+                    if (!btn) {
+                        // 폴백: 페이지네이션 마지막 div의 마지막 버튼
+                        const r2 = document.evaluate('//*[@id="__next"]/div[2]/div[2]/div/div[3]/div[last()]//button[last()]', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+                        btn = r2.singleNodeValue;
+                    }
+                    if (!btn) return false;
+                    if (btn.disabled || btn.getAttribute('aria-disabled') === 'true') return false;
+                    btn.click();
+                    return true;
+                })()''')
+            except:
+                next_clicked = False
+
+            if not next_clicked:
+                debug_log.append(f"[6] 페이지{page_no}: 다음 페이지 없음 → 종료")
+                break
+
+            await asyncio.sleep(3 + random.random())
+
+        total_products = sum(len(o.get('products', [])) for o in all_orders)
+        debug_log.append(f"[6] 총 주문 {len(all_orders)}건, 상품 {total_products}개")
+
+        # 7. Firebase 저장
         save_data = {
             'date': today,
             'updated_at': now_str,
-            'total_orders': len(orders),
+            'total_orders': len(all_orders),
             'total_products': total_products,
-            'orders': orders,
+            'orders': all_orders,
             'debug_log': debug_log,
         }
         rtdb.reference(f'{save_path}/{today}').set(save_data)
-        print(f"  [6] Firebase 저장 완료 ({total_products}건)")
+        print(f"  [7] Firebase 저장 완료 (주문 {len(all_orders)}건, 상품 {total_products}개)")
         return total_products
 
     except Exception as e:
