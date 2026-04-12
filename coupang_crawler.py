@@ -336,7 +336,13 @@ async def crawl_coupang_orders(email, pw, save_path):
         if not email_input or not pw_input:
             # (c) XPath + JS native setter 폴백
             debug_log.append("[3] CSS select 실패 → XPath/JS 폴백 시도")
-            js_fill = '''((xpEmail, xpPw, emailVal, pwVal) => {
+            # nodriver evaluate의 반환 타입이 환경/모드에 따라 다르므로
+            # JS 내부에서 JSON.stringify 하여 항상 문자열로 받고 Python에서 파싱.
+            js_fill_body = r'''(() => {
+                const xpEmail = __XP_EMAIL__;
+                const xpPw = __XP_PW__;
+                const emailVal = __EMAIL__;
+                const pwVal = __PW__;
                 const getXp = (xp) => {
                     try {
                         return document.evaluate(xp, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
@@ -353,45 +359,98 @@ async def crawl_coupang_orders(email, pw, save_path):
                         el.dispatchEvent(new Event('change', {bubbles: true}));
                         el.dispatchEvent(new KeyboardEvent('keyup', {bubbles: true}));
                         return true;
-                    } catch (_) { return false; }
+                    } catch (e) { return false; }
                 };
+                // 후보 수집: XPath → 표준 속성 → 타입/placeholder/autocomplete 기반
                 let e = getXp(xpEmail);
+                if (!e) e = document.querySelector('input[name=email]');
+                if (!e) e = document.querySelector('input[type=email]');
+                if (!e) e = document.querySelector('input[autocomplete=username]');
+                if (!e) e = document.querySelector('input[id*="email" i]');
+                if (!e) e = document.querySelector('input[placeholder*="이메일"],input[placeholder*="아이디"]');
                 let p = getXp(xpPw);
-                if (!e) e = document.querySelector('input[type=email]') || document.querySelector('input[name=email]');
-                if (!p) p = document.querySelector('input[type=password]') || document.querySelector('input[name=password]');
-                return {
+                if (!p) p = document.querySelector('input[name=password]');
+                if (!p) p = document.querySelector('input[type=password]');
+                if (!p) p = document.querySelector('input[autocomplete=current-password]');
+                if (!p) p = document.querySelector('input[id*="password" i]');
+                // 페이지에 존재하는 모든 input 정보(디버그용)
+                const allInputs = Array.from(document.querySelectorAll('input')).slice(0, 10).map(i => ({
+                    type: i.type || '',
+                    name: i.name || '',
+                    id: i.id || '',
+                    placeholder: i.placeholder || '',
+                    visible: !!(i.offsetWidth || i.offsetHeight)
+                }));
+                const out = {
                     emailOk: fill(e, emailVal),
                     pwOk: fill(p, pwVal),
                     emailFound: !!e,
                     pwFound: !!p,
-                    emailTag: e ? (e.outerHTML||'').slice(0, 150) : '',
-                    pwTag: p ? (p.outerHTML||'').slice(0, 150) : ''
+                    emailTag: e ? (e.outerHTML||'').slice(0, 200) : '',
+                    pwTag: p ? (p.outerHTML||'').slice(0, 200) : '',
+                    inputs: allInputs,
+                    url: location.href,
                 };
-            })'''
+                return JSON.stringify(out);
+            })()'''
             xp_email = '/html/body/div[2]/div[1]/div[2]/div[1]/form/div[1]/div[1]/div[1]/label/span[2]/input'
             xp_pw = '/html/body/div[2]/div[1]/div[2]/div[1]/form/div[1]/div[2]/div[1]/label/span[2]/input'
-            try:
-                call_js = f'({js_fill})({json.dumps(xp_email)}, {json.dumps(xp_pw)}, {json.dumps(email)}, {json.dumps(pw)})'
-                result = await page.evaluate(call_js)
-            except Exception as _e:
-                debug_log.append(f"[3] JS 폴백 실행 실패: {_e}")
-                result = None
+            call_js = (
+                js_fill_body
+                .replace('__XP_EMAIL__', json.dumps(xp_email))
+                .replace('__XP_PW__', json.dumps(xp_pw))
+                .replace('__EMAIL__', json.dumps(email))
+                .replace('__PW__', json.dumps(pw))
+            )
 
-            if result and result.get('emailOk') and result.get('pwOk'):
+            raw = None
+            try:
+                raw = await page.evaluate(call_js)
+            except Exception as _e:
+                debug_log.append(f"[3] JS 폴백 실행 실패: {str(_e)[:200]}")
+
+            # raw는 보통 JSON 문자열이지만 nodriver 버전에 따라
+            # list/dict/tuple로 래핑될 수 있음 → 안전하게 파싱
+            result = None
+            try:
+                if isinstance(raw, str):
+                    result = json.loads(raw)
+                elif isinstance(raw, dict):
+                    result = raw
+                elif isinstance(raw, (list, tuple)) and raw:
+                    # [value, ...] 형태인 경우 첫 요소만 취함
+                    first = raw[0]
+                    if isinstance(first, str):
+                        result = json.loads(first)
+                    elif isinstance(first, dict):
+                        result = first
+            except Exception as _e:
+                debug_log.append(f"[3] JS 결과 파싱 실패: {str(_e)[:200]} / raw={str(raw)[:200]}")
+
+            if isinstance(result, dict) and result.get('emailOk') and result.get('pwOk'):
                 filled_via = 'xpath_js'
-                debug_log.append(f"[3] JS 폴백 성공 (emailTag={result.get('emailTag','')[:80]})")
-                # pw_input 객체는 없지만 페이지에서 Enter/폼 제출은 별도 처리
+                debug_log.append(f"[3] JS 폴백 성공 (url={result.get('url','')[:100]})")
+                debug_log.append(f"[3] emailTag={result.get('emailTag','')[:120]}")
                 email_input = None
                 pw_input = None
             else:
-                found = (result or {}).get
-                debug_log.append(f"[3] JS 폴백 실패 (emailFound={found('emailFound') if result else '?'}, pwFound={found('pwFound') if result else '?'})")
+                # 디버그 정보 최대한 기록
+                if isinstance(result, dict):
+                    debug_log.append(f"[3] JS 폴백 실패: emailFound={result.get('emailFound')}, pwFound={result.get('pwFound')}")
+                    debug_log.append(f"[3] inputs: {json.dumps(result.get('inputs', []))[:400]}")
+                    debug_log.append(f"[3] url: {result.get('url','')[:150]}")
+                else:
+                    debug_log.append(f"[3] JS 폴백 실패 (raw type={type(raw).__name__}, raw={str(raw)[:200]})")
                 try:
                     text = await page.evaluate('document.body.innerText')
                     debug_log.append(f"[3] 페이지: {text[:200]}")
                 except:
                     pass
-                rtdb.reference(f'{save_path}/_debug').set({'log': debug_log, 'updated_at': now_str, 'status': 'no_input'})
+                rtdb.reference(f'{save_path}/_debug').set({
+                    'log': debug_log,
+                    'updated_at': now_str,
+                    'status': 'no_input',
+                })
                 return 0
 
         if filled_via == 'nodriver':
