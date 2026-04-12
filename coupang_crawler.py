@@ -100,14 +100,93 @@ def parse_orders_from_text(text):
     return orders
 
 def ensure_display():
-    """Xvfb 가상 디스플레이 확보 + 메모리 정리"""
-    import subprocess, os
+    """Xvfb 가상 디스플레이 확보 + 메모리/락 정리"""
+    import subprocess, os, glob, shutil
     # 기존 크롬 프로세스 정리 (메모리 확보)
     subprocess.run(['pkill', '-f', 'chrome'], capture_output=True)
     subprocess.run(['pkill', '-f', 'chromium'], capture_output=True)
+    subprocess.run(['pkill', '-f', 'nodriver'], capture_output=True)
+    # 남은 Chrome 임시 프로필 / 락 파일 정리 (nodriver 연결 실패 원인)
+    for pattern in [
+        '/tmp/.org.chromium.Chromium*',
+        '/tmp/.com.google.Chrome*',
+        '/tmp/nodriver*',
+        '/tmp/scoped_dir*',
+    ]:
+        for p in glob.glob(pattern):
+            try:
+                if os.path.isdir(p):
+                    shutil.rmtree(p, ignore_errors=True)
+                else:
+                    os.remove(p)
+            except Exception:
+                pass
     if not os.environ.get('DISPLAY'):
         os.environ['DISPLAY'] = ':99'
         print(f"  DISPLAY 설정: {os.environ['DISPLAY']}")
+
+
+async def _start_browser_with_retry(debug_log, attempts=3):
+    """nodriver 브라우저를 clean state + 재시도로 기동"""
+    import nodriver as uc
+    import shutil, tempfile, os
+
+    # Chrome 실행 경로 자동 탐지
+    chrome_path = None
+    for cand in [
+        shutil.which('google-chrome'),
+        shutil.which('google-chrome-stable'),
+        shutil.which('chromium'),
+        shutil.which('chromium-browser'),
+        '/usr/bin/google-chrome',
+        '/usr/bin/google-chrome-stable',
+        '/usr/bin/chromium',
+    ]:
+        if cand and os.path.exists(cand):
+            chrome_path = cand
+            break
+    debug_log.append(f"[0] chrome_path: {chrome_path or '(auto)'}")
+
+    browser_args = [
+        '--no-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--disable-blink-features=AutomationControlled',
+        '--disable-background-networking',
+        '--disable-features=TranslateUI,BlinkGenPropertyTrees',
+        '--window-size=1280,800',
+        '--lang=ko-KR',
+    ]
+
+    last_err = None
+    for i in range(1, attempts + 1):
+        # 매 시도마다 신규 user-data-dir (락 충돌 방지)
+        user_data_dir = tempfile.mkdtemp(prefix='nodriver_coupang_')
+        try:
+            kwargs = {
+                'sandbox': False,
+                'headless': False,
+                'user_data_dir': user_data_dir,
+                'browser_args': browser_args,
+            }
+            if chrome_path:
+                kwargs['browser_executable_path'] = chrome_path
+            browser = await uc.start(**kwargs)
+            debug_log.append(f"[0] 브라우저 기동 성공 (시도 {i}/{attempts})")
+            return browser
+        except Exception as e:
+            last_err = e
+            debug_log.append(f"[0] 브라우저 기동 실패 {i}/{attempts}: {str(e)[:200]}")
+            # 실패 후 정리
+            try:
+                shutil.rmtree(user_data_dir, ignore_errors=True)
+            except Exception:
+                pass
+            import subprocess as _sp
+            _sp.run(['pkill', '-9', '-f', 'chrome'], capture_output=True)
+            _sp.run(['pkill', '-9', '-f', 'chromium'], capture_output=True)
+            await asyncio.sleep(3)
+    raise RuntimeError(f"브라우저 기동 3회 실패: {last_err}")
 
 async def _xpath_click(page, xpath):
     """document.evaluate로 XPath 노드 클릭"""
@@ -140,8 +219,7 @@ async def crawl_coupang_orders(email, pw, save_path):
 
     browser = None
     try:
-        browser = await uc.start(sandbox=False, headless=False)
-        debug_log.append("[0] 브라우저 시작 (nodriver)")
+        browser = await _start_browser_with_retry(debug_log)
 
         # 1. 쿠팡 메인 방문
         debug_log.append("[1] 메인 페이지 방문: https://www.coupang.com/")
