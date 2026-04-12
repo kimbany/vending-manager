@@ -147,15 +147,23 @@ async def _start_browser_with_retry(debug_log, attempts=3):
             break
     debug_log.append(f"[0] chrome_path: {chrome_path or '(auto)'}")
 
+    # 최신 Chrome 안정판 User-Agent (Akamai 봇 탐지 우회용)
+    real_ua = (
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+        'AppleWebKit/537.36 (KHTML, like Gecko) '
+        'Chrome/131.0.0.0 Safari/537.36'
+    )
     browser_args = [
         '--no-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu',
         '--disable-blink-features=AutomationControlled',
         '--disable-background-networking',
-        '--disable-features=TranslateUI,BlinkGenPropertyTrees',
+        '--disable-features=TranslateUI,BlinkGenPropertyTrees,IsolateOrigins,site-per-process',
         '--window-size=1280,800',
         '--lang=ko-KR',
+        f'--user-agent={real_ua}',
+        '--accept-lang=ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
     ]
 
     last_err = None
@@ -221,30 +229,95 @@ async def crawl_coupang_orders(email, pw, save_path):
     try:
         browser = await _start_browser_with_retry(debug_log)
 
-        # 1. 쿠팡 메인 방문
+        # 1. 쿠팡 메인 방문 (Akamai WAF sensor 설정 / 쿠키 수집)
         debug_log.append("[1] 메인 페이지 방문: https://www.coupang.com/")
         page = await browser.get("https://www.coupang.com/")
-        await asyncio.sleep(3 + random.random() * 2)
+        await asyncio.sleep(5 + random.random() * 3)
+
+        # 자연스러운 사용자 행동 시뮬레이션 (Akamai 사람 감지)
+        try:
+            await page.evaluate('window.scrollTo({top: 400, behavior: "smooth"})')
+            await asyncio.sleep(1.5 + random.random())
+            await page.evaluate('window.scrollTo({top: 800, behavior: "smooth"})')
+            await asyncio.sleep(1.5 + random.random())
+            await page.evaluate('window.scrollTo({top: 0, behavior: "smooth"})')
+            await asyncio.sleep(1 + random.random())
+        except:
+            pass
+
+        # 메인 페이지가 제대로 로드됐는지 (차단 아닌지) 확인
+        try:
+            main_text = await page.evaluate('document.body.innerText')
+            if 'Access Denied' in main_text or 'Reference #' in main_text:
+                debug_log.append(f"[1] 메인 페이지도 차단됨: {main_text[:200]}")
+                rtdb.reference(f'{save_path}/_debug').set({
+                    'log': debug_log, 'updated_at': now_str,
+                    'status': 'waf_blocked_main',
+                    'text_sample': main_text[:500],
+                })
+                return 0
+        except:
+            pass
 
         # 2. 로그인 페이지로 이동
-        #    상단바 로그인 버튼(//*[@id="wa-top-bar"]/div/menu[1]/li[4]/a)은
-        #    새 탭/팝업을 열 수 있어 page 객체가 어긋남. 안정성을 위해
-        #    login.coupang.com으로 직접 이동하는 것을 1차 경로로 사용.
-        debug_log.append("[2] 로그인 페이지 이동")
+        #    Akamai WAF가 login.coupang.com 직접 접근(browser.get)을 차단하는
+        #    경우가 있음 → location.href 할당으로 현재 탭 내부 네비게이션 수행
+        #    (Referer: www.coupang.com + 기존 Akamai 센서 쿠키 유지)
+        debug_log.append("[2] 로그인 페이지 이동 (location.href 방식)")
+        login_url = "https://login.coupang.com/login/login.pang?rtnUrl=https%3A%2F%2Fwww.coupang.com%2F"
         try:
-            page = await browser.get(
-                "https://login.coupang.com/login/login.pang?rtnUrl=https%3A%2F%2Fwww.coupang.com%2F"
-            )
+            await page.evaluate(f'location.href = {json.dumps(login_url)}')
         except Exception as _e:
-            debug_log.append(f"[2] 로그인 URL 이동 실패: {_e}")
-        await asyncio.sleep(4 + random.random() * 2)
+            debug_log.append(f"[2] location.href 실패, browser.get 폴백: {_e}")
+            try:
+                page = await browser.get(login_url)
+            except Exception as _e2:
+                debug_log.append(f"[2] browser.get도 실패: {_e2}")
+        await asyncio.sleep(5 + random.random() * 2)
 
-        # 페이지 확인
+        # 페이지 확인 + 차단 감지
         try:
             cur = await page.evaluate('location.href')
             debug_log.append(f"[2] URL: {cur}")
         except:
-            pass
+            cur = ''
+
+        try:
+            body_text = await page.evaluate('document.body.innerText')
+        except:
+            body_text = ''
+
+        # Akamai WAF 차단 감지 → 모바일 로그인으로 폴백
+        if 'Access Denied' in body_text or ("Reference #" in body_text and 'permission' in body_text.lower()):
+            debug_log.append(f"[2] 데스크탑 로그인 차단 감지 → 모바일 로그인 시도")
+            try:
+                mobile_login = "https://login.coupang.com/login/loginMember.pang?rtnUrl=https%3A%2F%2Fm.coupang.com%2F"
+                await page.evaluate(f'location.href = {json.dumps(mobile_login)}')
+            except:
+                try:
+                    page = await browser.get("https://m.coupang.com/")
+                    await asyncio.sleep(4)
+                    await page.evaluate('location.href = "https://login.coupang.com/login/loginMember.pang"')
+                except Exception as _e:
+                    debug_log.append(f"[2] 모바일 폴백 실패: {_e}")
+            await asyncio.sleep(5 + random.random() * 2)
+            try:
+                cur = await page.evaluate('location.href')
+                body_text = await page.evaluate('document.body.innerText')
+                debug_log.append(f"[2] 모바일 URL: {cur}")
+            except:
+                pass
+
+        # 여전히 차단됐으면 종료
+        if 'Access Denied' in body_text or ("Reference #" in body_text and 'permission' in body_text.lower()):
+            debug_log.append(f"[2] 로그인 페이지 차단 유지: {body_text[:200]}")
+            rtdb.reference(f'{save_path}/_debug').set({
+                'log': debug_log, 'updated_at': now_str,
+                'status': 'waf_blocked_login',
+                'url': cur,
+                'text_sample': body_text[:500],
+            })
+            return 0
 
         # 3. 이메일/비밀번호 입력 (사용자 제공 ID 기준)
         #    //*[@id="login-email-input"], //*[@id="login-password-input"]
