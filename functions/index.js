@@ -903,3 +903,327 @@ exports.crawlCoupangOrders = onCall(
     };
   }
 );
+
+// ─── 쿠팡 Gmail 주문내역 수집 ────────────────────────────────────────────────
+// 클라이언트에서 Google OAuth access_token을 받아 Gmail API로 쿠팡 주문 메일을
+// 조회한 뒤 본문을 파싱해 users/{uid}/coupangOrders/{날짜}에 저장.
+
+/**
+ * Gmail API 호출 래퍼
+ */
+async function gmailFetch(accessToken, path) {
+  const url = `https://gmail.googleapis.com/gmail/v1/${path}`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Gmail API ${res.status}: ${body.slice(0, 200)}`);
+  }
+  return res.json();
+}
+
+/**
+ * Gmail 메시지 payload에서 text/html part를 찾아 base64url 디코드한 HTML 반환
+ */
+function extractHtmlFromPayload(payload) {
+  if (!payload) return "";
+  const decode = (data) => {
+    if (!data) return "";
+    const b64 = data.replace(/-/g, "+").replace(/_/g, "/");
+    try { return Buffer.from(b64, "base64").toString("utf8"); }
+    catch (_) { return ""; }
+  };
+
+  // 단일 body
+  if (payload.body && payload.body.data && payload.mimeType === "text/html") {
+    return decode(payload.body.data);
+  }
+
+  // multipart — 재귀 탐색
+  const walk = (parts) => {
+    if (!Array.isArray(parts)) return "";
+    let htmlBody = "";
+    let textBody = "";
+    for (const p of parts) {
+      if (p.mimeType === "text/html" && p.body && p.body.data) {
+        htmlBody = decode(p.body.data);
+      } else if (p.mimeType === "text/plain" && p.body && p.body.data && !textBody) {
+        textBody = decode(p.body.data);
+      } else if (p.parts) {
+        const inner = walk(p.parts);
+        if (inner) htmlBody = htmlBody || inner;
+      }
+    }
+    return htmlBody || textBody;
+  };
+  return walk(payload.parts || []);
+}
+
+/**
+ * HTML에서 태그 제거하고 공백 정리
+ */
+function htmlToText(html) {
+  if (!html) return "";
+  return html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, " ")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(tr|p|div|li|h[1-6])>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{2,}/g, "\n")
+    .trim();
+}
+
+/**
+ * Gmail 메시지 내부 헤더에서 특정 이름을 찾아 반환
+ */
+function getHeader(headers, name) {
+  if (!Array.isArray(headers)) return "";
+  const h = headers.find((x) => (x.name || "").toLowerCase() === name.toLowerCase());
+  return h ? (h.value || "") : "";
+}
+
+/**
+ * 쿠팡 구매 메일 본문 텍스트 → {order_date, products:[], total, order_id}
+ *
+ * 쿠팡 메일 샘플 구조:
+ *   구매하신 내역을 확인해 주세요!
+ *   구매 정보
+ *   구매 상세내역          쿠팡가   수량   구매금액   배송정보   판매자
+ *   조지아 오리지날 ...    7,200원  1     7,200원    주문확인중  휠링F/S
+ *   결제 정보
+ *   주문금액        7,200원
+ *   배송비          5,000원
+ *   결제금액       12,200원 ...
+ */
+function parseCoupangEmail(text, dateHint) {
+  if (!text) return null;
+  const products = [];
+
+  // 금액 패턴 (1,234원 또는 1234원)
+  const priceRe = /([\d,]+)\s*원/;
+
+  // "구매 상세내역" ~ "결제 정보" 사이 섹션 추출
+  const startIdx = text.search(/구매\s*(상세)?\s*내역|구매\s*정보|주문\s*상품/);
+  const endIdx = text.search(/결제\s*정보|주문\s*정보|결제\s*금액/);
+  let section = "";
+  if (startIdx >= 0) {
+    section = endIdx > startIdx ? text.slice(startIdx, endIdx) : text.slice(startIdx, startIdx + 4000);
+  } else {
+    section = text;
+  }
+
+  // 줄 단위 파싱: "상품명 ... 7,200원 1 7,200원 ..." 형태
+  //  - 가격이 두 번 등장하고 그 사이에 수량(정수)이 있는 경우 = 1개 상품
+  const lines = section.split(/\n|\r/).map((l) => l.trim()).filter(Boolean);
+  for (const line of lines) {
+    // 헤더 줄 스킵
+    if (/^(구매|상품|쿠팡가|수량|구매금액|배송정보|판매자|결제)/.test(line)) continue;
+    // "... 7,200원 1 7,200원 ..." 가격-수량-가격 패턴
+    const m = line.match(/(.{3,}?)\s+([\d,]+)\s*원\s+(\d{1,3})\s+([\d,]+)\s*원/);
+    if (m) {
+      const name = m[1].replace(/[,\u00A0]+$/g, "").trim();
+      const unitPrice = parseInt(m[2].replace(/,/g, ""), 10);
+      const qty = parseInt(m[3], 10);
+      const totalPrice = parseInt(m[4].replace(/,/g, ""), 10);
+      if (name.length > 2 && qty > 0) {
+        products.push({
+          product_name: name,
+          quantity: qty,
+          unit_price: unitPrice,
+          price: totalPrice || unitPrice * qty,
+        });
+      }
+      continue;
+    }
+    // 폴백: "상품명 ... N개" + 다음 줄에 가격
+    const qm = line.match(/^(.{3,}?)[,\s]+(\d+)\s*개\s*$/);
+    if (qm) {
+      products.push({
+        product_name: qm[1].trim(),
+        quantity: parseInt(qm[2], 10),
+      });
+    }
+  }
+
+  // 결제금액 추출
+  let totalAmount = 0;
+  const payMatch = text.match(/결제\s*금액\s*[:：]?\s*([\d,]+)\s*원/);
+  if (payMatch) totalAmount = parseInt(payMatch[1].replace(/,/g, ""), 10);
+
+  // 주문번호 추출
+  let orderId = "";
+  const idMatch = text.match(/주문\s*번호\s*[:：]?\s*([A-Z0-9\-]{6,})/);
+  if (idMatch) orderId = idMatch[1];
+
+  // 주문일자: 메일 헤더(Date)에서 온 dateHint 우선, 없으면 본문 검색
+  let orderDate = dateHint || "";
+  if (!orderDate) {
+    const dm = text.match(/(\d{4})\.?\s*(\d{1,2})\.?\s*(\d{1,2})/);
+    if (dm) orderDate = `${dm[1]}.${dm[2].padStart(2, "0")}.${dm[3].padStart(2, "0")}`;
+  }
+
+  if (products.length === 0) return null;
+  return {
+    order_date: orderDate,
+    products,
+    total_amount: totalAmount,
+    order_id: orderId,
+  };
+}
+
+/**
+ * RFC 2822 날짜 문자열을 "YYYY.MM.DD" (KST)로
+ */
+function toKstDateStr(rfcDate) {
+  try {
+    const d = new Date(rfcDate);
+    if (isNaN(d.getTime())) return "";
+    const kst = new Date(d.getTime() + 9 * 3600 * 1000);
+    const y = kst.getUTCFullYear();
+    const m = String(kst.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(kst.getUTCDate()).padStart(2, "0");
+    return `${y}.${m}.${day}`;
+  } catch (_) {
+    return "";
+  }
+}
+
+exports.syncCoupangFromGmail = onCall(
+  {
+    memory: "512MiB",
+    timeoutSeconds: 300,
+    region: "asia-northeast3",
+    cors: true,
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "로그인이 필요합니다");
+    }
+    const uid = request.auth.uid;
+    const accessToken = request.data && request.data.accessToken;
+    const daysBack = (request.data && request.data.daysBack) || 90;
+
+    if (!accessToken || typeof accessToken !== "string") {
+      throw new HttpsError("invalid-argument", "accessToken이 필요합니다");
+    }
+
+    const debugLog = [];
+    debugLog.push(`Gmail 동기화 시작 uid=${uid.slice(0, 8)}, daysBack=${daysBack}`);
+
+    try {
+      // 1. Gmail 메시지 목록 조회 — 쿠팡 주문 메일 필터
+      //    쿠팡 발송 도메인: coupang.com, marketplace.coupang.com 등
+      const query = [
+        "from:(@coupang.com)",
+        "(구매하신 OR 주문 OR 결제 OR 구매내역)",
+        `newer_than:${daysBack}d`,
+      ].join(" ");
+      debugLog.push(`query: ${query}`);
+
+      const listPath = `users/me/messages?q=${encodeURIComponent(query)}&maxResults=100`;
+      const listResp = await gmailFetch(accessToken, listPath);
+      const messages = listResp.messages || [];
+      debugLog.push(`검색 결과: ${messages.length}건`);
+
+      if (messages.length === 0) {
+        return {
+          success: true,
+          total_messages: 0,
+          total_orders: 0,
+          total_products: 0,
+          message: "쿠팡 주문 메일이 없습니다",
+          debug_log: debugLog,
+        };
+      }
+
+      // 2. 각 메시지 본문 가져와서 파싱
+      const parsed = [];
+      let okCount = 0;
+      let failCount = 0;
+      for (const msg of messages) {
+        try {
+          const full = await gmailFetch(accessToken, `users/me/messages/${msg.id}?format=full`);
+          const headers = (full.payload && full.payload.headers) || [];
+          const subject = getHeader(headers, "Subject");
+          const dateRaw = getHeader(headers, "Date");
+          const dateHint = toKstDateStr(dateRaw);
+
+          const html = extractHtmlFromPayload(full.payload);
+          const text = htmlToText(html);
+          const order = parseCoupangEmail(text, dateHint);
+
+          if (order && order.products.length > 0) {
+            parsed.push({ ...order, message_id: msg.id, subject });
+            okCount++;
+          } else {
+            failCount++;
+          }
+        } catch (e) {
+          failCount++;
+          debugLog.push(`메시지 ${msg.id} 파싱 실패: ${String(e.message || e).slice(0, 150)}`);
+        }
+      }
+      debugLog.push(`파싱 성공 ${okCount}건 / 실패 ${failCount}건`);
+
+      // 3. 주문일자 기준으로 그룹 → users/{uid}/coupangOrders/{YYYY-MM-DD}
+      const grouped = {};
+      for (const order of parsed) {
+        const dateKey = (order.order_date || "").replace(/\./g, "-");
+        if (!dateKey) continue;
+        if (!grouped[dateKey]) grouped[dateKey] = [];
+        grouped[dateKey].push(order);
+      }
+
+      const nowStr = new Date().toISOString().replace("T", " ").slice(0, 19);
+      const updates = {};
+      let totalOrders = 0;
+      let totalProducts = 0;
+
+      for (const [dateKey, orders] of Object.entries(grouped)) {
+        // 기존 스크립트(🛒 경로) 저장 스키마와 동일하게 맞춰서 저장
+        const products = orders.reduce((acc, o) => acc + o.products.length, 0);
+        totalOrders += orders.length;
+        totalProducts += products;
+        updates[`users/${uid}/coupangOrders/${dateKey}`] = {
+          date: dateKey,
+          updated_at: nowStr,
+          source: "gmail",
+          total_orders: orders.length,
+          total_products: products,
+          orders: orders.map((o) => ({
+            order_date: o.order_date,
+            order_id: o.order_id || "",
+            total_amount: o.total_amount || 0,
+            products: o.products,
+          })),
+        };
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await admin.database().ref().update(updates);
+      }
+
+      return {
+        success: true,
+        total_messages: messages.length,
+        total_orders: totalOrders,
+        total_products: totalProducts,
+        dates: Object.keys(grouped).sort(),
+        message: `Gmail에서 쿠팡 주문 ${totalOrders}건(상품 ${totalProducts}개) 동기화 완료`,
+        debug_log: debugLog,
+      };
+    } catch (e) {
+      console.error("[syncCoupangFromGmail] error:", e);
+      throw new HttpsError("internal", `Gmail 동기화 실패: ${e.message || String(e)}`);
+    }
+  }
+);

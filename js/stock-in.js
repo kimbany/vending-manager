@@ -194,6 +194,101 @@ function findMappedProduct(coupangName){
   return _productMappings.find(function(m){ return m.coupangProductName === coupangName; });
 }
 
+// ─── Gmail OAuth + 쿠팡 메일 동기화 ───────────────────────────────────────────
+// Google Identity Services (GIS) token client 로드 & 토큰 발급 → Cloud Function
+// syncCoupangFromGmail 호출. Client ID는 appConfig/googleClientId 에 저장해둠.
+
+var _gmailTokenClient = null;
+var _gmailClientIdCached = null;
+
+function _loadGoogleGisScript(){
+  return new Promise(function(resolve, reject){
+    if(window.google && window.google.accounts && window.google.accounts.oauth2){
+      resolve();
+      return;
+    }
+    var existing = document.getElementById('gis-script');
+    if(existing){
+      existing.addEventListener('load', function(){ resolve(); });
+      existing.addEventListener('error', function(){ reject(new Error('GIS 로드 실패')); });
+      return;
+    }
+    var s = document.createElement('script');
+    s.id = 'gis-script';
+    s.src = 'https://accounts.google.com/gsi/client';
+    s.async = true;
+    s.defer = true;
+    s.onload = function(){ resolve(); };
+    s.onerror = function(){ reject(new Error('GIS 로드 실패')); };
+    document.head.appendChild(s);
+  });
+}
+
+function _getGoogleClientId(){
+  if(_gmailClientIdCached) return Promise.resolve(_gmailClientIdCached);
+  return db.ref('appConfig/googleClientId').once('value').then(function(snap){
+    var cid = snap.val();
+    if(!cid) throw new Error('Google Client ID가 설정되지 않았습니다');
+    _gmailClientIdCached = cid;
+    return cid;
+  });
+}
+
+// 메인: 버튼에서 호출
+function syncCoupangFromGmail(){
+  if(!currentUser){ showToast('❌ 로그인 필요'); return; }
+  var btn = document.getElementById('gmail-sync-btn');
+  if(btn){ btn.textContent = '⏳ Gmail 연결 중...'; btn.disabled = true; }
+
+  _loadGoogleGisScript()
+    .then(_getGoogleClientId)
+    .then(function(clientId){
+      return new Promise(function(resolve, reject){
+        _gmailTokenClient = window.google.accounts.oauth2.initTokenClient({
+          client_id: clientId,
+          scope: 'https://www.googleapis.com/auth/gmail.readonly',
+          callback: function(tokenResponse){
+            if(tokenResponse && tokenResponse.access_token){
+              resolve(tokenResponse.access_token);
+            } else {
+              reject(new Error('토큰 발급 실패'));
+            }
+          },
+          error_callback: function(err){
+            reject(new Error((err && err.message) || '사용자가 권한 요청을 취소했습니다'));
+          }
+        });
+        // 권한 요청 팝업 열기
+        _gmailTokenClient.requestAccessToken({ prompt: 'consent' });
+      });
+    })
+    .then(function(accessToken){
+      if(btn){ btn.textContent = '⏳ 쿠팡 메일 분석 중...'; }
+      showToast('⏳ Gmail에서 쿠팡 주문 메일을 분석하고 있어요...');
+      var fn = firebase.app().functions('asia-northeast3').httpsCallable('syncCoupangFromGmail', { timeout: 300000 });
+      return fn({ accessToken: accessToken, daysBack: 90 });
+    })
+    .then(function(result){
+      if(btn){ btn.textContent = '📧 Gmail로 쿠팡 주문 가져오기'; btn.disabled = false; }
+      var d = result.data || {};
+      showToast('✅ ' + (d.message || 'Gmail 동기화 완료'));
+      // Firebase 데이터 → 앱 미입고 목록에 반영 (기존 loadCoupangOrders 재사용)
+      setTimeout(function(){ loadCoupangOrders(); }, 500);
+    })
+    .catch(function(e){
+      if(btn){ btn.textContent = '📧 Gmail로 쿠팡 주문 가져오기'; btn.disabled = false; }
+      var msg = (e && e.message) || String(e);
+      if(msg.indexOf('Client ID가 설정') >= 0){
+        showToast('⚠️ Google Client ID 설정이 필요해요 (appConfig/googleClientId)');
+      } else if(msg.indexOf('취소') >= 0){
+        showToast('❌ 권한 요청이 취소됐어요');
+      } else {
+        showToast('❌ Gmail 동기화 실패: ' + msg.slice(0, 100));
+      }
+      console.error('[syncCoupangFromGmail] error:', e);
+    });
+}
+
 // ─── 쿠팡 구매내역 크롤링 (GitHub Actions 트리거) ─────────────────────────────
 function crawlCoupangPurchases(){
   if(!currentUser){showToast('❌ 로그인 필요');return;}
