@@ -5,7 +5,7 @@
  * - Puppeteer로 VMMS 사이트에 로그인 → 데이터 수집 → Firebase 저장
  */
 
-const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
 
@@ -1227,3 +1227,353 @@ exports.syncCoupangFromGmail = onCall(
     }
   }
 );
+
+// ─── 쿠팡 이메일 전달 방식 ─────────────────────────────────────────────────────
+// 사용자가 본인 메일(네이버/Gmail/다음 등)에 "쿠팡 메일 오면 u-{hash}@invendory.kr
+// 로 전달" 규칙을 설정. Cloudflare Email Routing이 받은 메일을 Cloudflare
+// Worker로 넘기고, Worker가 본 함수 receiveForwardedEmail로 HTTP POST 전송.
+
+/**
+ * MIME quoted-printable 디코더 (UTF-8 정상 처리)
+ */
+function decodeQuotedPrintable(input) {
+  const cleaned = String(input).replace(/=\r?\n/g, ""); // soft line breaks 제거
+  const bytes = [];
+  for (let i = 0; i < cleaned.length; i++) {
+    const ch = cleaned[i];
+    if (ch === "=" && i + 2 < cleaned.length) {
+      const hex = cleaned.substr(i + 1, 2);
+      if (/^[0-9A-Fa-f]{2}$/.test(hex)) {
+        bytes.push(parseInt(hex, 16));
+        i += 2;
+        continue;
+      }
+    }
+    bytes.push(ch.charCodeAt(0) & 0xff);
+  }
+  return Buffer.from(bytes).toString("utf8");
+}
+
+/**
+ * 단일 MIME part 헤더/바디 분리 후 CTE 디코드
+ */
+function _decodeMimePart(partRaw) {
+  // part 내부 헤더/바디 분리
+  let sepIdx = partRaw.indexOf("\r\n\r\n");
+  let sep = "\r\n\r\n";
+  if (sepIdx < 0) {
+    sepIdx = partRaw.indexOf("\n\n");
+    sep = "\n\n";
+  }
+  if (sepIdx < 0) return partRaw;
+
+  const headers = partRaw.slice(0, sepIdx).toLowerCase();
+  let body = partRaw.slice(sepIdx + sep.length);
+
+  // Content-Transfer-Encoding
+  const cteMatch = headers.match(/content-transfer-encoding:\s*([^\r\n;]+)/i);
+  const cte = cteMatch ? cteMatch[1].trim().toLowerCase() : "7bit";
+
+  if (cte === "base64") {
+    try {
+      const clean = body.replace(/\s/g, "");
+      body = Buffer.from(clean, "base64").toString("utf8");
+    } catch (_) { /* keep raw */ }
+  } else if (cte === "quoted-printable") {
+    body = decodeQuotedPrintable(body);
+  }
+  return body;
+}
+
+/**
+ * 원시 MIME 이메일에서 사람이 읽을 수 있는 본문 텍스트를 추출.
+ * text/html 파트를 우선하고, 없으면 text/plain 사용.
+ */
+function extractEmailBody(raw) {
+  if (!raw) return "";
+
+  // 1. 최상위 헤더/바디 분리
+  let sepIdx = raw.indexOf("\r\n\r\n");
+  let sep = "\r\n\r\n";
+  if (sepIdx < 0) {
+    sepIdx = raw.indexOf("\n\n");
+    sep = "\n\n";
+  }
+  if (sepIdx < 0) return htmlToText(raw);
+
+  const topHeaders = raw.slice(0, sepIdx);
+  const topHeadersLower = topHeaders.toLowerCase();
+  let body = raw.slice(sepIdx + sep.length);
+
+  // 2. multipart 인지 확인
+  const boundaryMatch = topHeadersLower.match(/boundary=["']?([^"'\r\n;]+)/);
+
+  if (boundaryMatch) {
+    const boundary = "--" + boundaryMatch[1];
+    const parts = body.split(boundary).map((p) => p.trim()).filter(Boolean);
+
+    let htmlPart = "";
+    let plainPart = "";
+
+    for (const part of parts) {
+      if (!part || part === "--") continue;
+      const partLower = part.toLowerCase();
+
+      // 중첩 multipart 재귀
+      if (partLower.startsWith("content-type: multipart/")) {
+        const nested = extractEmailBody(part);
+        if (nested) {
+          if (/</.test(nested)) htmlPart = htmlPart || nested;
+          else plainPart = plainPart || nested;
+        }
+        continue;
+      }
+
+      if (partLower.includes("content-type: text/html")) {
+        htmlPart = _decodeMimePart(part);
+      } else if (partLower.includes("content-type: text/plain") && !plainPart) {
+        plainPart = _decodeMimePart(part);
+      }
+    }
+
+    const chosen = htmlPart || plainPart || body;
+    return htmlToText(chosen);
+  }
+
+  // 3. 단일 파트 — 최상위 CTE 적용
+  const cteMatch = topHeadersLower.match(/content-transfer-encoding:\s*([^\r\n;]+)/i);
+  const cte = cteMatch ? cteMatch[1].trim().toLowerCase() : "7bit";
+  if (cte === "base64") {
+    try {
+      body = Buffer.from(body.replace(/\s/g, ""), "base64").toString("utf8");
+    } catch (_) { /* ignore */ }
+  } else if (cte === "quoted-printable") {
+    body = decodeQuotedPrintable(body);
+  }
+  return htmlToText(body);
+}
+
+/**
+ * 전달 주소 발급(또는 기존 조회)용 onCall
+ * users/{uid}/mailForward/address 와 mailForward/{hash} 매핑 생성.
+ */
+exports.getMailForwardAddress = onCall(
+  {
+    memory: "256MiB",
+    timeoutSeconds: 30,
+    region: "asia-northeast3",
+    cors: true,
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "로그인이 필요합니다");
+    }
+    const uid = request.auth.uid;
+    const domain = "invendory.kr";
+
+    // 기존 주소 재사용
+    try {
+      const existingSnap = await admin.database().ref(`users/${uid}/mailForward`).once("value");
+      const existing = existingSnap.val();
+      if (existing && existing.hash && existing.address) {
+        return {
+          address: existing.address,
+          hash: existing.hash,
+          created_at: existing.created_at || null,
+          last_received_at: existing.last_received_at || null,
+          reused: true,
+        };
+      }
+    } catch (_) { /* fall through */ }
+
+    // 신규 발급 — 12자리 base36 (약 62bit)
+    const hash = crypto.randomBytes(8).toString("hex").slice(0, 12);
+    const address = `u-${hash}@${domain}`;
+    const nowStr = new Date().toISOString().replace("T", " ").slice(0, 19);
+
+    const updates = {};
+    updates[`mailForward/${hash}`] = { uid, created_at: nowStr };
+    updates[`users/${uid}/mailForward`] = {
+      hash,
+      address,
+      created_at: nowStr,
+    };
+    await admin.database().ref().update(updates);
+
+    return { address, hash, created_at: nowStr, reused: false };
+  }
+);
+
+/**
+ * Cloudflare Email Worker가 호출하는 HTTP 엔드포인트.
+ * Worker가 raw MIME + 메타데이터를 POST.
+ * 인증: X-Worker-Secret 헤더가 appConfig/emailWorkerSecret 과 일치해야 함.
+ */
+exports.receiveForwardedEmail = onRequest(
+  {
+    memory: "512MiB",
+    timeoutSeconds: 60,
+    region: "asia-northeast3",
+    cors: false,
+    invoker: "public",
+  },
+  async (req, res) => {
+    try {
+      if (req.method !== "POST") {
+        res.status(405).json({ error: "Method not allowed" });
+        return;
+      }
+
+      // 1. 공유 비밀키 검증
+      const workerSecret = (req.get("x-worker-secret") || "").trim();
+      let expectedSecret = "";
+      try {
+        const snap = await admin.database().ref("appConfig/emailWorkerSecret").once("value");
+        expectedSecret = snap.val() || "";
+      } catch (e) {
+        console.error("[receiveForwardedEmail] secret read failed:", e);
+        res.status(500).json({ error: "config read failed" });
+        return;
+      }
+      if (!expectedSecret || workerSecret !== expectedSecret) {
+        console.log("[receiveForwardedEmail] unauthorized");
+        res.status(401).json({ error: "unauthorized" });
+        return;
+      }
+
+      // 2. payload 파싱
+      const { to, from, subject, raw, receivedAt } = req.body || {};
+      if (!to || !raw) {
+        res.status(400).json({ error: "to + raw required" });
+        return;
+      }
+
+      console.log(`[receiveForwardedEmail] to=${to}, from=${from}, subject=${String(subject).slice(0, 80)}`);
+
+      // 3. 수신 주소 → hash → uid
+      const m = String(to).toLowerCase().match(/u-([a-z0-9]{8,24})@invendory\.kr/);
+      if (!m) {
+        console.log(`[receiveForwardedEmail] invalid recipient: ${to}`);
+        res.status(200).json({ ok: true, dropped: true, reason: "invalid recipient" });
+        return;
+      }
+      const hash = m[1];
+
+      let uid = "";
+      try {
+        const snap = await admin.database().ref(`mailForward/${hash}`).once("value");
+        const val = snap.val();
+        uid = val && val.uid;
+      } catch (e) {
+        console.error("[receiveForwardedEmail] lookup failed:", e);
+        res.status(500).json({ error: "db lookup failed" });
+        return;
+      }
+      if (!uid) {
+        console.log(`[receiveForwardedEmail] unknown hash: ${hash}`);
+        res.status(200).json({ ok: true, dropped: true, reason: "unknown recipient" });
+        return;
+      }
+
+      // 4. 발신자 검증 (선택적) — 쿠팡 도메인이 아니면 무시
+      const fromLower = String(from || "").toLowerCase();
+      const isCoupang = fromLower.includes("coupang");
+      if (!isCoupang) {
+        // 쿠팡이 아닌 메일은 드롭 (테스트 메일 등)
+        // last_received_at은 갱신해서 UI에 "테스트 메일 받음" 표시 가능
+        const nowStr = new Date().toISOString().replace("T", " ").slice(0, 19);
+        await admin.database().ref(`users/${uid}/mailForward/last_received_at`).set(nowStr);
+        await admin.database().ref(`users/${uid}/mailForward/last_sender`).set(fromLower.slice(0, 100));
+        console.log(`[receiveForwardedEmail] non-coupang sender dropped: ${fromLower}`);
+        res.status(200).json({ ok: true, dropped: true, reason: "non-coupang sender" });
+        return;
+      }
+
+      // 5. 본문 텍스트 추출 + 쿠팡 파싱
+      const bodyText = extractEmailBody(String(raw));
+      const dateHint = receivedAt ? toKstDateStr(receivedAt) : "";
+      const order = parseCoupangEmail(bodyText, dateHint);
+
+      const nowStr = new Date().toISOString().replace("T", " ").slice(0, 19);
+
+      // last_received_at 는 항상 갱신
+      await admin.database().ref(`users/${uid}/mailForward/last_received_at`).set(nowStr);
+      await admin.database().ref(`users/${uid}/mailForward/last_sender`).set(fromLower.slice(0, 100));
+
+      if (!order || !order.products || order.products.length === 0) {
+        console.log(`[receiveForwardedEmail] parse failed: to=${to}, subject=${subject}`);
+        // 파싱 실패한 샘플 본문 일부를 debug에 저장 (파서 개선용)
+        await admin.database().ref(`users/${uid}/mailForward/last_parse_failed`).set({
+          at: nowStr,
+          subject: String(subject || "").slice(0, 200),
+          body_sample: bodyText.slice(0, 800),
+        });
+        res.status(200).json({ ok: true, parsed: false, reason: "no products" });
+        return;
+      }
+
+      // 6. Firebase 저장 (날짜별 그룹)
+      const dateKey = (order.order_date || dateHint || "").replace(/\./g, "-");
+      if (!dateKey) {
+        res.status(200).json({ ok: true, parsed: false, reason: "no date" });
+        return;
+      }
+
+      const dayRef = admin.database().ref(`users/${uid}/coupangOrders/${dateKey}`);
+      const existingSnap = await dayRef.once("value");
+      const existingVal = existingSnap.val() || {};
+      let existingOrders = existingVal.orders || [];
+      if (!Array.isArray(existingOrders)) {
+        existingOrders = Object.values(existingOrders);
+      }
+
+      // 중복 체크 (order_id 또는 상품 구성 기준)
+      const key = (o) => {
+        if (o.order_id) return `id:${o.order_id}`;
+        const sig = (o.products || [])
+          .map((p) => `${p.product_name}x${p.quantity}`)
+          .join("|");
+        return `sig:${sig}`;
+      };
+      const existingKeys = new Set(existingOrders.map(key));
+      const newOrder = {
+        order_date: order.order_date,
+        order_id: order.order_id || "",
+        total_amount: order.total_amount || 0,
+        products: order.products,
+      };
+      let added = false;
+      if (!existingKeys.has(key(newOrder))) {
+        existingOrders.push(newOrder);
+        added = true;
+      }
+
+      const totalProducts = existingOrders.reduce(
+        (s, o) => s + ((o.products && o.products.length) || 0),
+        0
+      );
+
+      await dayRef.set({
+        date: dateKey,
+        updated_at: nowStr,
+        source: "email",
+        total_orders: existingOrders.length,
+        total_products: totalProducts,
+        orders: existingOrders,
+      });
+
+      console.log(`[receiveForwardedEmail] saved uid=${uid.slice(0, 8)} date=${dateKey} added=${added} products=${order.products.length}`);
+      res.status(200).json({
+        ok: true,
+        parsed: true,
+        added,
+        dateKey,
+        products: order.products.length,
+      });
+    } catch (e) {
+      console.error("[receiveForwardedEmail] fatal:", e);
+      res.status(500).json({ error: String(e.message || e) });
+    }
+  }
+);
+

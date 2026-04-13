@@ -194,6 +194,142 @@ function findMappedProduct(coupangName){
   return _productMappings.find(function(m){ return m.coupangProductName === coupangName; });
 }
 
+// ─── 쿠팡 메일 전달 연동 (Cloudflare Email Routing) ────────────────────────────
+// 사용자 본인 메일(네이버/Gmail/다음)에서 "쿠팡 메일 오면 이 주소로 전달" 규칙
+// 1회 설정. 이후 쿠팡 주문 메일이 오면 Cloudflare Email Worker가 받아 파싱 →
+// Cloud Function → Firebase 저장. 앱은 📥 버튼으로 반영.
+
+function openMailForwardModal(){
+  if(!currentUser){ showToast('❌ 로그인 필요'); return; }
+  openModal('mail-forward-modal');
+
+  var body = document.getElementById('mfm-body');
+  body.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text2);font-size:13px">⏳ 전달 주소 불러오는 중...</div>';
+
+  var fn = firebase.app().functions('asia-northeast3').httpsCallable('getMailForwardAddress', { timeout: 30000 });
+  fn({}).then(function(result){
+    var d = (result && result.data) || {};
+    var addr = d.address || '';
+    var lastReceived = d.last_received_at || '';
+    _renderMailForwardBody(addr, lastReceived);
+  }).catch(function(e){
+    var msg = (e && e.message) || String(e);
+    body.innerHTML = '<div style="padding:20px;color:var(--red);font-size:13px">❌ 전달 주소 발급 실패: '+msg.slice(0,120)+'</div>';
+  });
+}
+
+function _renderMailForwardBody(address, lastReceived){
+  var body = document.getElementById('mfm-body');
+  var addrSafe = (address || '').replace(/"/g, '&quot;');
+  var statusLine = lastReceived
+    ? '<div style="font-size:12px;color:var(--green);margin-top:6px">✅ 마지막 메일 수신: '+lastReceived+'</div>'
+    : '<div style="font-size:12px;color:var(--text3);margin-top:6px">아직 수신된 메일 없음</div>';
+
+  var html = '' +
+    '<div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:14px">' +
+    '쿠팡 주문 메일을 아래 주소로 <b>자동 전달</b>하도록 본인 메일에서 규칙을 1회만 설정하면 돼요.<br>' +
+    '이후 쿠팡 주문이 있을 때마다 자동으로 앱에 반영됩니다.' +
+    '</div>' +
+
+    '<div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:14px">' +
+    '<div style="font-size:11px;color:var(--text3);margin-bottom:4px">내 전달 주소</div>' +
+    '<div style="display:flex;gap:8px;align-items:center">' +
+    '<input type="text" id="mfm-addr" value="'+addrSafe+'" readonly ' +
+    'style="flex:1;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:monospace;background:var(--bg3);color:var(--text)"/>' +
+    '<button onclick="_copyMailAddress()" ' +
+    'style="background:var(--blue);color:#fff;border:none;border-radius:8px;padding:10px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">복사</button>' +
+    '</div>' +
+    statusLine +
+    '</div>' +
+
+    '<div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px">✉️ 메일 서비스별 설정 가이드</div>' +
+    '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">' +
+      _mfmProviderRow('네이버', 'naver') +
+      _mfmProviderRow('Gmail', 'gmail') +
+      _mfmProviderRow('다음', 'daum') +
+      _mfmProviderRow('네이트', 'nate') +
+    '</div>' +
+
+    '<div style="background:rgba(0,150,0,.05);border:1px solid rgba(0,150,0,.2);border-radius:10px;padding:10px 12px;font-size:12px;color:var(--text2);line-height:1.6">' +
+    '💡 <b>Tip</b>: 설정이 잘 됐는지 확인하려면, 쿠팡 주문 메일 한 개를 수동으로 위 주소에 전달해보세요. 1분 후 앱에서 📥 <b>쿠팡 데이터 가져오기</b>를 누르면 반영돼요.' +
+    '</div>';
+
+  body.innerHTML = html;
+}
+
+function _mfmProviderRow(label, key){
+  return '<button onclick="_mfmShowGuide(\''+key+'\')" ' +
+    'style="text-align:left;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:13px;font-weight:600;color:var(--text);cursor:pointer;font-family:inherit;display:flex;justify-content:space-between;align-items:center">' +
+    '<span>📧 '+label+' 설정 방법</span>' +
+    '<span style="color:var(--text3);font-size:11px">보기 ▸</span>' +
+    '</button>';
+}
+
+function _copyMailAddress(){
+  var el = document.getElementById('mfm-addr');
+  if(!el) return;
+  el.select();
+  try {
+    document.execCommand('copy');
+    if(navigator.clipboard){ navigator.clipboard.writeText(el.value); }
+    showToast('✅ 주소 복사됨');
+  } catch(_){
+    showToast('⚠️ 복사 실패, 직접 드래그해서 복사해주세요');
+  }
+}
+
+var _mfmGuides = {
+  naver: [
+    '1. PC에서 <b>네이버 메일</b> 로그인',
+    '2. 좌측 메뉴 맨 아래 <b>환경설정</b> 클릭',
+    '3. <b>메일함 관리 → 자동분류</b> (또는 <b>필터링</b>)',
+    '4. <b>추가</b> 버튼 → 조건:<br>&nbsp;&nbsp;&nbsp;&nbsp;• 보낸사람: <code>coupang.com</code> <b>포함</b>',
+    '5. 실행작업: <b>다른 메일로 전달</b> 체크 → 위 주소 붙여넣기',
+    '6. <b>확인</b> 또는 <b>저장</b>',
+    '',
+    '⚠️ 네이버는 전달을 원본 그대로 보내기 때문에 우리 서버에서 쿠팡 메일을 인식할 수 있어요.',
+  ],
+  gmail: [
+    '1. PC에서 <b>Gmail</b> 로그인',
+    '2. 검색창에 <code>from:(@coupang.com)</code> 입력 → 검색',
+    '3. 검색창 우측 <b>필터 만들기</b> (깔때기 모양) 클릭',
+    '4. 팝업 하단 <b>검색조건으로 필터 만들기</b> 클릭',
+    '5. <b>다음 주소로 전달</b> 체크',
+    '6. 드롭다운에서 주소 추가 → 위 전달 주소 입력',
+    '7. Gmail이 그 주소에 확인 메일 보냄 → 수신된 메일의 링크 클릭 (본인 메일에서 확인)',
+    '',
+    '⚠️ Gmail은 처음 전달 주소를 등록할 때 확인 절차가 있어요. 링크 클릭 후 규칙이 활성화돼요.',
+  ],
+  daum: [
+    '1. PC에서 <b>다음 메일</b> 로그인',
+    '2. 우측 상단 <b>환경설정</b> (톱니바퀴) 클릭',
+    '3. <b>메일 필터</b> 탭',
+    '4. <b>필터 추가</b> → 조건:<br>&nbsp;&nbsp;&nbsp;&nbsp;• 보낸사람 주소에 <code>coupang.com</code> 포함',
+    '5. 실행 작업: <b>지정한 메일주소로 전달</b> → 위 주소 입력',
+    '6. 저장',
+  ],
+  nate: [
+    '1. PC에서 <b>네이트 메일</b> 로그인',
+    '2. <b>환경설정</b> → <b>자동분류/필터</b>',
+    '3. <b>새 규칙 만들기</b> → 보낸사람에 <code>coupang.com</code>',
+    '4. 작업에 <b>메일 전달</b> 선택 → 위 주소 입력',
+    '5. 저장',
+    '',
+    '⚠️ 네이트는 전달 기능이 제한적일 수 있어요. 안 되면 수동 전달 필요.',
+  ],
+};
+
+function _mfmShowGuide(key){
+  var guide = _mfmGuides[key];
+  if(!guide) return;
+  var html = '<div style="font-size:13px;color:var(--text);line-height:1.8">' +
+    guide.map(function(line){ return '<div>'+line+'</div>'; }).join('') +
+    '</div>' +
+    '<button onclick="openMailForwardModal()" ' +
+    'style="margin-top:14px;width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;font-family:inherit">◂ 돌아가기</button>';
+  document.getElementById('mfm-body').innerHTML = html;
+}
+
 // ─── Gmail OAuth + 쿠팡 메일 동기화 ───────────────────────────────────────────
 // Google Identity Services (GIS) token client 로드 & 토큰 발급 → Cloud Function
 // syncCoupangFromGmail 호출. Client ID는 appConfig/googleClientId 에 저장해둠.

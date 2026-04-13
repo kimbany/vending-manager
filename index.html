@@ -273,6 +273,9 @@
       <div id="inv-panel-stock">
         <!-- 쿠팡 구매 내역 수집 -->
         <div style="display:flex;gap:8px;margin-bottom:8px">
+          <button class="btn-p" style="flex:1;margin:0;background:#00A67E" id="mail-forward-btn" onclick="openMailForwardModal()">✉️ 쿠팡 메일 연동</button>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
           <button class="btn-p" style="flex:1;margin:0;background:#EA4335" id="gmail-sync-btn" onclick="syncCoupangFromGmail()">📧 Gmail로 쿠팡 주문 가져오기</button>
         </div>
         <div style="display:flex;gap:8px;margin-bottom:8px">
@@ -859,6 +862,14 @@
 </div>
 
 <!-- 재고 입력 타입 선택 팝업 -->
+<!-- 쿠팡 메일 전달 연동 모달 -->
+<div class="modal-bg" id="mail-forward-modal">
+  <div class="modal" style="padding-bottom:24px;max-width:480px">
+    <div class="mh"><div class="mt">✉️ 쿠팡 메일 연동</div><button class="mc" onclick="closeModal('mail-forward-modal')">✕</button></div>
+    <div id="mfm-body"></div>
+  </div>
+</div>
+
 <div class="modal-bg" id="inv-type-modal">
   <div class="modal" style="padding-bottom:24px">
     <div class="mh"><div class="mt">재고 입력</div><button class="mc" onclick="closeModal('inv-type-modal')">✕</button></div>
