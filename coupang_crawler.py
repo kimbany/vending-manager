@@ -260,56 +260,135 @@ async def crawl_coupang_orders(email, pw, save_path):
             pass
 
         # 2. 로그인 페이지로 이동
-        #    Akamai WAF가 login.coupang.com 직접 접근(browser.get)을 차단하는
-        #    경우가 있음 → location.href 할당으로 현재 탭 내부 네비게이션 수행
-        #    (Referer: www.coupang.com + 기존 Akamai 센서 쿠키 유지)
-        debug_log.append("[2] 로그인 페이지 이동 (location.href 방식)")
-        login_url = "https://login.coupang.com/login/login.pang?rtnUrl=https%3A%2F%2Fwww.coupang.com%2F"
-        try:
-            await page.evaluate(f'location.href = {json.dumps(login_url)}')
-        except Exception as _e:
-            debug_log.append(f"[2] location.href 실패, browser.get 폴백: {_e}")
+        #    Akamai WAF는 "직접 접근 vs 사이트 내부 클릭"을 구분함.
+        #    location.href 할당으로는 차단되므로, 실제 <a> 태그를 찾아
+        #    MouseEvent 클릭을 발생시켜 user-activation 컨텍스트 생성.
+        #    실패 시 m.coupang.com으로 이동하여 같은 방식을 재시도.
+        debug_log.append("[2] 로그인 링크 클릭 시도 (user-gesture)")
+
+        async def _click_login_on_current_page(tag):
+            """현재 페이지에서 로그인 링크를 찾아 user-gesture click 수행.
+               찾은 href / 클릭 성공 여부 / 이동 후 URL 반환."""
+            js = r'''(() => {
+                const candidates = [];
+                // 우선순위: 명시 ID/클래스, href 키워드, 텍스트
+                const picks = [
+                    ...document.querySelectorAll('#wa-top-bar a'),
+                    ...document.querySelectorAll('a[href*="login.coupang.com"]'),
+                    ...document.querySelectorAll('a[href*="/login"]'),
+                ];
+                for (const a of picks) {
+                    const href = a.getAttribute('href') || '';
+                    const text = (a.innerText || a.textContent || '').trim();
+                    if (href.includes('logout') || text.includes('로그아웃')) continue;
+                    if (href && (href.includes('login') || text.includes('로그인'))) {
+                        candidates.push(a);
+                    }
+                }
+                if (!candidates.length) {
+                    return JSON.stringify({found: false, href: '', method: '', error: 'no login link'});
+                }
+                const link = candidates[0];
+                const href = link.href || link.getAttribute('href') || '';
+                // 새 탭 방지
+                try { link.target = '_self'; } catch (_) {}
+                try { link.removeAttribute('target'); } catch (_) {}
+                // user-activation이 실린 실제 클릭
+                try {
+                    link.click();
+                    return JSON.stringify({found: true, href: href, method: 'click'});
+                } catch (e) {
+                    try {
+                        const ev = new MouseEvent('click', {bubbles: true, cancelable: true, view: window});
+                        link.dispatchEvent(ev);
+                        return JSON.stringify({found: true, href: href, method: 'dispatch'});
+                    } catch (e2) {
+                        // 마지막 수단: location.href
+                        location.href = href;
+                        return JSON.stringify({found: true, href: href, method: 'location.href'});
+                    }
+                }
+            })()'''
             try:
-                page = await browser.get(login_url)
-            except Exception as _e2:
-                debug_log.append(f"[2] browser.get도 실패: {_e2}")
+                raw = await page.evaluate(js)
+                if isinstance(raw, str):
+                    info = json.loads(raw)
+                elif isinstance(raw, dict):
+                    info = raw
+                elif isinstance(raw, (list, tuple)) and raw:
+                    info = json.loads(raw[0]) if isinstance(raw[0], str) else raw[0]
+                else:
+                    info = {}
+                debug_log.append(f"[2] {tag} 링크: found={info.get('found')}, href={str(info.get('href',''))[:120]}, method={info.get('method','')}")
+                return info
+            except Exception as _e:
+                debug_log.append(f"[2] {tag} 링크 클릭 실패: {str(_e)[:200]}")
+                return {}
+
+        info = await _click_login_on_current_page('www')
         await asyncio.sleep(5 + random.random() * 2)
 
-        # 페이지 확인 + 차단 감지
-        try:
-            cur = await page.evaluate('location.href')
-            debug_log.append(f"[2] URL: {cur}")
-        except:
-            cur = ''
-
-        try:
-            body_text = await page.evaluate('document.body.innerText')
-        except:
-            body_text = ''
-
-        # Akamai WAF 차단 감지 → 모바일 로그인으로 폴백
-        if 'Access Denied' in body_text or ("Reference #" in body_text and 'permission' in body_text.lower()):
-            debug_log.append(f"[2] 데스크탑 로그인 차단 감지 → 모바일 로그인 시도")
-            try:
-                mobile_login = "https://login.coupang.com/login/loginMember.pang?rtnUrl=https%3A%2F%2Fm.coupang.com%2F"
-                await page.evaluate(f'location.href = {json.dumps(mobile_login)}')
-            except:
-                try:
-                    page = await browser.get("https://m.coupang.com/")
-                    await asyncio.sleep(4)
-                    await page.evaluate('location.href = "https://login.coupang.com/login/loginMember.pang"')
-                except Exception as _e:
-                    debug_log.append(f"[2] 모바일 폴백 실패: {_e}")
-            await asyncio.sleep(5 + random.random() * 2)
+        # 로그인 페이지 차단 여부 확인
+        async def _get_body_and_url():
             try:
                 cur = await page.evaluate('location.href')
-                body_text = await page.evaluate('document.body.innerText')
-                debug_log.append(f"[2] 모바일 URL: {cur}")
             except:
-                pass
+                cur = ''
+            try:
+                txt = await page.evaluate('document.body.innerText')
+            except:
+                txt = ''
+            return cur, txt
 
-        # 여전히 차단됐으면 종료
-        if 'Access Denied' in body_text or ("Reference #" in body_text and 'permission' in body_text.lower()):
+        cur, body_text = await _get_body_and_url()
+        debug_log.append(f"[2] 이동 후 URL: {cur}")
+
+        def _is_blocked(text):
+            if not text:
+                return False
+            if 'Access Denied' in text:
+                return True
+            if ("Reference #" in text and 'permission' in text.lower()):
+                return True
+            if '사용권한이 없습니다' in text:
+                return True
+            return False
+
+        if _is_blocked(body_text):
+            debug_log.append("[2] 데스크탑 경로 차단 → m.coupang.com 경유 재시도")
+            try:
+                page = await browser.get("https://m.coupang.com/")
+                await asyncio.sleep(5 + random.random() * 2)
+                # 모바일 메인 스크롤
+                try:
+                    await page.evaluate('window.scrollTo({top: 300, behavior: "smooth"})')
+                    await asyncio.sleep(1.5)
+                    await page.evaluate('window.scrollTo({top: 0, behavior: "smooth"})')
+                    await asyncio.sleep(1)
+                except:
+                    pass
+            except Exception as _e:
+                debug_log.append(f"[2] m.coupang.com 접근 실패: {_e}")
+
+            # 모바일 페이지 차단 여부
+            _, mbody = await _get_body_and_url()
+            if _is_blocked(mbody):
+                debug_log.append(f"[2] m.coupang.com도 차단됨: {mbody[:200]}")
+                rtdb.reference(f'{save_path}/_debug').set({
+                    'log': debug_log, 'updated_at': now_str,
+                    'status': 'waf_blocked_all',
+                    'text_sample': mbody[:500],
+                })
+                return 0
+
+            # 모바일 페이지에서 로그인 링크 찾아 클릭
+            await _click_login_on_current_page('m')
+            await asyncio.sleep(5 + random.random() * 2)
+            cur, body_text = await _get_body_and_url()
+            debug_log.append(f"[2] 모바일 이동 후 URL: {cur}")
+
+        # 최종 차단 확인
+        if _is_blocked(body_text):
             debug_log.append(f"[2] 로그인 페이지 차단 유지: {body_text[:200]}")
             rtdb.reference(f'{save_path}/_debug').set({
                 'log': debug_log, 'updated_at': now_str,
