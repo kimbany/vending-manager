@@ -1486,29 +1486,49 @@ exports.receiveForwardedEmail = onRequest(
       };
       const fromAddr = extractAddr(from);
 
-      // ── Gmail 전달 주소 확인 메일 감지 ─────────────────────────────────
+      // ── Gmail 전달 주소 확인 메일 감지 (v3) ───────────────────────────
       // 사용자가 Gmail "전달 및 POP/IMAP" 에 u-xxx@invendory.kr 를 등록하면
       // Gmail 이 forwarding-noreply@google.com 에서 9자리 확인 코드를 보냄.
       // 쿠팡 발신자가 아니므로 아래의 쿠팡 계정 검증/쿠팡 키워드 필터에서
-      // 드롭되기 전에 먼저 가로채서 pending_verification 에 저장 → 앱 모달이
-      // 실시간으로 사용자에게 코드를 보여주게 한다.
+      // 드롭되기 전에 먼저 가로채서 pending_verification 에 저장.
+      //
+      // 감지는 여러 소스에서 `forwarding-noreply` 문자열을 단순 substring 으로
+      // 찾는 방식으로 최대한 관대하게 한다 (regex/escape 이슈 회피).
       try {
+        const fromStrRaw = String(from || "").toLowerCase();
         const rawStrEarly = String(raw || "");
+        const rawLowerEarly = rawStrEarly.toLowerCase();
         const subjStrEarly = String(subject || "");
-        const isGmailVerify =
-          /forwarding-noreply@google\.com/i.test(fromAddr) ||
-          /forwarding-noreply@google\.com/i.test(rawStrEarly) ||
-          /forwarding\s+confirmation/i.test(subjStrEarly) ||
-          /전달\s*확인/i.test(subjStrEarly);
+        const subjLowerEarly = subjStrEarly.toLowerCase();
+
+        const hasForwardingFrom =
+          fromAddr.indexOf("forwarding-noreply") >= 0 ||
+          fromStrRaw.indexOf("forwarding-noreply") >= 0 ||
+          rawLowerEarly.indexOf("from: google <forwarding-noreply") >= 0 ||
+          rawLowerEarly.indexOf("forwarding-noreply@google.com") >= 0;
+        const hasForwardingSubject =
+          subjLowerEarly.indexOf("forwarding confirmation") >= 0 ||
+          subjStrEarly.indexOf("전달 확인") >= 0 ||
+          subjStrEarly.indexOf("전달확인") >= 0 ||
+          subjLowerEarly.indexOf("gmail 전달") >= 0;
+        const isGmailVerify = hasForwardingFrom || hasForwardingSubject;
+
+        // 항상 진단 로그 + debug 노드 남김 (감지가 안 될 때 원인 파악용)
+        console.log(`[receiveForwardedEmail] gmail-verify-check uid=${uid.slice(0, 8)} fromMatch=${hasForwardingFrom} subjMatch=${hasForwardingSubject} detected=${isGmailVerify}`);
+
         if (isGmailVerify) {
-          const bodyEarly = extractEmailBody(rawStrEarly);
-          // 9자리 확인 코드 (본문/원문 양쪽에서 탐색; 본문 우선)
+          const bodyEarly = extractEmailBody(rawStrEarly) || "";
+          // 코드 추출 — 여러 패턴 시도, 9자리 숫자 우선
           let code = "";
-          const codeCtx = bodyEarly.match(/(?:Confirmation code|확인\s*코드)[^\d]{0,20}(\d{6,12})/i);
-          if (codeCtx) code = codeCtx[1];
+          const ctxMatch = bodyEarly.match(/(?:Confirmation code|확인\s*코드|인증\s*코드)[^\d]{0,30}(\d{6,12})/i);
+          if (ctxMatch) code = ctxMatch[1];
           if (!code) {
-            const anyCode = bodyEarly.match(/\b(\d{9})\b/) || rawStrEarly.match(/\b(\d{9})\b/);
-            if (anyCode) code = anyCode[1];
+            const nine = bodyEarly.match(/\b(\d{9})\b/) || rawStrEarly.match(/\b(\d{9})\b/);
+            if (nine) code = nine[1];
+          }
+          if (!code) {
+            const anyLong = bodyEarly.match(/\b(\d{6,12})\b/) || rawStrEarly.match(/\b(\d{6,12})\b/);
+            if (anyLong) code = anyLong[1];
           }
           // 승인 링크
           let url = "";
@@ -1517,22 +1537,33 @@ exports.receiveForwardedEmail = onRequest(
             rawStrEarly.match(/https:\/\/mail[.-]settings\.google\.com\/mail\/[^\s"<>]+/i);
           if (urlMatch) url = urlMatch[0];
 
-          if (code || url) {
-            const nowStr = new Date().toISOString().replace("T", " ").slice(0, 19);
-            await admin.database().ref(`users/${uid}/mailForward/pending_verification`).set({
-              type: "gmail",
-              code: code || "",
-              url: url || "",
-              received_at: nowStr,
-              expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+          const nowStr = new Date().toISOString().replace("T", " ").slice(0, 19);
+
+          // 디버그 샘플 저장 — 앞으로 파싱 실패 원인 분석용
+          try {
+            await admin.database().ref(`users/${uid}/mailForward/last_gmail_verify_debug`).set({
+              at: nowStr,
+              from: fromAddr.slice(0, 120),
+              subject: subjStrEarly.slice(0, 200),
+              body_sample: bodyEarly.slice(0, 1200),
+              code_found: !!code,
+              url_found: !!url,
             });
-            await admin.database().ref(`users/${uid}/mailForward/last_received_at`).set(nowStr);
-            await admin.database().ref(`users/${uid}/mailForward/last_sender`).set(fromAddr.slice(0, 100));
-            console.log(`[receiveForwardedEmail] gmail verification captured uid=${uid.slice(0, 8)} code=${code ? "yes" : "no"} url=${url ? "yes" : "no"}`);
-            res.status(200).json({ ok: true, verification: "gmail_pending" });
-            return;
-          }
-          console.log(`[receiveForwardedEmail] gmail verification detected but no code/url extracted uid=${uid.slice(0, 8)}`);
+          } catch (_) { /* ignore */ }
+
+          // 코드/링크 중 하나라도 찾았으면 pending_verification 에 저장
+          await admin.database().ref(`users/${uid}/mailForward/pending_verification`).set({
+            type: "gmail",
+            code: code || "",
+            url: url || "",
+            received_at: nowStr,
+            expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+          });
+          await admin.database().ref(`users/${uid}/mailForward/last_received_at`).set(nowStr);
+          await admin.database().ref(`users/${uid}/mailForward/last_sender`).set(fromAddr.slice(0, 100));
+          console.log(`[receiveForwardedEmail] gmail verification captured uid=${uid.slice(0, 8)} code=${code ? "yes" : "no"} url=${url ? "yes" : "no"}`);
+          res.status(200).json({ ok: true, verification: "gmail_pending", has_code: !!code, has_url: !!url });
+          return;
         }
       } catch (e) {
         console.error("[receiveForwardedEmail] gmail verify detection failed:", e);
