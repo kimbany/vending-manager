@@ -513,33 +513,68 @@ function loadCoupangOrders(){
 // ─── 미입고 구매 목록 로드 ───────────────────────────────────────────────────
 function loadCoupangPending(){
   if(!currentUser) return;
+  var container = document.getElementById('coupang-pending');
+  var list = document.getElementById('coupang-pending-list');
+  if(!container || !list) return;
   db.ref('users/'+currentUser.uid+'/purchases').once('value').then(function(snap){
     var purchases = snap.val() || [];
     if(!Array.isArray(purchases)) purchases = Object.values(purchases);
-    var pending = purchases.filter(function(p){ return p.status === 'pending'; });
-    var container = document.getElementById('coupang-pending');
-    var list = document.getElementById('coupang-pending-list');
+    // id가 없는 오래된 구매 데이터는 즉석에서 id 부여 (이후 작업의 고유 식별자)
+    var needIdPatch = false;
+    purchases.forEach(function(p, i){
+      if(p && !p.id){
+        p.id = 'pid_'+i+'_'+Date.now().toString(36);
+        needIdPatch = true;
+      }
+    });
+    if(needIdPatch){
+      db.ref('users/'+currentUser.uid+'/purchases').set(purchases);
+    }
+
+    var pending = purchases.filter(function(p){ return p && p.status === 'pending'; });
     if(!pending.length){
       container.style.display = 'none';
+      list.innerHTML = '';
       return;
     }
     container.style.display = 'block';
-    list.innerHTML = pending.map(function(p, idx){
+    list.innerHTML = pending.map(function(p){
       var mapped = findMappedProduct(p.coupangProductName);
       var matchLabel = mapped ? '✅ 매칭됨' : '⚠️ 매칭 필요';
       var matchColor = mapped ? 'var(--green)' : 'var(--red)';
+      var safeName = (p.coupangProductName || '').replace(/'/g, "\\'");
+      var safeId = (p.id || '').replace(/'/g, "\\'");
       return '<div style="padding:8px 0;border-bottom:1px solid rgba(0,100,255,.1)">'+
         '<div style="font-size:13px;font-weight:600">'+p.coupangProductName+'</div>'+
         '<div style="font-size:12px;color:var(--text3);margin-top:2px">'+
-          p.quantity+'개 · '+fmt(p.totalPrice)+'원 · '+p.purchaseDate+
+          p.quantity+'개 · '+fmt(p.totalPrice||0)+'원 · '+(p.purchaseDate||'')+
         '</div>'+
-        '<div style="display:flex;gap:6px;margin-top:6px;align-items:center">'+
+        '<div style="display:flex;gap:6px;margin-top:6px;align-items:center;flex-wrap:wrap">'+
           '<span style="font-size:11px;color:'+matchColor+'">'+matchLabel+'</span>'+
-          (!mapped ? '<button onclick="openMatchingModal(\''+p.coupangProductName.replace(/'/g,"\\'")+'\')" style="font-size:11px;background:var(--blue);color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-family:inherit">제품 매칭</button>' : '')+
-          (mapped ? '<button onclick="stockInFromPurchase('+idx+')" style="font-size:11px;background:var(--green);color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-family:inherit">입고 처리</button>' : '')+
+          (!mapped ? '<button onclick="openMatchingModal(\''+safeName+'\')" style="font-size:11px;background:var(--blue);color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-family:inherit">제품 매칭</button>' : '')+
+          (mapped ? '<button onclick="stockInFromPurchaseById(\''+safeId+'\')" style="font-size:11px;background:var(--green);color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-family:inherit">입고 처리</button>' : '')+
+          '<button onclick="skipPurchaseById(\''+safeId+'\')" style="font-size:11px;background:var(--bg3);color:var(--text2);border:1px solid var(--border);border-radius:6px;padding:4px 10px;cursor:pointer;font-family:inherit">건너뛰기</button>'+
         '</div>'+
       '</div>';
     }).join('');
+  });
+}
+
+// 구매내역 건너뛰기 — 자판기와 무관한 물품(예: 사무용품) 숨김 처리
+function skipPurchaseById(purchaseId){
+  if(!currentUser || !purchaseId) return;
+  if(!confirm('이 구매 내역을 목록에서 숨길까요?\n(나중에 필요하면 Firebase에서 복원 가능)')) return;
+  db.ref('users/'+currentUser.uid+'/purchases').once('value').then(function(snap){
+    var purchases = snap.val() || [];
+    if(!Array.isArray(purchases)) purchases = Object.values(purchases);
+    var idx = purchases.findIndex(function(p){ return p && p.id === purchaseId; });
+    if(idx < 0){ showToast('❌ 구매 데이터를 찾을 수 없어요'); return; }
+    purchases[idx].status = 'skipped';
+    purchases[idx].skippedAt = new Date().toISOString();
+    db.ref('users/'+currentUser.uid+'/purchases').set(purchases).then(function(){
+      showToast('✅ 목록에서 숨겼어요');
+      loadCoupangPending();
+    });
   });
 }
 
@@ -656,57 +691,166 @@ function _renderMatchProductDropdown(machineKey){
   wrap.innerHTML = inner;
 }
 
-// 자판기별 제품 목록 수집
+// 자판기별 제품 목록 수집 — renderInv() 와 동일한 데이터 소스 사용
+//   (1) vmmsMachines/items : 자판기 목록 (deviceNo/name)
+//   (2) vmmsColumns/machines/{deviceNo}/columns : 제품 목록
+//   (3) locations/{locId}/machines/{mid} : locId/machineId 매핑 (재고 반영용)
+//   (4) appData.products / D.products : 앱 내 수동 등록 제품으로 보강
 //   return: [{ key: 'locId|machineId', label: '위치 / 자판기', products: [{id,name}] }, ...]
 function _collectMachinesWithProducts(){
   if(!currentUser) return Promise.resolve([]);
 
-  return db.ref('users/'+currentUser.uid+'/locations').once('value').then(function(locSnap){
+  return Promise.all([
+    db.ref('users/'+currentUser.uid+'/vmmsMachines').once('value'),
+    db.ref('users/'+currentUser.uid+'/vmmsColumns').once('value'),
+    db.ref('users/'+currentUser.uid+'/locations').once('value'),
+  ]).then(function(results){
+    var machVal = results[0].val() || {};
+    var colVal  = results[1].val() || {};
+    var locVal  = results[2].val() || {};
+
+    var vmmsMachines = (machVal && machVal.items) ? machVal.items : [];
+    if(!Array.isArray(vmmsMachines)) vmmsMachines = Object.values(vmmsMachines);
+    var vmmsColumns = (colVal && colVal.machines) ? colVal.machines : {};
+
     var result = [];
-    if(!locSnap || !locSnap.exists()) return result;
 
-    locSnap.forEach(function(locChild){
-      var locId = locChild.key;
-      var loc = locChild.val() || {};
-      var locName = loc.name || '';
-      var machines = loc.machines || {};
-      Object.keys(machines).forEach(function(mid){
-        var m = machines[mid] || {};
-        var machineName = m.name || mid;
-        var label = [locName, machineName].filter(Boolean).join(' / ');
+    // deviceNo → 제품 리스트 함수
+    function getProductsForDevno(devno){
+      var seen = {}, seenName = {};
+      var products = [];
+      var colData = vmmsColumns[devno] || {};
+      var cols = colData.columns || [];
+      if(!Array.isArray(cols)) cols = Object.values(cols);
+      cols.forEach(function(col){
+        if(!col || !col.productName) return;
+        var name = String(col.productName).trim();
+        if(!name) return;
+        var pid = col.productCode || name;
+        if(seen[pid] || seenName[name]) return;
+        seen[pid] = true;
+        seenName[name] = true;
+        products.push({ id: pid, name: name, source: 'vmms' });
+      });
+      return { products: products, seen: seen, seenName: seenName };
+    }
 
-        // 자판기 레벨의 products (구형) + appData.products (신형)
-        var prodList = [];
-        if(Array.isArray(m.products)) prodList = prodList.concat(m.products);
-        else if(m.products) prodList = prodList.concat(Object.values(m.products));
-        if(m.appData && m.appData.products){
-          if(Array.isArray(m.appData.products)) prodList = prodList.concat(m.appData.products);
-          else prodList = prodList.concat(Object.values(m.appData.products));
-        }
+    // 수동 등록 제품으로 보강
+    function mergeAppProducts(result, appProducts){
+      if(!Array.isArray(appProducts)) appProducts = Object.values(appProducts || {});
+      appProducts.forEach(function(p){
+        if(!p || !p.name) return;
+        var name = String(p.name).trim();
+        var pid = p.id || name;
+        if(result.seen[pid] || result.seenName[name]) return;
+        result.seen[pid] = true;
+        result.seenName[name] = true;
+        result.products.push({ id: pid, name: name, source: 'app' });
+      });
+    }
 
-        // 중복 제거 (id 기준)
-        var seen = {};
-        var products = [];
-        prodList.forEach(function(p){
-          if(!p || !p.name) return;
-          var pid = p.id || p.name;
-          if(seen[pid]) return;
-          seen[pid] = true;
-          products.push({ id: pid, name: p.name });
+    // 메인 경로: vmmsMachines 기준 (renderInv 와 동일)
+    vmmsMachines.forEach(function(vm){
+      if(!vm) return;
+      var devno = vm.deviceNo || '';
+      if(!devno) return;
+
+      // locations 에서 deviceNo 매칭되는 locId / mid 찾기
+      var locId = '', mid = '', locName = '', machineName = vm.name || '';
+      Object.keys(locVal).forEach(function(_lid){
+        var loc = locVal[_lid] || {};
+        var _machines = loc.machines || {};
+        Object.keys(_machines).forEach(function(_mid){
+          var _m = _machines[_mid] || {};
+          var devnos = Array.isArray(_m.deviceNos) ? _m.deviceNos : (_m.deviceNo ? [_m.deviceNo] : []);
+          if(devnos.indexOf(devno) >= 0){
+            locId = _lid;
+            mid = _mid;
+            locName = loc.name || '';
+            if(!machineName) machineName = _m.name || _m.model || '';
+          }
         });
-        products.sort(function(a, b){ return a.name.localeCompare(b.name, 'ko'); });
+      });
 
-        result.push({
-          key: locId + '|' + mid,
-          label: label,
-          locId: locId,
-          machineId: mid,
-          products: products,
-        });
+      // 매칭 안 되는 고립 자판기 처리
+      if(!locId) locId = '_unmapped';
+      if(!mid) mid = devno;
+
+      var label = [locName, machineName].filter(Boolean).join(' / ') || machineName || devno;
+
+      // 제품 수집
+      var collected = getProductsForDevno(devno);
+
+      // 현재 자판기면 D.products 로 보강
+      var isCurrent = (typeof currentLocationId !== 'undefined' &&
+                       typeof currentMachineId !== 'undefined' &&
+                       locId === currentLocationId && mid === currentMachineId);
+      if(isCurrent && typeof D !== 'undefined' && Array.isArray(D.products)){
+        mergeAppProducts(collected, D.products);
+      } else if(locId !== '_unmapped' && locVal[locId] && locVal[locId].machines && locVal[locId].machines[mid]){
+        var _m = locVal[locId].machines[mid];
+        var _ap = (_m.appData && _m.appData.products) ? _m.appData.products : (_m.products || []);
+        mergeAppProducts(collected, _ap);
+      }
+
+      collected.products.sort(function(a, b){ return a.name.localeCompare(b.name, 'ko'); });
+
+      result.push({
+        key: locId + '|' + mid,
+        label: label,
+        locId: locId,
+        machineId: mid,
+        deviceNo: devno,
+        products: collected.products,
       });
     });
 
-    // 자판기명 기준 정렬
+    // 폴백: vmmsMachines 비어있거나 결과 없으면 locations 기반으로 재시도
+    if(!result.length && Object.keys(locVal).length){
+      Object.keys(locVal).forEach(function(_lid){
+        var loc = locVal[_lid] || {};
+        var locName = loc.name || '';
+        var _machines = loc.machines || {};
+        Object.keys(_machines).forEach(function(_mid){
+          var _m = _machines[_mid] || {};
+          var machineName = _m.name || _mid;
+          var label = [locName, machineName].filter(Boolean).join(' / ');
+
+          var collected = { products: [], seen: {}, seenName: {} };
+          var devnos = Array.isArray(_m.deviceNos) ? _m.deviceNos : (_m.deviceNo ? [_m.deviceNo] : []);
+          devnos.forEach(function(dno){
+            var sub = getProductsForDevno(dno);
+            sub.products.forEach(function(p){
+              if(collected.seen[p.id] || collected.seenName[p.name]) return;
+              collected.seen[p.id] = true;
+              collected.seenName[p.name] = true;
+              collected.products.push(p);
+            });
+          });
+
+          var _ap = (_m.appData && _m.appData.products) ? _m.appData.products : (_m.products || []);
+          mergeAppProducts(collected, _ap);
+
+          // 현재 자판기면 D 로 한 번 더 보강
+          if(_lid === (typeof currentLocationId !== 'undefined' ? currentLocationId : '') &&
+             _mid === (typeof currentMachineId !== 'undefined' ? currentMachineId : '') &&
+             typeof D !== 'undefined' && Array.isArray(D.products)){
+            mergeAppProducts(collected, D.products);
+          }
+
+          collected.products.sort(function(a, b){ return a.name.localeCompare(b.name, 'ko'); });
+
+          result.push({
+            key: _lid + '|' + _mid,
+            label: label,
+            locId: _lid,
+            machineId: _mid,
+            products: collected.products,
+          });
+        });
+      });
+    }
+
     result.sort(function(a, b){ return a.label.localeCompare(b.label, 'ko'); });
     return result;
   }).catch(function(e){
@@ -749,45 +893,62 @@ function confirmMatching(coupangName){
 }
 
 // ─── 입고 처리 (쿠팡 구매 → stock_in) ───────────────────────────────────────
+// 신 버전: 구매 id로 조회 (인덱스 불안정성 제거)
+function stockInFromPurchaseById(purchaseId){
+  if(!currentUser || !purchaseId) return;
+  db.ref('users/'+currentUser.uid+'/purchases').once('value').then(function(snap){
+    var purchases = snap.val() || [];
+    if(!Array.isArray(purchases)) purchases = Object.values(purchases);
+    var idx = purchases.findIndex(function(x){ return x && x.id === purchaseId; });
+    if(idx < 0){ showToast('❌ 구매 데이터 없음'); return; }
+    _stockInFromPurchaseAt(purchases, idx);
+  });
+}
+
+// 구 버전 호환용 (예전 버튼의 index 기반 호출이 남아있을 수 있음)
 function stockInFromPurchase(purchaseIdx){
   if(!currentUser) return;
   db.ref('users/'+currentUser.uid+'/purchases').once('value').then(function(snap){
     var purchases = snap.val() || [];
     if(!Array.isArray(purchases)) purchases = Object.values(purchases);
-    var p = purchases[purchaseIdx];
-    if(!p){showToast('❌ 구매 데이터 없음');return;}
-
-    var mapped = findMappedProduct(p.coupangProductName);
-    if(!mapped){showToast('❌ 제품 매칭이 필요합니다');return;}
-
-    // 매칭 저장 시 자판기 정보가 함께 저장됐으면, 현재 활성 자판기와
-    // 다를 경우 사용자에게 전환을 요구 (쿠팡 매칭은 A자판기인데 재고는
-    // B자판기에 들어가는 문제 방지)
-    if(mapped.locId && mapped.machineId &&
-       (mapped.locId !== currentLocationId || mapped.machineId !== currentMachineId)){
-      showToast('⚠️ 상단바에서 매칭된 자판기로 먼저 전환해주세요');
-      return;
-    }
-
-    var unitsPerBox = mapped.unitsPerBox || 1;
-    var totalUnits = p.quantity * unitsPerBox;
-    var unitCost = totalUnits > 0 ? Math.round(p.totalPrice / totalUnits) : 0;
-
-    initStockData();
-    addStockIn(mapped.productId, totalUnits, unitCost, 'coupang', '쿠팡 구매 ('+p.coupangProductName+')', p.purchaseDate || td());
-
-    // 구매 상태 업데이트
-    purchases[purchaseIdx].status = 'stocked';
-    purchases[purchaseIdx].matchedProductId = mapped.productId;
-    purchases[purchaseIdx].locationId = currentLocationId;
-    purchases[purchaseIdx].machineId = currentMachineId;
-    db.ref('users/'+currentUser.uid+'/purchases').set(purchases);
-
-    save();
-    showToast('✅ '+totalUnits+'개 입고 완료 (단가 '+fmt(unitCost)+'원)');
-    loadCoupangPending();
-    renderInv();
+    _stockInFromPurchaseAt(purchases, purchaseIdx);
   });
+}
+
+function _stockInFromPurchaseAt(purchases, idx){
+  var p = purchases[idx];
+  if(!p){ showToast('❌ 구매 데이터 없음'); return; }
+
+  var mapped = findMappedProduct(p.coupangProductName);
+  if(!mapped){ showToast('❌ 제품 매칭이 필요합니다'); return; }
+
+  // 매칭 저장 시 자판기 정보가 함께 저장됐으면, 현재 활성 자판기와
+  // 다를 경우 사용자에게 전환을 요구 (쿠팡 매칭은 A자판기인데 재고는
+  // B자판기에 들어가는 문제 방지)
+  if(mapped.locId && mapped.machineId &&
+     (mapped.locId !== currentLocationId || mapped.machineId !== currentMachineId)){
+    showToast('⚠️ 상단바에서 매칭된 자판기로 먼저 전환해주세요');
+    return;
+  }
+
+  var unitsPerBox = mapped.unitsPerBox || 1;
+  var totalUnits = (p.quantity || 0) * unitsPerBox;
+  var unitCost = totalUnits > 0 ? Math.round((p.totalPrice || 0) / totalUnits) : 0;
+
+  initStockData();
+  addStockIn(mapped.productId, totalUnits, unitCost, 'coupang', '쿠팡 구매 ('+p.coupangProductName+')', p.purchaseDate || td());
+
+  // 구매 상태 업데이트
+  purchases[idx].status = 'stocked';
+  purchases[idx].matchedProductId = mapped.productId;
+  purchases[idx].locationId = currentLocationId;
+  purchases[idx].machineId = currentMachineId;
+  db.ref('users/'+currentUser.uid+'/purchases').set(purchases);
+
+  save();
+  showToast('✅ '+totalUnits+'개 입고 완료 (단가 '+fmt(unitCost)+'원)');
+  loadCoupangPending();
+  renderInv();
 }
 
 function saveProductMapping(coupangName, productId, unitsPerBox, locId, machineId){
