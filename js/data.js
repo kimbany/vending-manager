@@ -96,19 +96,33 @@ function invalidateLocationsCache(){ _locationsCache=null; _locationsCacheTime=0
 function td(){ var d=new Date(Date.now()+9*3600000); return d.toISOString().slice(0,10); }
 function fmt(n){ return (Number(n)||0).toLocaleString('ko-KR'); }
 function gq(pid){
-  // stockIn(batch)에서 해당 제품 찾기
+  // 1차: D.stockIn에서 productId로 직접 매칭
   var siTotal = 0, siFound = false;
   if(D.stockIn && D.stockIn.length){
     D.stockIn.forEach(function(b){ if(b.productId===pid){ siTotal+=(b.remainingQty||0); siFound=true; } });
   }
   if(siFound) return siTotal;
-  // stockIn에서 못 찾으면 제품 이름으로 매칭 시도 (VMMS 코드 ↔ D.products ID 불일치 대비)
+
+  // 2차: D.products에서 pid로 제품 찾기
   var prod = D.products ? D.products.find(function(p){return p.id===pid;}) : null;
+
+  // 3차: stockIn을 productCode로 매칭 (D.products.productCode ↔ stockIn.productCode)
+  if(prod && prod.productCode && D.stockIn && D.stockIn.length){
+    var codeTotal = 0, codeFound = false;
+    D.stockIn.forEach(function(b){
+      if(b.productCode===prod.productCode || b.productId===prod.productCode){
+        codeTotal += (b.remainingQty||0); codeFound = true;
+      }
+    });
+    if(codeFound) return codeTotal;
+  }
+
+  // 4차: 제품 이름으로 매칭 (stockIn이 다른 ID로 저장된 경우)
   if(prod && prod.name && D.stockIn && D.stockIn.length){
     var altTotal = 0, altFound = false;
     D.stockIn.forEach(function(b){
       if(b.productId===pid) return;
-      // stockIn의 productId가 이 제품의 이름과 일치하거나, 다른 제품 ID지만 이름이 같은 경우
+      // stockIn의 productId로 D.products 역조회
       var otherProd = D.products.find(function(p){return p.id===b.productId;});
       if(otherProd && otherProd.name && otherProd.name.trim() === prod.name.trim()){
         altTotal += (b.remainingQty||0); altFound = true;
@@ -116,8 +130,18 @@ function gq(pid){
     });
     if(altFound) return altTotal;
   }
-  // stockIn에 없으면 inventory(구 시스템)에서 찾기
-  var i=D.inventory.find(function(x){return x.productId===pid;}); return i?i.qty:0;
+
+  // 5차: D.inventory에서 productId로 찾기
+  if(D.inventory){
+    var i=D.inventory.find(function(x){return x.productId===pid;});
+    if(i) return i.qty;
+    // productCode로도 시도
+    if(prod && prod.productCode){
+      var i2 = D.inventory.find(function(x){return x.productId===prod.productCode;});
+      if(i2) return i2.qty;
+    }
+  }
+  return 0;
 }
 function gp(id){ return D.products.find(function(p){return p.id===id;}); }
 function showToast(msg){
