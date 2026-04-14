@@ -184,14 +184,15 @@ function renderPinStatus(){
   var el = document.getElementById('pin-status');
   var btn = document.getElementById('pin-setup-btn');
   var rmBtn = document.getElementById('pin-remove-btn');
+  if(!el) return; // 설정 탭이 로드 안 된 경우 방어
   if(_savedPinHash){
     el.textContent = 'PIN 설정됨 · '+(_lockTimeout>0?_lockTimeout+'분 후 자동 잠금':'자동 잠금 사용 안함');
-    btn.textContent = 'PIN 변경';
-    rmBtn.style.display = 'block';
+    if(btn) btn.textContent = 'PIN 변경';
+    if(rmBtn) rmBtn.style.display = 'block';
   } else {
     el.textContent = 'PIN 미설정 · 화면 잠금 비활성화';
-    btn.textContent = 'PIN 설정';
-    rmBtn.style.display = 'none';
+    if(btn) btn.textContent = 'PIN 설정';
+    if(rmBtn) rmBtn.style.display = 'none';
   }
 }
 

@@ -482,10 +482,20 @@ function deductInventoryForPeriod(){
       });
 
       Promise.all(savePromises).then(function(){
+        console.log('[재고차감] Firebase 저장 완료');
         showToast('✅ '+grandTotal+'개 재고 차감 완료');
         renderAll();
+      }).catch(function(err){
+        console.error('[재고차감] 저장 실패:', err);
+        showToast('❌ 저장 실패: '+(err && err.message || err));
       });
+    }).catch(function(err){
+      console.error('[재고차감] 로드 실패:', err);
+      showToast('❌ 로드 실패: '+(err && err.message || err));
     });
+  }).catch(function(err){
+    console.error('[재고차감] 초기 로드 실패:', err);
+    showToast('❌ 초기 로드 실패: '+(err && err.message || err));
   });
 }
 

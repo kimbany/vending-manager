@@ -309,9 +309,23 @@ function renderMachineView(mc, prods, inv){
       var p=entry?entry.prod:null;
       var span=entry?entry.span:1;
       var q=p?getQLocal(p.id):0;
-      // stockIn 데이터가 전혀 없으면 중립 표시 (모두 빨강 방지)
-      var hasStockData = (D.stockIn && D.stockIn.length>0) || (D.inventory && D.inventory.some(function(x){return x.qty>0;}));
-      var cl=!p?'':(!hasStockData?' hp':(q<=5?' ls':' hp'));
+      // 이 제품의 재고 데이터가 있는지 확인 (없으면 중립 표시)
+      var hasProductStock = false;
+      if(p){
+        // stockIn에서 이름 또는 ID로 찾기
+        if(D.stockIn && D.stockIn.length){
+          hasProductStock = D.stockIn.some(function(b){
+            if(b.productId===p.id) return true;
+            // 이름으로 다른 제품 찾아서 매칭
+            var otherP = D.products.find(function(x){return x.id===b.productId;});
+            return otherP && otherP.name && p.name && otherP.name.trim()===p.name.trim();
+          });
+        }
+        if(!hasProductStock && D.inventory && D.inventory.length){
+          hasProductStock = D.inventory.some(function(i){return i.productId===p.id;});
+        }
+      }
+      var cl=!p?'':(!hasProductStock?' hp':(q<=5?' ls':' hp'));
 
       var spanStyle='';
       if(span>1){
@@ -324,7 +338,7 @@ function renderMachineView(mc, prods, inv){
       var clickAttr = p ? ' onclick="openProdDetail(this.dataset.pid)" data-pid="'+p.id+'" ' : ' ';
       html+='<div class="vmc'+cl+'"'+clickAttr+'style="min-height:'+cellH+';min-width:0;overflow:hidden;'+(p?'cursor:pointer;':'')+spanStyle+(p?'':';opacity:0.3')+'">';
       // 컬럼 번호만 내부에 표시
-      html+='<div style="font-size:11px;font-weight:700;color:'+(p?(hasStockData&&q<=5?'var(--red)':'var(--text)'):'var(--text3)')+'">'+colLabel+'</div>';
+      html+='<div style="font-size:11px;font-weight:700;color:'+(p?(hasProductStock&&q<=5?'var(--red)':'var(--text)'):'var(--text3)')+'">'+colLabel+'</div>';
       html+='</div>';
     }
     html+='</div>';
