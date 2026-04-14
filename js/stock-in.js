@@ -206,7 +206,6 @@ var _mfmModalObserver = null;
 function openMailForwardModal(){
   if(!currentUser){ showToast('❌ 로그인 필요'); return; }
   openModal('mail-forward-modal');
-  _mfmAttachVerifyListener();
 
   var body = document.getElementById('mfm-body');
   body.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text2);font-size:13px">⏳ 전달 주소 불러오는 중...</div>';
@@ -217,9 +216,14 @@ function openMailForwardModal(){
     var addr = d.address || '';
     var lastReceived = d.last_received_at || '';
     _renderMailForwardBody(addr, lastReceived);
+    // 본문이 완전히 그려진 뒤에 listener 부착. 먼저 붙이면 코드 박스가
+    // _renderMailForwardBody 의 innerHTML 교체로 인해 덮어써진다.
+    _mfmAttachVerifyListener();
   }).catch(function(e){
     var msg = (e && e.message) || String(e);
     body.innerHTML = '<div style="padding:20px;color:var(--red);font-size:13px">❌ 전달 주소 발급 실패: '+msg.slice(0,120)+'</div>';
+    // 에러 상태에서도 코드 박스는 보여주고 싶으니 listener 는 붙임
+    _mfmAttachVerifyListener();
   });
 }
 
@@ -256,10 +260,9 @@ function _mfmDetachVerifyListener(){
     try { _mfmModalObserver.disconnect(); } catch(_){}
     _mfmModalObserver = null;
   }
-  // 사용이 끝난 확인 코드는 삭제 (10분 expires_at 과 별개로 즉시 정리).
-  if(currentUser){
-    try { db.ref('users/'+currentUser.uid+'/mailForward/pending_verification').remove(); } catch(_){}
-  }
+  // 의도적으로 pending_verification 을 지우지 않는다. 사용자가 모달을 실수로
+  // 닫고 다시 열면 같은 코드를 다시 봐야 하기 때문. expires_at(10분)이 지나면
+  // 백엔드/다음 설정 시도에서 덮어써진다.
 }
 
 function closeMailForwardModal(){
