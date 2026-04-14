@@ -438,13 +438,26 @@ function deductInventoryForPeriod(){
         var prodsM = r.val.products || [];
         if(!Array.isArray(prodsM)) prodsM = Object.values(prodsM);
         sales.forEach(function(s){
-          var pid = s.productId || '';
-          // productId 없으면 itemName으로 제품 찾기
-          if(!pid && s.itemName){
+          var pid = '';
+          // 1순위: itemName으로 D.products 매칭 (제품명 우선)
+          if(s.itemName){
             var p = prodsM.find(function(pp){ return pp.name && pp.name.trim() === s.itemName.trim(); });
             if(p) pid = p.id;
-            else pid = s.itemName; // 폴백: 이름 자체를 키로 사용
           }
+          // 2순위: s.productId가 D.products에 있는지 확인
+          if(!pid && s.productId){
+            var byId = prodsM.find(function(pp){ return pp.id === s.productId; });
+            if(byId) pid = byId.id;
+          }
+          // 3순위: s.productId가 바코드면 D.products.productCode로 매칭
+          if(!pid && s.productId){
+            var byCode = prodsM.find(function(pp){ return pp.productCode === s.productId; });
+            if(byCode) pid = byCode.id;
+          }
+          // 4순위: itemName을 키로 사용
+          if(!pid && s.itemName) pid = s.itemName;
+          // 5순위: productId 그대로
+          if(!pid) pid = s.productId || '';
           if(pid) qtyMap[pid]=(qtyMap[pid]||0)+(s.qty||1);
         });
         var mInv = r.val.inventory||[];
