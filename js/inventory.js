@@ -168,6 +168,9 @@ function getSortedProducts(){
 function renderInv(){
   if(!currentUser) return;
 
+  // 쿠팡 미입고 목록도 재고 탭 진입 시마다 갱신 (새로고침 후에도 표시되도록)
+  if(typeof loadCoupangPending === 'function') loadCoupangPending();
+
   // VMMS 데이터 + locations(재고) 함께 로드
   Promise.all([
     db.ref('users/'+currentUser.uid+'/vmmsColumns').once('value'),
