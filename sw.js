@@ -1,4 +1,4 @@
-var CACHE_VERSION = 17;
+var CACHE_VERSION = 18;
 var CACHE_NAME = 'invedory-v' + CACHE_VERSION;
 var STATIC_FILES = [
   './',
@@ -25,6 +25,7 @@ var JS_FILES = [
   './js/bulk.js',
   './js/crawl.js',
   './js/coupang.js',
+  './js/stock-in.js',
   './js/lock.js',
   './js/ui.js'
 ];
@@ -52,8 +53,7 @@ self.addEventListener('activate', function(e){
   self.clients.claim();
 });
 
-// Stale-While-Revalidate 전략
-// 캐시 먼저 반환 (빠른 로딩) + 백그라운드에서 네트워크 업데이트
+// HTML/JS 는 Network-First (항상 최신), 나머지는 Stale-While-Revalidate
 self.addEventListener('fetch', function(e){
   var url = e.request.url;
 
@@ -66,9 +66,30 @@ self.addEventListener('fetch', function(e){
     return;
   }
 
+  // HTML 과 JS 는 Network-First — 서버가 응답하면 무조건 최신, 오프라인일
+  // 때만 캐시 폴백. 코드 업데이트가 즉시 반영돼야 하기 때문.
+  var isHtmlOrJs = /\.(html|js)(\?|$)/.test(url) || url.endsWith('/') ||
+                   e.request.mode === 'navigate';
+  if(isHtmlOrJs){
+    e.respondWith(
+      fetch(e.request).then(function(res){
+        if(res && res.ok){
+          var clone = res.clone();
+          caches.open(CACHE_NAME).then(function(cache){
+            cache.put(e.request, clone);
+          });
+        }
+        return res;
+      }).catch(function(){
+        return caches.match(e.request);
+      })
+    );
+    return;
+  }
+
+  // 나머지(이미지/CSS 등)는 Stale-While-Revalidate
   e.respondWith(
     caches.match(e.request).then(function(cached){
-      // 백그라운드에서 네트워크 업데이트
       var fetchPromise = fetch(e.request).then(function(res){
         if(res.ok){
           var clone = res.clone();
@@ -78,8 +99,6 @@ self.addEventListener('fetch', function(e){
         }
         return res;
       }).catch(function(){ return cached; });
-
-      // 캐시가 있으면 즉시 반환, 없으면 네트워크 대기
       return cached || fetchPromise;
     })
   );
