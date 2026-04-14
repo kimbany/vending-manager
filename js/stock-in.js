@@ -513,33 +513,68 @@ function loadCoupangOrders(){
 // ─── 미입고 구매 목록 로드 ───────────────────────────────────────────────────
 function loadCoupangPending(){
   if(!currentUser) return;
+  var container = document.getElementById('coupang-pending');
+  var list = document.getElementById('coupang-pending-list');
+  if(!container || !list) return;
   db.ref('users/'+currentUser.uid+'/purchases').once('value').then(function(snap){
     var purchases = snap.val() || [];
     if(!Array.isArray(purchases)) purchases = Object.values(purchases);
-    var pending = purchases.filter(function(p){ return p.status === 'pending'; });
-    var container = document.getElementById('coupang-pending');
-    var list = document.getElementById('coupang-pending-list');
+    // id가 없는 오래된 구매 데이터는 즉석에서 id 부여 (이후 작업의 고유 식별자)
+    var needIdPatch = false;
+    purchases.forEach(function(p, i){
+      if(p && !p.id){
+        p.id = 'pid_'+i+'_'+Date.now().toString(36);
+        needIdPatch = true;
+      }
+    });
+    if(needIdPatch){
+      db.ref('users/'+currentUser.uid+'/purchases').set(purchases);
+    }
+
+    var pending = purchases.filter(function(p){ return p && p.status === 'pending'; });
     if(!pending.length){
       container.style.display = 'none';
+      list.innerHTML = '';
       return;
     }
     container.style.display = 'block';
-    list.innerHTML = pending.map(function(p, idx){
+    list.innerHTML = pending.map(function(p){
       var mapped = findMappedProduct(p.coupangProductName);
       var matchLabel = mapped ? '✅ 매칭됨' : '⚠️ 매칭 필요';
       var matchColor = mapped ? 'var(--green)' : 'var(--red)';
+      var safeName = (p.coupangProductName || '').replace(/'/g, "\\'");
+      var safeId = (p.id || '').replace(/'/g, "\\'");
       return '<div style="padding:8px 0;border-bottom:1px solid rgba(0,100,255,.1)">'+
         '<div style="font-size:13px;font-weight:600">'+p.coupangProductName+'</div>'+
         '<div style="font-size:12px;color:var(--text3);margin-top:2px">'+
-          p.quantity+'개 · '+fmt(p.totalPrice)+'원 · '+p.purchaseDate+
+          p.quantity+'개 · '+fmt(p.totalPrice||0)+'원 · '+(p.purchaseDate||'')+
         '</div>'+
-        '<div style="display:flex;gap:6px;margin-top:6px;align-items:center">'+
+        '<div style="display:flex;gap:6px;margin-top:6px;align-items:center;flex-wrap:wrap">'+
           '<span style="font-size:11px;color:'+matchColor+'">'+matchLabel+'</span>'+
-          (!mapped ? '<button onclick="openMatchingModal(\''+p.coupangProductName.replace(/'/g,"\\'")+'\')" style="font-size:11px;background:var(--blue);color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-family:inherit">제품 매칭</button>' : '')+
-          (mapped ? '<button onclick="stockInFromPurchase('+idx+')" style="font-size:11px;background:var(--green);color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-family:inherit">입고 처리</button>' : '')+
+          (!mapped ? '<button onclick="openMatchingModal(\''+safeName+'\')" style="font-size:11px;background:var(--blue);color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-family:inherit">제품 매칭</button>' : '')+
+          (mapped ? '<button onclick="stockInFromPurchaseById(\''+safeId+'\')" style="font-size:11px;background:var(--green);color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-family:inherit">입고 처리</button>' : '')+
+          '<button onclick="skipPurchaseById(\''+safeId+'\')" style="font-size:11px;background:var(--bg3);color:var(--text2);border:1px solid var(--border);border-radius:6px;padding:4px 10px;cursor:pointer;font-family:inherit">건너뛰기</button>'+
         '</div>'+
       '</div>';
     }).join('');
+  });
+}
+
+// 구매내역 건너뛰기 — 자판기와 무관한 물품(예: 사무용품) 숨김 처리
+function skipPurchaseById(purchaseId){
+  if(!currentUser || !purchaseId) return;
+  if(!confirm('이 구매 내역을 목록에서 숨길까요?\n(나중에 필요하면 Firebase에서 복원 가능)')) return;
+  db.ref('users/'+currentUser.uid+'/purchases').once('value').then(function(snap){
+    var purchases = snap.val() || [];
+    if(!Array.isArray(purchases)) purchases = Object.values(purchases);
+    var idx = purchases.findIndex(function(p){ return p && p.id === purchaseId; });
+    if(idx < 0){ showToast('❌ 구매 데이터를 찾을 수 없어요'); return; }
+    purchases[idx].status = 'skipped';
+    purchases[idx].skippedAt = new Date().toISOString();
+    db.ref('users/'+currentUser.uid+'/purchases').set(purchases).then(function(){
+      showToast('✅ 목록에서 숨겼어요');
+      loadCoupangPending();
+    });
   });
 }
 
@@ -749,45 +784,62 @@ function confirmMatching(coupangName){
 }
 
 // ─── 입고 처리 (쿠팡 구매 → stock_in) ───────────────────────────────────────
+// 신 버전: 구매 id로 조회 (인덱스 불안정성 제거)
+function stockInFromPurchaseById(purchaseId){
+  if(!currentUser || !purchaseId) return;
+  db.ref('users/'+currentUser.uid+'/purchases').once('value').then(function(snap){
+    var purchases = snap.val() || [];
+    if(!Array.isArray(purchases)) purchases = Object.values(purchases);
+    var idx = purchases.findIndex(function(x){ return x && x.id === purchaseId; });
+    if(idx < 0){ showToast('❌ 구매 데이터 없음'); return; }
+    _stockInFromPurchaseAt(purchases, idx);
+  });
+}
+
+// 구 버전 호환용 (예전 버튼의 index 기반 호출이 남아있을 수 있음)
 function stockInFromPurchase(purchaseIdx){
   if(!currentUser) return;
   db.ref('users/'+currentUser.uid+'/purchases').once('value').then(function(snap){
     var purchases = snap.val() || [];
     if(!Array.isArray(purchases)) purchases = Object.values(purchases);
-    var p = purchases[purchaseIdx];
-    if(!p){showToast('❌ 구매 데이터 없음');return;}
-
-    var mapped = findMappedProduct(p.coupangProductName);
-    if(!mapped){showToast('❌ 제품 매칭이 필요합니다');return;}
-
-    // 매칭 저장 시 자판기 정보가 함께 저장됐으면, 현재 활성 자판기와
-    // 다를 경우 사용자에게 전환을 요구 (쿠팡 매칭은 A자판기인데 재고는
-    // B자판기에 들어가는 문제 방지)
-    if(mapped.locId && mapped.machineId &&
-       (mapped.locId !== currentLocationId || mapped.machineId !== currentMachineId)){
-      showToast('⚠️ 상단바에서 매칭된 자판기로 먼저 전환해주세요');
-      return;
-    }
-
-    var unitsPerBox = mapped.unitsPerBox || 1;
-    var totalUnits = p.quantity * unitsPerBox;
-    var unitCost = totalUnits > 0 ? Math.round(p.totalPrice / totalUnits) : 0;
-
-    initStockData();
-    addStockIn(mapped.productId, totalUnits, unitCost, 'coupang', '쿠팡 구매 ('+p.coupangProductName+')', p.purchaseDate || td());
-
-    // 구매 상태 업데이트
-    purchases[purchaseIdx].status = 'stocked';
-    purchases[purchaseIdx].matchedProductId = mapped.productId;
-    purchases[purchaseIdx].locationId = currentLocationId;
-    purchases[purchaseIdx].machineId = currentMachineId;
-    db.ref('users/'+currentUser.uid+'/purchases').set(purchases);
-
-    save();
-    showToast('✅ '+totalUnits+'개 입고 완료 (단가 '+fmt(unitCost)+'원)');
-    loadCoupangPending();
-    renderInv();
+    _stockInFromPurchaseAt(purchases, purchaseIdx);
   });
+}
+
+function _stockInFromPurchaseAt(purchases, idx){
+  var p = purchases[idx];
+  if(!p){ showToast('❌ 구매 데이터 없음'); return; }
+
+  var mapped = findMappedProduct(p.coupangProductName);
+  if(!mapped){ showToast('❌ 제품 매칭이 필요합니다'); return; }
+
+  // 매칭 저장 시 자판기 정보가 함께 저장됐으면, 현재 활성 자판기와
+  // 다를 경우 사용자에게 전환을 요구 (쿠팡 매칭은 A자판기인데 재고는
+  // B자판기에 들어가는 문제 방지)
+  if(mapped.locId && mapped.machineId &&
+     (mapped.locId !== currentLocationId || mapped.machineId !== currentMachineId)){
+    showToast('⚠️ 상단바에서 매칭된 자판기로 먼저 전환해주세요');
+    return;
+  }
+
+  var unitsPerBox = mapped.unitsPerBox || 1;
+  var totalUnits = (p.quantity || 0) * unitsPerBox;
+  var unitCost = totalUnits > 0 ? Math.round((p.totalPrice || 0) / totalUnits) : 0;
+
+  initStockData();
+  addStockIn(mapped.productId, totalUnits, unitCost, 'coupang', '쿠팡 구매 ('+p.coupangProductName+')', p.purchaseDate || td());
+
+  // 구매 상태 업데이트
+  purchases[idx].status = 'stocked';
+  purchases[idx].matchedProductId = mapped.productId;
+  purchases[idx].locationId = currentLocationId;
+  purchases[idx].machineId = currentMachineId;
+  db.ref('users/'+currentUser.uid+'/purchases').set(purchases);
+
+  save();
+  showToast('✅ '+totalUnits+'개 입고 완료 (단가 '+fmt(unitCost)+'원)');
+  loadCoupangPending();
+  renderInv();
 }
 
 function saveProductMapping(coupangName, productId, unitsPerBox, locId, machineId){
