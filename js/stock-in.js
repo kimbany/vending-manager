@@ -544,28 +544,205 @@ function loadCoupangPending(){
 }
 
 // ─── 제품 매칭 모달 ──────────────────────────────────────────────────────────
-function openMatchingModal(coupangName){
-  var html = '<div style="margin-bottom:12px"><div style="font-size:13px;color:var(--text2);margin-bottom:4px">쿠팡 상품명</div>'+
-    '<div style="font-size:15px;font-weight:700;padding:8px;background:var(--bg3);border-radius:8px">'+coupangName+'</div></div>';
-  html += '<div class="fr" style="margin-bottom:8px"><label class="lbl">매칭할 제품 선택</label>'+
-    '<select id="match-product-sel" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;background:var(--bg2);color:var(--text)">'+
-    '<option value="">제품 선택</option>'+
-    D.products.map(function(p){return '<option value="'+p.id+'">'+p.name+'</option>';}).join('')+
-    '</select></div>';
-  html += '<div class="fr" style="margin-bottom:12px"><label class="lbl">박스당 낱개 수</label>'+
-    '<input type="number" id="match-units-per-box" value="1" min="1" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit"/></div>';
-  html += '<button onclick="confirmMatching(\''+coupangName.replace(/'/g,"\\'")+'\')" style="width:100%;background:var(--blue);color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">매칭 저장</button>';
+// 2단계 드롭다운 구조:
+//   1) 자판기 선택 (위치/자판기 조합) — 기본값은 현재 활성 자판기
+//   2) 해당 자판기의 제품 선택 — 선택한 자판기에 따라 동적으로 갱신
+var _matchMachineList = [];    // [{key, label, products:[{id,name}]}, ...]
+var _matchCurrentKey = '';
 
-  document.getElementById('pdm-title').textContent = '제품 매칭';
-  document.getElementById('pdm-body').innerHTML = html;
-  openModal('prod-detail-modal');
+function openMatchingModal(coupangName){
+  _collectMachinesWithProducts().then(function(machineList){
+    _matchMachineList = machineList;
+
+    if(!machineList.length){
+      document.getElementById('pdm-title').textContent = '제품 매칭';
+      document.getElementById('pdm-body').innerHTML =
+        '<div style="padding:20px;text-align:center;color:var(--text2);font-size:13px">'+
+        '등록된 자판기가 없어요.<br>먼저 위치/자판기를 등록하고 제품을 추가해주세요.'+
+        '</div>';
+      openModal('prod-detail-modal');
+      return;
+    }
+
+    // 현재 활성 자판기를 기본 선택값으로
+    var defaultKey = '';
+    if(typeof currentLocationId !== 'undefined' && typeof currentMachineId !== 'undefined'){
+      defaultKey = currentLocationId + '|' + currentMachineId;
+    }
+    if(!machineList.some(function(mm){ return mm.key === defaultKey; })){
+      defaultKey = machineList[0].key;
+    }
+    _matchCurrentKey = defaultKey;
+
+    var html = '' +
+      '<div style="margin-bottom:14px">' +
+        '<div style="font-size:13px;color:var(--text2);margin-bottom:4px">쿠팡 상품명</div>' +
+        '<div style="font-size:15px;font-weight:700;padding:10px;background:var(--bg3);border-radius:8px;word-break:break-all">'+
+          (coupangName || '') +
+        '</div>' +
+      '</div>' +
+
+      '<div class="fr" style="margin-bottom:10px">' +
+        '<label class="lbl">1. 자판기 선택</label>' +
+        '<select id="match-machine-sel" onchange="_onMatchMachineChange()" ' +
+          'style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;background:var(--bg2);color:var(--text)">' +
+          machineList.map(function(mm){
+            var sel = (mm.key === defaultKey) ? ' selected' : '';
+            return '<option value="'+mm.key+'"'+sel+'>'+mm.label+' ('+mm.products.length+'개)</option>';
+          }).join('') +
+        '</select>' +
+      '</div>' +
+
+      '<div class="fr" style="margin-bottom:10px">' +
+        '<label class="lbl">2. 제품 선택</label>' +
+        '<div id="match-product-wrap"></div>' +
+      '</div>' +
+
+      '<div class="fr" style="margin-bottom:14px">' +
+        '<label class="lbl">박스당 낱개 수</label>' +
+        '<input type="number" id="match-units-per-box" value="1" min="1" ' +
+          'style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit"/>' +
+      '</div>' +
+
+      '<button onclick="confirmMatching(\''+(coupangName || '').replace(/'/g,"\\'")+'\')" ' +
+        'style="width:100%;background:var(--blue);color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">' +
+        '매칭 저장' +
+      '</button>';
+
+    document.getElementById('pdm-title').textContent = '제품 매칭';
+    document.getElementById('pdm-body').innerHTML = html;
+    _renderMatchProductDropdown(defaultKey);
+    openModal('prod-detail-modal');
+  });
+}
+
+// 자판기 선택 변경 → 제품 드롭다운 다시 렌더
+function _onMatchMachineChange(){
+  var sel = document.getElementById('match-machine-sel');
+  if(!sel) return;
+  _matchCurrentKey = sel.value;
+  _renderMatchProductDropdown(_matchCurrentKey);
+}
+
+// 선택된 자판기의 제품 드롭다운 렌더링
+function _renderMatchProductDropdown(machineKey){
+  var wrap = document.getElementById('match-product-wrap');
+  if(!wrap) return;
+  var mm = _matchMachineList.find(function(x){ return x.key === machineKey; });
+  if(!mm){
+    wrap.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:8px">자판기를 선택해주세요</div>';
+    return;
+  }
+  if(!mm.products.length){
+    wrap.innerHTML =
+      '<div style="padding:10px;background:var(--bg3);border-radius:8px;color:var(--text3);font-size:12px">'+
+      '이 자판기에 등록된 제품이 없어요.<br>먼저 제품을 추가해주세요.'+
+      '</div>';
+    return;
+  }
+  // 제품 수 많을 때 검색 편의
+  var showSearch = mm.products.length >= 8;
+  var inner = '';
+  if(showSearch){
+    inner += '<input type="text" id="match-product-filter" placeholder="제품명 검색..." oninput="_filterMatchProducts()" '+
+      'style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;background:var(--bg2);color:var(--text);margin-bottom:6px"/>';
+  }
+  inner += '<select id="match-product-sel" size="'+Math.min(mm.products.length, 6)+'" '+
+    'style="width:100%;padding:6px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;background:var(--bg2);color:var(--text)">' +
+    mm.products.map(function(p){
+      return '<option value="'+p.id+'" data-name="'+(p.name||'').toLowerCase()+'">'+p.name+'</option>';
+    }).join('') +
+    '</select>';
+  wrap.innerHTML = inner;
+}
+
+// 자판기별 제품 목록 수집
+//   return: [{ key: 'locId|machineId', label: '위치 / 자판기', products: [{id,name}] }, ...]
+function _collectMachinesWithProducts(){
+  if(!currentUser) return Promise.resolve([]);
+
+  return db.ref('users/'+currentUser.uid+'/locations').once('value').then(function(locSnap){
+    var result = [];
+    if(!locSnap || !locSnap.exists()) return result;
+
+    locSnap.forEach(function(locChild){
+      var locId = locChild.key;
+      var loc = locChild.val() || {};
+      var locName = loc.name || '';
+      var machines = loc.machines || {};
+      Object.keys(machines).forEach(function(mid){
+        var m = machines[mid] || {};
+        var machineName = m.name || mid;
+        var label = [locName, machineName].filter(Boolean).join(' / ');
+
+        // 자판기 레벨의 products (구형) + appData.products (신형)
+        var prodList = [];
+        if(Array.isArray(m.products)) prodList = prodList.concat(m.products);
+        else if(m.products) prodList = prodList.concat(Object.values(m.products));
+        if(m.appData && m.appData.products){
+          if(Array.isArray(m.appData.products)) prodList = prodList.concat(m.appData.products);
+          else prodList = prodList.concat(Object.values(m.appData.products));
+        }
+
+        // 중복 제거 (id 기준)
+        var seen = {};
+        var products = [];
+        prodList.forEach(function(p){
+          if(!p || !p.name) return;
+          var pid = p.id || p.name;
+          if(seen[pid]) return;
+          seen[pid] = true;
+          products.push({ id: pid, name: p.name });
+        });
+        products.sort(function(a, b){ return a.name.localeCompare(b.name, 'ko'); });
+
+        result.push({
+          key: locId + '|' + mid,
+          label: label,
+          locId: locId,
+          machineId: mid,
+          products: products,
+        });
+      });
+    });
+
+    // 자판기명 기준 정렬
+    result.sort(function(a, b){ return a.label.localeCompare(b.label, 'ko'); });
+    return result;
+  }).catch(function(e){
+    console.error('[_collectMachinesWithProducts] error:', e);
+    return [];
+  });
+}
+
+// 검색 필터 (제품 목록 내)
+function _filterMatchProducts(){
+  var q = (document.getElementById('match-product-filter').value || '').toLowerCase().trim();
+  var sel = document.getElementById('match-product-sel');
+  if(!sel) return;
+  var opts = sel.querySelectorAll('option');
+  for(var i=0; i<opts.length; i++){
+    var name = opts[i].getAttribute('data-name') || '';
+    var label = (opts[i].textContent || '').toLowerCase();
+    opts[i].style.display = (!q || name.indexOf(q) >= 0 || label.indexOf(q) >= 0) ? '' : 'none';
+  }
 }
 
 function confirmMatching(coupangName){
-  var productId = document.getElementById('match-product-sel').value;
+  var productSel = document.getElementById('match-product-sel');
+  var productId = productSel ? productSel.value : '';
   var unitsPerBox = parseInt(document.getElementById('match-units-per-box').value) || 1;
-  if(!productId){showToast('❌ 제품을 선택하세요');return;}
-  saveProductMapping(coupangName, productId, unitsPerBox);
+  if(!productId){ showToast('❌ 제품을 선택하세요'); return; }
+
+  // 선택된 자판기 정보도 매핑에 저장하여 입고 시 참고
+  var mm = _matchMachineList.find(function(x){ return x.key === _matchCurrentKey; });
+  saveProductMapping(
+    coupangName,
+    productId,
+    unitsPerBox,
+    mm ? mm.locId : '',
+    mm ? mm.machineId : ''
+  );
   closeModal('prod-detail-modal');
   showToast('✅ 매칭 저장 완료');
   loadCoupangPending();
@@ -582,6 +759,15 @@ function stockInFromPurchase(purchaseIdx){
 
     var mapped = findMappedProduct(p.coupangProductName);
     if(!mapped){showToast('❌ 제품 매칭이 필요합니다');return;}
+
+    // 매칭 저장 시 자판기 정보가 함께 저장됐으면, 현재 활성 자판기와
+    // 다를 경우 사용자에게 전환을 요구 (쿠팡 매칭은 A자판기인데 재고는
+    // B자판기에 들어가는 문제 방지)
+    if(mapped.locId && mapped.machineId &&
+       (mapped.locId !== currentLocationId || mapped.machineId !== currentMachineId)){
+      showToast('⚠️ 상단바에서 매칭된 자판기로 먼저 전환해주세요');
+      return;
+    }
 
     var unitsPerBox = mapped.unitsPerBox || 1;
     var totalUnits = p.quantity * unitsPerBox;
@@ -604,13 +790,15 @@ function stockInFromPurchase(purchaseIdx){
   });
 }
 
-function saveProductMapping(coupangName, productId, unitsPerBox){
+function saveProductMapping(coupangName, productId, unitsPerBox, locId, machineId){
   var existing = _productMappings.findIndex(function(m){ return m.coupangProductName === coupangName; });
   var mapping = {
     id: Date.now().toString(),
     coupangProductName: coupangName,
     productId: productId,
-    unitsPerBox: unitsPerBox || 1
+    unitsPerBox: unitsPerBox || 1,
+    locId: locId || '',
+    machineId: machineId || ''
   };
   if(existing >= 0) _productMappings[existing] = mapping;
   else _productMappings.push(mapping);
