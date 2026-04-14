@@ -1008,11 +1008,12 @@ function parseCoupangEmail(text, dateHint) {
   if (!text) return null;
   const products = [];
 
-  // 금액 패턴 (1,234원 또는 1234원)
-  const priceRe = /([\d,]+)\s*원/;
-
-  // "구매 상세내역" ~ "결제 정보" 사이 섹션 추출
-  const startIdx = text.search(/구매\s*(상세)?\s*내역|구매\s*정보|주문\s*상품/);
+  // "구매 상세내역" 테이블 헤더 위치 (실제 상품 데이터가 있는 섹션의 시작)
+  // 주의: "구매 정보" 헤더 아래엔 요약 줄이 있어서, 이걸 기준으로 섹션을
+  // 잡으면 요약 줄이 폴백 파서에 의해 중복 상품으로 잡힘. 테이블 헤더인
+  // "구매 상세내역" 을 우선 기준으로 사용.
+  let startIdx = text.search(/구매\s*상세\s*내역/);
+  if (startIdx < 0) startIdx = text.search(/구매\s*정보|주문\s*상품/);
   const endIdx = text.search(/결제\s*정보|주문\s*정보|결제\s*금액/);
   let section = "";
   if (startIdx >= 0) {
@@ -1021,12 +1022,15 @@ function parseCoupangEmail(text, dateHint) {
     section = text;
   }
 
+  // 메인 파서로 최소 한 번 매칭됐는지 (폴백 억제용)
+  let foundWithMainRegex = false;
+
   // 줄 단위 파싱: "상품명 ... 7,200원 1 7,200원 ..." 형태
   //  - 가격이 두 번 등장하고 그 사이에 수량(정수)이 있는 경우 = 1개 상품
   const lines = section.split(/\n|\r/).map((l) => l.trim()).filter(Boolean);
   for (const line of lines) {
-    // 헤더 줄 스킵
-    if (/^(구매|상품|쿠팡가|수량|구매금액|배송정보|판매자|결제)/.test(line)) continue;
+    // 헤더/라벨 줄 스킵
+    if (/^(구매|상품|쿠팡가|수량|구매금액|배송정보|판매자|결제|주문|배송|받는|주소|연락)/.test(line)) continue;
     // "... 7,200원 1 7,200원 ..." 가격-수량-가격 패턴
     const m = line.match(/(.{3,}?)\s+([\d,]+)\s*원\s+(\d{1,3})\s+([\d,]+)\s*원/);
     if (m) {
@@ -1041,10 +1045,13 @@ function parseCoupangEmail(text, dateHint) {
           unit_price: unitPrice,
           price: totalPrice || unitPrice * qty,
         });
+        foundWithMainRegex = true;
       }
       continue;
     }
-    // 폴백: "상품명 ... N개" + 다음 줄에 가격
+    // 폴백: "상품명 ... N개" — 메인 파서로 매칭된 게 없을 때만 사용
+    // (메인 파서가 동작하면 요약 줄 같은 "... 10개" 는 전부 무시하여 중복 방지)
+    if (foundWithMainRegex) continue;
     const qm = line.match(/^(.{3,}?)[,\s]+(\d+)\s*개\s*$/);
     if (qm) {
       products.push({
@@ -1071,10 +1078,20 @@ function parseCoupangEmail(text, dateHint) {
     if (dm) orderDate = `${dm[1]}.${dm[2].padStart(2, "0")}.${dm[3].padStart(2, "0")}`;
   }
 
-  if (products.length === 0) return null;
+  // 중복 제거 (이름 + 수량 기준) — 같은 상품이 두 소스에서 잡힌 경우 대비
+  const dedup = [];
+  const seen = new Set();
+  for (const p of products) {
+    const key = (p.product_name || "").trim().toLowerCase() + "|" + (p.quantity || 0);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    dedup.push(p);
+  }
+
+  if (dedup.length === 0) return null;
   return {
     order_date: orderDate,
-    products,
+    products: dedup,
     total_amount: totalAmount,
     order_id: orderId,
   };
