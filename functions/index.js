@@ -1475,9 +1475,20 @@ exports.receiveForwardedEmail = onRequest(
         return;
       }
 
-      // 4. 발신자 검증 (선택적) — 쿠팡 도메인이 아니면 무시
+      // 4. 발신자/본문 검증 — 쿠팡 관련 메일인지 판단
+      //    네이버에서 사용자가 수동으로 "전달"한 경우 from은 본인 주소가 되고
+      //    원본 발신자 정보는 본문 내부에만 남음. 따라서 from만 보면 안 되고
+      //    제목/본문에서도 쿠팡 흔적을 찾아야 함.
       const fromLower = String(from || "").toLowerCase();
-      const isCoupang = fromLower.includes("coupang");
+      const subjectLower = String(subject || "").toLowerCase();
+      const rawLower = String(raw || "").toLowerCase();
+      const isCoupang =
+        fromLower.includes("coupang") ||
+        subjectLower.includes("coupang") ||
+        subjectLower.includes("쿠팡") ||
+        rawLower.includes("coupang.com") ||
+        rawLower.includes("@coupang") ||
+        rawLower.includes("쿠팡");
       if (!isCoupang) {
         // 쿠팡이 아닌 메일은 드롭 (테스트 메일 등)
         // last_received_at은 갱신해서 UI에 "테스트 메일 받음" 표시 가능
