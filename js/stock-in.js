@@ -199,9 +199,14 @@ function findMappedProduct(coupangName){
 // 1회 설정. 이후 쿠팡 주문 메일이 오면 Cloudflare Email Worker가 받아 파싱 →
 // Cloud Function → Firebase 저장. 앱은 📥 버튼으로 반영.
 
+var _mfmVerifyRef = null;
+var _mfmVerifyHandler = null;
+var _mfmModalObserver = null;
+
 function openMailForwardModal(){
   if(!currentUser){ showToast('❌ 로그인 필요'); return; }
   openModal('mail-forward-modal');
+  _mfmAttachVerifyListener();
 
   var body = document.getElementById('mfm-body');
   body.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text2);font-size:13px">⏳ 전달 주소 불러오는 중...</div>';
@@ -216,6 +221,101 @@ function openMailForwardModal(){
     var msg = (e && e.message) || String(e);
     body.innerHTML = '<div style="padding:20px;color:var(--red);font-size:13px">❌ 전달 주소 발급 실패: '+msg.slice(0,120)+'</div>';
   });
+}
+
+// 모달이 열려있는 동안 Gmail 확인 코드 도착을 실시간 감시.
+// Cloud Function(receiveForwardedEmail)이 Gmail forwarding-noreply 메일을
+// 받으면 users/{uid}/mailForward/pending_verification 에 코드를 저장하고,
+// 여기서 1~2초 내에 모달 상단에 코드 박스를 표시한다.
+function _mfmAttachVerifyListener(){
+  if(!currentUser || _mfmVerifyRef) return;
+  _mfmVerifyRef = db.ref('users/'+currentUser.uid+'/mailForward/pending_verification');
+  _mfmVerifyHandler = _mfmVerifyRef.on('value', function(snap){
+    var v = snap.val();
+    if(v && (v.code || v.url)) _mfmShowVerificationCode(v);
+  });
+
+  // 배경 클릭으로 모달이 닫히는 경우에도 listener 를 확실히 해제하기 위해
+  // modal-bg 요소의 class 변화를 감시.
+  var modal = document.getElementById('mail-forward-modal');
+  if(modal && !_mfmModalObserver){
+    _mfmModalObserver = new MutationObserver(function(){
+      if(!modal.classList.contains('open')) _mfmDetachVerifyListener();
+    });
+    _mfmModalObserver.observe(modal, { attributes: true, attributeFilter: ['class'] });
+  }
+}
+
+function _mfmDetachVerifyListener(){
+  if(_mfmVerifyRef && _mfmVerifyHandler){
+    try { _mfmVerifyRef.off('value', _mfmVerifyHandler); } catch(_){}
+  }
+  _mfmVerifyRef = null;
+  _mfmVerifyHandler = null;
+  if(_mfmModalObserver){
+    try { _mfmModalObserver.disconnect(); } catch(_){}
+    _mfmModalObserver = null;
+  }
+  // 사용이 끝난 확인 코드는 삭제 (10분 expires_at 과 별개로 즉시 정리).
+  if(currentUser){
+    try { db.ref('users/'+currentUser.uid+'/mailForward/pending_verification').remove(); } catch(_){}
+  }
+}
+
+function closeMailForwardModal(){
+  _mfmDetachVerifyListener();
+  closeModal('mail-forward-modal');
+}
+
+function _mfmShowVerificationCode(v){
+  var body = document.getElementById('mfm-body');
+  if(!body) return;
+  // 이미 표시된 박스가 있으면 갱신
+  var existing = document.getElementById('mfm-verify-box');
+  if(existing) existing.remove();
+
+  var code = (v.code || '').replace(/[^\d]/g,'').slice(0,12);
+  var url = v.url || '';
+  var codeSafe = code.replace(/"/g,'&quot;');
+  var urlSafe = url.replace(/"/g,'&quot;');
+
+  var codeBlock = code
+    ? '<div style="font-size:28px;font-weight:900;letter-spacing:3px;font-family:monospace;text-align:center;margin:10px 0;color:#1b5e20">'+codeSafe+'</div>' +
+      '<button onclick="_mfmCopyVerifyCode()" style="width:100%;background:#2e7d32;color:#fff;border:none;border-radius:8px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">📋 코드 복사</button>'
+    : '';
+  var urlBlock = url
+    ? '<div style="margin-top:10px;font-size:12px;color:var(--text2);text-align:center">또는 <a href="'+urlSafe+'" target="_blank" rel="noopener" style="color:#1565c0;font-weight:700">승인 링크 바로 열기 ▸</a></div>'
+    : '';
+
+  var html =
+    '<div id="mfm-verify-box" style="background:#E8F5E9;border:2px solid #4CAF50;border-radius:12px;padding:14px 16px;margin-bottom:14px">' +
+      '<div style="font-size:14px;font-weight:800;color:#1b5e20;margin-bottom:4px">📬 Gmail 확인 코드 도착!</div>' +
+      '<div style="font-size:12px;color:#2e7d32;line-height:1.5">Gmail 설정 페이지로 돌아가서 이 코드를 입력해주세요.</div>' +
+      codeBlock +
+      urlBlock +
+      '<input type="hidden" id="mfm-verify-code" value="'+codeSafe+'"/>' +
+    '</div>';
+
+  body.insertAdjacentHTML('afterbegin', html);
+}
+
+function _mfmCopyVerifyCode(){
+  var el = document.getElementById('mfm-verify-code');
+  if(!el || !el.value){ showToast('⚠️ 코드 없음'); return; }
+  try {
+    if(navigator.clipboard){ navigator.clipboard.writeText(el.value); }
+    else {
+      var ta = document.createElement('textarea');
+      ta.value = el.value;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    showToast('✅ 확인 코드 복사됨');
+  } catch(_){
+    showToast('⚠️ 복사 실패');
+  }
 }
 
 function _renderMailForwardBody(address, lastReceived){
@@ -290,15 +390,22 @@ var _mfmGuides = {
     '⚠️ 네이버는 전달을 원본 그대로 보내기 때문에 우리 서버에서 쿠팡 메일을 인식할 수 있어요.',
   ],
   gmail: [
+    '<b>[1단계] 전달 주소 등록</b>',
     '1. PC에서 <b>Gmail</b> 로그인',
-    '2. 검색창에 <code>from:(@coupang.com)</code> 입력 → 검색',
-    '3. 검색창 우측 <b>필터 만들기</b> (깔때기 모양) 클릭',
-    '4. 팝업 하단 <b>검색조건으로 필터 만들기</b> 클릭',
-    '5. <b>다음 주소로 전달</b> 체크',
-    '6. 드롭다운에서 주소 추가 → 위 전달 주소 입력',
-    '7. Gmail이 그 주소에 확인 메일 보냄 → 수신된 메일의 링크 클릭 (본인 메일에서 확인)',
+    '2. 우측 상단 ⚙️ → <b>모든 설정 보기</b>',
+    '3. <b>전달 및 POP/IMAP</b> 탭 → <b>전달 주소 추가</b>',
+    '4. 위 <b>내 전달 주소</b>를 그대로 붙여넣기 → 다음 → 진행',
     '',
-    '⚠️ Gmail은 처음 전달 주소를 등록할 때 확인 절차가 있어요. 링크 클릭 후 규칙이 활성화돼요.',
+    '<b>[2단계] 확인 코드 자동 수신</b> ✨',
+    '5. <b>이 화면을 그대로 열어두세요</b>. Gmail이 확인 메일을 보내면 1~2초 안에 이 모달 상단에 <b>9자리 확인 코드</b>가 자동으로 나타나요.',
+    '6. [📋 코드 복사] → Gmail 설정 페이지로 돌아가 붙여넣기 → 확인',
+    '',
+    '<b>[3단계] 필터 만들기</b>',
+    '7. Gmail 설정 → <b>필터 및 차단된 주소</b> → <b>새 필터 만들기</b>',
+    '8. 보낸사람: <code>@coupang.com</code> → <b>필터 만들기</b>',
+    '9. <b>다음 주소로 전달</b> 체크 → 드롭다운에서 위 전달 주소 선택 → <b>필터 만들기</b>',
+    '',
+    '✅ 이후 쿠팡 주문 메일이 자동으로 앱에 반영돼요.',
   ],
   daum: [
     '1. PC에서 <b>다음 메일</b> 로그인',

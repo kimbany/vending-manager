@@ -1486,6 +1486,58 @@ exports.receiveForwardedEmail = onRequest(
       };
       const fromAddr = extractAddr(from);
 
+      // ── Gmail 전달 주소 확인 메일 감지 ─────────────────────────────────
+      // 사용자가 Gmail "전달 및 POP/IMAP" 에 u-xxx@invendory.kr 를 등록하면
+      // Gmail 이 forwarding-noreply@google.com 에서 9자리 확인 코드를 보냄.
+      // 쿠팡 발신자가 아니므로 아래의 쿠팡 계정 검증/쿠팡 키워드 필터에서
+      // 드롭되기 전에 먼저 가로채서 pending_verification 에 저장 → 앱 모달이
+      // 실시간으로 사용자에게 코드를 보여주게 한다.
+      try {
+        const rawStrEarly = String(raw || "");
+        const subjStrEarly = String(subject || "");
+        const isGmailVerify =
+          /forwarding-noreply@google\.com/i.test(fromAddr) ||
+          /forwarding-noreply@google\.com/i.test(rawStrEarly) ||
+          /forwarding\s+confirmation/i.test(subjStrEarly) ||
+          /전달\s*확인/i.test(subjStrEarly);
+        if (isGmailVerify) {
+          const bodyEarly = extractEmailBody(rawStrEarly);
+          // 9자리 확인 코드 (본문/원문 양쪽에서 탐색; 본문 우선)
+          let code = "";
+          const codeCtx = bodyEarly.match(/(?:Confirmation code|확인\s*코드)[^\d]{0,20}(\d{6,12})/i);
+          if (codeCtx) code = codeCtx[1];
+          if (!code) {
+            const anyCode = bodyEarly.match(/\b(\d{9})\b/) || rawStrEarly.match(/\b(\d{9})\b/);
+            if (anyCode) code = anyCode[1];
+          }
+          // 승인 링크
+          let url = "";
+          const urlMatch =
+            bodyEarly.match(/https:\/\/mail[.-]settings\.google\.com\/mail\/[^\s"<>]+/i) ||
+            rawStrEarly.match(/https:\/\/mail[.-]settings\.google\.com\/mail\/[^\s"<>]+/i);
+          if (urlMatch) url = urlMatch[0];
+
+          if (code || url) {
+            const nowStr = new Date().toISOString().replace("T", " ").slice(0, 19);
+            await admin.database().ref(`users/${uid}/mailForward/pending_verification`).set({
+              type: "gmail",
+              code: code || "",
+              url: url || "",
+              received_at: nowStr,
+              expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+            });
+            await admin.database().ref(`users/${uid}/mailForward/last_received_at`).set(nowStr);
+            await admin.database().ref(`users/${uid}/mailForward/last_sender`).set(fromAddr.slice(0, 100));
+            console.log(`[receiveForwardedEmail] gmail verification captured uid=${uid.slice(0, 8)} code=${code ? "yes" : "no"} url=${url ? "yes" : "no"}`);
+            res.status(200).json({ ok: true, verification: "gmail_pending" });
+            return;
+          }
+          console.log(`[receiveForwardedEmail] gmail verification detected but no code/url extracted uid=${uid.slice(0, 8)}`);
+        }
+      } catch (e) {
+        console.error("[receiveForwardedEmail] gmail verify detection failed:", e);
+      }
+
       // 4. 사용자 신원 검증 — forwarder 의 메일 주소가 그 UID에 등록된
       //    쿠팡 계정 이메일과 일치해야 함. 다르면 데이터 오염 방지를 위해 드롭.
       //    예: mango(쿠팡=sgkim8848@naver.com)의 전달 주소로 gimbany@naver.com
