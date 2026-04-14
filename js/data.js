@@ -21,6 +21,11 @@ function startApp(){
   if(typeof loadLowStockSetting === 'function') loadLowStockSetting();
   if(typeof loadPinSettings === 'function') loadPinSettings();
   if(typeof syncDeviceNumberIndex === 'function') syncDeviceNumberIndex();
+  // 쿠팡 제품 매핑 + 미입고 목록 자동 로드 (새로고침 후에도 유지)
+  if(typeof loadProductMappings === 'function') loadProductMappings();
+  if(typeof loadCoupangPending === 'function'){
+    setTimeout(function(){ loadCoupangPending(); }, 300);
+  }
   // URL 해시에서 이전 탭 복원
   setTimeout(restoreTab, 100);
 }
