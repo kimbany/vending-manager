@@ -151,12 +151,17 @@ function findProductForPurchase(purchase){
   return null;
 }
 
+// ─── 디버그: 제품 재고 조회 상세 로그 ─────────────────────────────────────
+var _gqDebug = false; // window.DEBUG_GQ = true 로 켜기
+if(typeof window !== 'undefined'){ window.DEBUG_GQ = function(on){ _gqDebug = !!on; }; }
+
 // ─── 제품의 현재 재고 조회 (제품명 기준) ────────────────────────────────────
 // 제품을 찾아서 그 제품의 모든 관련 batch/inventory 합산
 function gq(pid){
   if(!pid) return 0;
   // D.products에서 제품 찾기 (id/이름/코드 모두 시도)
   var prod = findProduct(pid);
+  if(_gqDebug) console.log('[gq]', pid, '→ prod:', prod ? (prod.name+' ('+prod.id+')') : 'NULL');
 
   // 제품을 찾았으면 해당 제품과 같은 이름인 모든 batch 합산
   if(prod){

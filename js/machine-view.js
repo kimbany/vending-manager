@@ -310,10 +310,10 @@ function renderMachineView(mc, prods, inv){
       var span=entry?entry.span:1;
       // gq()는 이미 제품명 기준으로 통합 매칭 (data.js)
       var q=p?(gq(p.name) || gq(p.id)):0;
-      // 제품 자체가 없거나, 아직 재고 데이터가 하나도 없으면 중립
-      var hasAnyStockData = (D.stockIn && D.stockIn.length>0) || (D.inventory && D.inventory.some(function(x){return x.qty>0;}));
-      var cl=!p?'':(!hasAnyStockData?' hp':(q<=5?' ls':' hp'));
-      var hasProductStock = q > 0 || hasAnyStockData;
+      // D.products에 매칭되는 제품이 있는지 확인 (매칭 안 되면 중립 표시)
+      var matchedDProd = p ? (typeof findProduct === 'function' ? findProduct(p.name) || findProduct(p.id) : null) : null;
+      var cl = !p ? '' : (!matchedDProd ? ' hp' : (q<=5 ? ' ls' : ' hp'));
+      var hasProductStock = !!matchedDProd;
 
       var spanStyle='';
       if(span>1){
