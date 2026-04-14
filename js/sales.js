@@ -95,7 +95,7 @@ function renderSalesStats(){
               }
             });
           });
-          return {sales: val.salesData||[], prods: prods, inv: val.inventory||[], name: m.name||mid, devno: devnos[0]||mid, locId: currentLocationId, machineId: mid};
+          return {sales: val.salesData||[], prods: prods, inv: val.inventory||[], name: m.name||mid, devno: devnos[0]||mid, locId: currentLocationId, machineId: mid, deductedDates: val.deductedDates||[]};
         });
       });
       Promise.all(promises).then(function(machineDataList){
@@ -220,8 +220,31 @@ function _doRenderSalesStats(machineDataList, range, panel){
   }
   // 재고 차감 버튼 (오늘만 보는 경우 제외 - 오늘은 자동 차감)
   var isOnlyToday = (range.from === td() && range.to === td());
-  if(totalQty > 0 && !isOnlyToday){
+  // 이미 차감된 기간인지 확인 - 각 자판기의 deductedDates 합집합 체크
+  var alreadyDeducted = false;
+  var deductedSet = {};
+  machineDataList.forEach(function(md){
+    var dd = (md.deductedDates || []);
+    if(!Array.isArray(dd)) dd = Object.values(dd);
+    dd.forEach(function(d){ deductedSet[d] = true; });
+  });
+  // 범위 내 모든 날짜가 이미 차감됐으면 버튼 숨김
+  if(range.from && range.to){
+    var allDeducted = true;
+    var cur = new Date(range.from);
+    var end = new Date(range.to);
+    while(cur <= end){
+      var ds = cur.getFullYear()+'-'+('0'+(cur.getMonth()+1)).slice(-2)+'-'+('0'+cur.getDate()).slice(-2);
+      if(!deductedSet[ds]){ allDeducted = false; break; }
+      cur.setDate(cur.getDate()+1);
+    }
+    if(allDeducted) alreadyDeducted = true;
+  }
+
+  if(totalQty > 0 && !isOnlyToday && !alreadyDeducted){
     html += '<button onclick="deductInventoryForPeriod()" style="width:100%;margin-top:10px;background:rgba(224,88,88,.12);border:1px solid rgba(224,88,88,.3);border-radius:8px;padding:10px;font-size:13px;font-weight:700;color:var(--red);cursor:pointer;font-family:inherit">📦 이 기간 재고 차감 ('+fmt(totalQty)+'개)</button>';
+  } else if(totalQty > 0 && !isOnlyToday && alreadyDeducted){
+    html += '<div style="width:100%;margin-top:10px;background:rgba(122,218,154,.08);border:1px solid rgba(122,218,154,.25);border-radius:8px;padding:10px;font-size:12px;font-weight:600;color:var(--green);text-align:center">✅ 이 기간은 이미 재고 차감 완료</div>';
   }
   html += '</div>';
 
@@ -429,8 +452,10 @@ function deductInventoryForPeriod(){
         if(!Array.isArray(inv)) inv = Object.values(inv);
         var logs = r.val.inventoryLogs || [];
         if(!Array.isArray(logs)) logs = Object.values(logs);
+        var deductedDates = r.val.deductedDates || [];
+        if(!Array.isArray(deductedDates)) deductedDates = Object.values(deductedDates);
 
-        machineData.push({mid:r.mid, nameQty:nameQty, products:prodsM, inventory:inv, stockIn:stockIn, logs:logs});
+        machineData.push({mid:r.mid, nameQty:nameQty, products:prodsM, inventory:inv, stockIn:stockIn, logs:logs, deductedDates:deductedDates});
       });
 
       console.log('[재고차감] 총 수량:', grandTotal);
@@ -497,6 +522,20 @@ function deductInventoryForPeriod(){
           console.log('[재고차감]', name, ':', qty, '개 →', (qty-rem), '개 차감, 부족', rem);
         });
 
+        // 차감한 날짜를 deductedDates에 기록 (중복 차감 방지용)
+        var datesInRange = [];
+        var _cur = new Date(range.from);
+        var _end = new Date(range.to);
+        while(_cur <= _end){
+          var _ds = _cur.getFullYear()+'-'+('0'+(_cur.getMonth()+1)).slice(-2)+'-'+('0'+_cur.getDate()).slice(-2);
+          datesInRange.push(_ds);
+          _cur.setDate(_cur.getDate()+1);
+        }
+        var newDeducted = md.deductedDates.slice();
+        datesInRange.forEach(function(d){
+          if(newDeducted.indexOf(d) < 0) newDeducted.push(d);
+        });
+
         // Firebase 저장
         var ref = db.ref('users/'+currentUser.uid+'/locations/'+currentLocationId+'/machines/'+md.mid+'/appData');
         if(md.mid === currentMachineId){
@@ -507,7 +546,8 @@ function deductInventoryForPeriod(){
         return ref.update({
           inventory: md.inventory,
           inventoryLogs: md.logs,
-          stockIn: md.stockIn
+          stockIn: md.stockIn,
+          deductedDates: newDeducted
         });
       });
 

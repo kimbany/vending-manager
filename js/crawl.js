@@ -373,7 +373,12 @@ function _applyCrawledData(isAuto, customDate){
             D.stockIn = siList;
           }
 
-          var updateObj = { salesData: sales, inventory: inv };
+          // 오늘 날짜를 deductedDates에 기록 (자동 차감 완료)
+          var deducted = machVal.deductedDates || [];
+          if(!Array.isArray(deducted)) deducted = Object.values(deducted);
+          if(deducted.indexOf(today) < 0) deducted.push(today);
+
+          var updateObj = { salesData: sales, inventory: inv, deductedDates: deducted };
           if(siList.length) updateObj.stockIn = siList;
           ref.update(updateObj);
         });
