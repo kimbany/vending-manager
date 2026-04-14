@@ -102,6 +102,20 @@ function gq(pid){
     D.stockIn.forEach(function(b){ if(b.productId===pid){ siTotal+=(b.remainingQty||0); siFound=true; } });
   }
   if(siFound) return siTotal;
+  // stockIn에서 못 찾으면 제품 이름으로 매칭 시도 (VMMS 코드 ↔ D.products ID 불일치 대비)
+  var prod = D.products ? D.products.find(function(p){return p.id===pid;}) : null;
+  if(prod && prod.name && D.stockIn && D.stockIn.length){
+    var altTotal = 0, altFound = false;
+    D.stockIn.forEach(function(b){
+      if(b.productId===pid) return;
+      // stockIn의 productId가 이 제품의 이름과 일치하거나, 다른 제품 ID지만 이름이 같은 경우
+      var otherProd = D.products.find(function(p){return p.id===b.productId;});
+      if(otherProd && otherProd.name && otherProd.name.trim() === prod.name.trim()){
+        altTotal += (b.remainingQty||0); altFound = true;
+      }
+    });
+    if(altFound) return altTotal;
+  }
   // stockIn에 없으면 inventory(구 시스템)에서 찾기
   var i=D.inventory.find(function(x){return x.productId===pid;}); return i?i.qty:0;
 }

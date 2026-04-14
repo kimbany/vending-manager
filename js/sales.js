@@ -379,19 +379,25 @@ function _doRenderSalesStats(machineDataList, range, panel){
 
 // 현재 조회 기간의 판매량만큼 재고 차감
 function deductInventoryForPeriod(){
+  console.log('[재고차감] 버튼 클릭됨');
   var range = getSalesDateRange();
   var periodLabel = range.from===range.to ? range.from : range.from+' ~ '+range.to;
+  console.log('[재고차감] 범위:', range);
 
   if(!currentUser || !currentLocationId){
+    console.log('[재고차감] 로컬 D에서 차감');
     // fallback: 현재 D에서 차감
     var sales = D.salesData.filter(function(s){ return s.date>=range.from && s.date<=range.to && !s.cancelled; });
     if(!sales.length){ showToast('❌ 차감할 데이터가 없어요'); return; }
     var qtyMap = {};
-    sales.forEach(function(s){ if(s.productId) qtyMap[s.productId]=(qtyMap[s.productId]||0)+s.qty; });
+    sales.forEach(function(s){ if(s.productId) qtyMap[s.productId]=(qtyMap[s.productId]||0)+(s.qty||1); });
     var totalQty = Object.values(qtyMap).reduce(function(a,b){return a+b;},0);
+    if(!totalQty){ showToast('❌ 차감할 productId가 있는 데이터 없음'); return; }
     if(!confirm(periodLabel+' 판매 '+totalQty+'개를 재고에서 차감할까요?')) return;
     Object.keys(qtyMap).forEach(function(pid){
-      applyInventoryChange(pid, -qtyMap[pid], periodLabel+' 판매분 재고차감');
+      if(typeof applyInventoryChange === 'function'){
+        applyInventoryChange(pid, -qtyMap[pid], periodLabel+' 판매분 재고차감');
+      }
     });
     save(); renderAll();
     showToast('✅ '+totalQty+'개 재고 차감 완료');
@@ -418,17 +424,29 @@ function deductInventoryForPeriod(){
     Promise.all(promises).then(function(results){
       var grandTotal = 0;
       results.forEach(function(r){
-        var sales = (r.val.salesData||[]).filter(function(s){ return s.date>=range.from && s.date<=range.to && !s.cancelled && s.productId; });
-        sales.forEach(function(s){ grandTotal += s.qty; });
+        var sales = (r.val.salesData||[]).filter(function(s){ return s.date>=range.from && s.date<=range.to && !s.cancelled; });
+        sales.forEach(function(s){ grandTotal += (s.qty||1); });
       });
+      console.log('[재고차감] 총 수량:', grandTotal);
       if(!grandTotal){ showToast('❌ 차감할 데이터가 없어요'); return; }
       if(!confirm(periodLabel+' 판매 '+grandTotal+'개를 재고에서 차감할까요?')) return;
 
       var savePromises = results.map(function(r){
-        var sales = (r.val.salesData||[]).filter(function(s){ return s.date>=range.from && s.date<=range.to && !s.cancelled && s.productId; });
+        var sales = (r.val.salesData||[]).filter(function(s){ return s.date>=range.from && s.date<=range.to && !s.cancelled; });
         if(!sales.length) return Promise.resolve();
         var qtyMap = {};
-        sales.forEach(function(s){ qtyMap[s.productId]=(qtyMap[s.productId]||0)+s.qty; });
+        var prodsM = r.val.products || [];
+        if(!Array.isArray(prodsM)) prodsM = Object.values(prodsM);
+        sales.forEach(function(s){
+          var pid = s.productId || '';
+          // productId 없으면 itemName으로 제품 찾기
+          if(!pid && s.itemName){
+            var p = prodsM.find(function(pp){ return pp.name && pp.name.trim() === s.itemName.trim(); });
+            if(p) pid = p.id;
+            else pid = s.itemName; // 폴백: 이름 자체를 키로 사용
+          }
+          if(pid) qtyMap[pid]=(qtyMap[pid]||0)+(s.qty||1);
+        });
         var mInv = r.val.inventory||[];
         var mLogs = r.val.inventoryLogs||[];
         var mStockIn = r.val.stockIn||[];

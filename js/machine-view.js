@@ -309,7 +309,9 @@ function renderMachineView(mc, prods, inv){
       var p=entry?entry.prod:null;
       var span=entry?entry.span:1;
       var q=p?getQLocal(p.id):0;
-      var cl=!p?'':q<=5?' ls':' hp';
+      // stockIn 데이터가 전혀 없으면 중립 표시 (모두 빨강 방지)
+      var hasStockData = (D.stockIn && D.stockIn.length>0) || (D.inventory && D.inventory.some(function(x){return x.qty>0;}));
+      var cl=!p?'':(!hasStockData?' hp':(q<=5?' ls':' hp'));
 
       var spanStyle='';
       if(span>1){
@@ -322,7 +324,7 @@ function renderMachineView(mc, prods, inv){
       var clickAttr = p ? ' onclick="openProdDetail(this.dataset.pid)" data-pid="'+p.id+'" ' : ' ';
       html+='<div class="vmc'+cl+'"'+clickAttr+'style="min-height:'+cellH+';min-width:0;overflow:hidden;'+(p?'cursor:pointer;':'')+spanStyle+(p?'':';opacity:0.3')+'">';
       // 컬럼 번호만 내부에 표시
-      html+='<div style="font-size:11px;font-weight:700;color:'+(p?(q<=5?'var(--red)':'var(--text)'):'var(--text3)')+'">'+colLabel+'</div>';
+      html+='<div style="font-size:11px;font-weight:700;color:'+(p?(hasStockData&&q<=5?'var(--red)':'var(--text)'):'var(--text3)')+'">'+colLabel+'</div>';
       html+='</div>';
     }
     html+='</div>';
@@ -365,10 +367,13 @@ function renderVmList(mc, prods, inv){
         var tagHtml=item.labels.map(function(l){
           return '<span style="background:rgba(0,100,255,.08);border:1px solid rgba(0,100,255,.2);border-radius:6px;padding:2px 7px;font-size:11px;font-weight:700;color:var(--blue)">'+l+'</span>';
         }).join(' ');
+        var priceHtml = item.sellPrice > 0
+          ? '<span style="color:var(--text2);font-weight:600;white-space:nowrap;font-size:13px">'+fmt(item.sellPrice)+'원</span>'
+          : '';
         return '<div class="item" style="flex-wrap:wrap;gap:6px;cursor:pointer" onclick="openProdDetail(this.dataset.pid)" data-pid="'+item.id+'">'+
           '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;flex:1">'+tagHtml+
           '<span style="font-size:13px;font-weight:600">'+item.name+'</span></div>'+
-          '<span style="color:var(--text2);font-weight:600;white-space:nowrap;font-size:13px">'+fmt(item.sellPrice)+'원</span></div>';
+          priceHtml+'</div>';
       }).join('')
     : '<div class="empty"><div class="ei">🏪</div><div class="et">컬럼 배정된 제품 없음</div></div>';
 
