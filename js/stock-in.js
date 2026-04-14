@@ -692,11 +692,20 @@ function _renderMatchProductDropdown(machineKey){
 }
 
 // 자판기별 제품 목록 수집
+//   소스: (1) appData.products (앱 수동 등록)
+//         (2) vmmsColumns/machines/{deviceNo}/columns (VMMS 컬럼 배치)
 //   return: [{ key: 'locId|machineId', label: '위치 / 자판기', products: [{id,name}] }, ...]
 function _collectMachinesWithProducts(){
   if(!currentUser) return Promise.resolve([]);
 
-  return db.ref('users/'+currentUser.uid+'/locations').once('value').then(function(locSnap){
+  return Promise.all([
+    db.ref('users/'+currentUser.uid+'/locations').once('value'),
+    db.ref('users/'+currentUser.uid+'/vmmsColumns/machines').once('value'),
+  ]).then(function(results){
+    var locSnap = results[0];
+    var colSnap = results[1];
+    var colByDev = (colSnap && colSnap.exists()) ? (colSnap.val() || {}) : {};
+
     var result = [];
     if(!locSnap || !locSnap.exists()) return result;
 
@@ -710,7 +719,11 @@ function _collectMachinesWithProducts(){
         var machineName = m.name || mid;
         var label = [locName, machineName].filter(Boolean).join(' / ');
 
-        // 자판기 레벨의 products (구형) + appData.products (신형)
+        var seen = {};       // id 기준 dedup
+        var seenName = {};   // 이름 기준 dedup (같은 제품이 두 소스에 존재할 때)
+        var products = [];
+
+        // (1) appData.products / machine.products (수동 등록)
         var prodList = [];
         if(Array.isArray(m.products)) prodList = prodList.concat(m.products);
         else if(m.products) prodList = prodList.concat(Object.values(m.products));
@@ -718,17 +731,39 @@ function _collectMachinesWithProducts(){
           if(Array.isArray(m.appData.products)) prodList = prodList.concat(m.appData.products);
           else prodList = prodList.concat(Object.values(m.appData.products));
         }
-
-        // 중복 제거 (id 기준)
-        var seen = {};
-        var products = [];
         prodList.forEach(function(p){
           if(!p || !p.name) return;
           var pid = p.id || p.name;
-          if(seen[pid]) return;
+          var nk = p.name.trim();
+          if(seen[pid] || seenName[nk]) return;
           seen[pid] = true;
-          products.push({ id: pid, name: p.name });
+          seenName[nk] = true;
+          products.push({ id: pid, name: p.name, source: 'app' });
         });
+
+        // (2) vmmsColumns — 이 자판기의 deviceNo 기준으로 컬럼 데이터 병합
+        var devnos = [];
+        if(Array.isArray(m.deviceNos)) devnos = m.deviceNos.slice();
+        else if(m.deviceNo) devnos = [m.deviceNo];
+
+        devnos.forEach(function(dno){
+          var colData = colByDev[dno];
+          if(!colData) return;
+          var cols = colData.columns || [];
+          if(!Array.isArray(cols)) cols = Object.values(cols);
+          cols.forEach(function(col){
+            if(!col || !col.productName) return;
+            var name = String(col.productName).trim();
+            if(!name) return;
+            var pid = col.productCode || name;
+            var nk = name;
+            if(seen[pid] || seenName[nk]) return;
+            seen[pid] = true;
+            seenName[nk] = true;
+            products.push({ id: pid, name: name, source: 'vmms' });
+          });
+        });
+
         products.sort(function(a, b){ return a.name.localeCompare(b.name, 'ko'); });
 
         result.push({
