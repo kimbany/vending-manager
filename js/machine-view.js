@@ -308,12 +308,14 @@ function renderMachineView(mc, prods, inv){
       var entry=floorSlots.find(function(x){return x.slot===s;});
       var p=entry?entry.prod:null;
       var span=entry?entry.span:1;
-      // gq()는 이미 제품명 기준으로 통합 매칭 (data.js)
-      var q=p?(gq(p.name) || gq(p.id)):0;
-      // D.products에 매칭되는 제품이 있는지 확인 (매칭 안 되면 중립 표시)
-      var matchedDProd = p ? (typeof findProduct === 'function' ? findProduct(p.name) || findProduct(p.id) : null) : null;
-      var cl = !p ? '' : (!matchedDProd ? ' hp' : (q<=5 ? ' ls' : ' hp'));
-      var hasProductStock = !!matchedDProd;
+      // 제품명/ID/productCode 모든 경로로 재고 조회
+      var q = 0;
+      if(p){
+        q = gq(p.name) || gq(p.id) || (p.productCode ? gq(p.productCode) : 0);
+      }
+      // 재고 수량 기반 색상: 5개 이하 = 빨강(부족), 초과 = 정상
+      var cl = !p ? '' : (q<=5 ? ' ls' : ' hp');
+      var hasProductStock = q > 0;
 
       var spanStyle='';
       if(span>1){
