@@ -95,55 +95,114 @@ function invalidateLocationsCache(){ _locationsCache=null; _locationsCacheTime=0
 // ─── 유틸 ─────────────────────────────────────────────────────────────────────
 function td(){ var d=new Date(Date.now()+9*3600000); return d.toISOString().slice(0,10); }
 function fmt(n){ return (Number(n)||0).toLocaleString('ko-KR'); }
-function gq(pid){
-  // 1차: D.stockIn에서 productId로 직접 매칭
-  var siTotal = 0, siFound = false;
-  if(D.stockIn && D.stockIn.length){
-    D.stockIn.forEach(function(b){ if(b.productId===pid){ siTotal+=(b.remainingQty||0); siFound=true; } });
+
+// ─── 제품명 정규화 (공백/대소문자 무시) ──────────────────────────────────────
+function normName(s){ return (s||'').toString().trim().toLowerCase().replace(/\s+/g,' '); }
+
+// ─── 공통 제품 매칭 함수 (제품명 기준, 단일 소스 오브 트루스) ──────────────
+// 어떤 소스(이름/ID/코드)든 받아서 D.products의 제품을 반환
+function findProduct(identifier){
+  if(!identifier || !D.products) return null;
+  var key = normName(identifier);
+  // 1차: id 직접 매칭
+  var p = D.products.find(function(x){return x.id===identifier;});
+  if(p) return p;
+  // 2차: 제품명 매칭 (공백/대소문자 무시)
+  p = D.products.find(function(x){return x.name && normName(x.name)===key;});
+  if(p) return p;
+  // 3차: productCode 매칭 (바코드)
+  p = D.products.find(function(x){return x.productCode===identifier;});
+  if(p) return p;
+  return null;
+}
+
+// ─── 판매 데이터 1건에서 제품 찾기 (itemName 우선, 제품번호 폴백) ──────────
+function findProductForSale(sale){
+  if(!sale) return null;
+  // 1순위: itemName (제품명)
+  if(sale.itemName){
+    var p = findProduct(sale.itemName);
+    if(p) return p;
   }
-  if(siFound) return siTotal;
-
-  // 2차: D.products에서 pid로 제품 찾기
-  var prod = D.products ? D.products.find(function(p){return p.id===pid;}) : null;
-
-  // 3차: stockIn을 productCode로 매칭 (D.products.productCode ↔ stockIn.productCode)
-  if(prod && prod.productCode && D.stockIn && D.stockIn.length){
-    var codeTotal = 0, codeFound = false;
-    D.stockIn.forEach(function(b){
-      if(b.productCode===prod.productCode || b.productId===prod.productCode){
-        codeTotal += (b.remainingQty||0); codeFound = true;
-      }
-    });
-    if(codeFound) return codeTotal;
+  // 2순위: productId
+  if(sale.productId){
+    var p2 = findProduct(sale.productId);
+    if(p2) return p2;
   }
+  return null;
+}
 
-  // 4차: 제품 이름으로 매칭 (stockIn이 다른 ID로 저장된 경우)
-  if(prod && prod.name && D.stockIn && D.stockIn.length){
-    var altTotal = 0, altFound = false;
-    D.stockIn.forEach(function(b){
-      if(b.productId===pid) return;
-      // stockIn의 productId로 D.products 역조회
-      var otherProd = D.products.find(function(p){return p.id===b.productId;});
-      if(otherProd && otherProd.name && otherProd.name.trim() === prod.name.trim()){
-        altTotal += (b.remainingQty||0); altFound = true;
-      }
-    });
-    if(altFound) return altTotal;
-  }
-
-  // 5차: D.inventory에서 productId로 찾기
-  if(D.inventory){
-    var i=D.inventory.find(function(x){return x.productId===pid;});
-    if(i) return i.qty;
-    // productCode로도 시도
-    if(prod && prod.productCode){
-      var i2 = D.inventory.find(function(x){return x.productId===prod.productCode;});
-      if(i2) return i2.qty;
+// ─── 구매 데이터 1건에서 제품 찾기 (productMapping 우선) ────────────────────
+function findProductForPurchase(purchase){
+  if(!purchase) return null;
+  // 1순위: productMapping에 저장된 매핑
+  if(typeof findMappedProduct === 'function' && purchase.coupangProductName){
+    var mapped = findMappedProduct(purchase.coupangProductName);
+    if(mapped && mapped.productId){
+      var p = D.products.find(function(x){return x.id===mapped.productId;});
+      if(p) return p;
     }
+  }
+  // 2순위: 제품명 자동 매칭
+  if(purchase.coupangProductName){
+    var p2 = findProduct(purchase.coupangProductName);
+    if(p2) return p2;
+  }
+  return null;
+}
+
+// ─── 제품의 현재 재고 조회 (제품명 기준) ────────────────────────────────────
+// 제품을 찾아서 그 제품의 모든 관련 batch/inventory 합산
+function gq(pid){
+  if(!pid) return 0;
+  // D.products에서 제품 찾기 (id/이름/코드 모두 시도)
+  var prod = findProduct(pid);
+
+  // 제품을 찾았으면 해당 제품과 같은 이름인 모든 batch 합산
+  if(prod){
+    var total = 0;
+    var key = normName(prod.name);
+
+    // stockIn 합산 (제품명 기준)
+    if(D.stockIn && D.stockIn.length){
+      D.stockIn.forEach(function(b){
+        if(!b || !b.remainingQty) return;
+        // batch의 productId가 이 제품의 id 또는 productCode면 포함
+        if(b.productId === prod.id) { total += b.remainingQty; return; }
+        if(prod.productCode && (b.productId === prod.productCode || b.productCode === prod.productCode)) {
+          total += b.remainingQty; return;
+        }
+        // batch의 productId가 다른 제품이면 그 제품의 이름 비교
+        var otherProd = D.products.find(function(x){return x.id===b.productId;});
+        if(otherProd && otherProd.name && normName(otherProd.name)===key){
+          total += b.remainingQty;
+        }
+      });
+    }
+    if(total > 0) return total;
+
+    // inventory 합산 (구 시스템)
+    if(D.inventory && D.inventory.length){
+      D.inventory.forEach(function(i){
+        if(!i) return;
+        if(i.productId === prod.id) total += (i.qty||0);
+        else if(prod.productCode && i.productId === prod.productCode) total += (i.qty||0);
+      });
+    }
+    return total;
+  }
+
+  // 제품을 못 찾은 경우: 원본 ID로 직접 조회 (매칭 실패 대비)
+  var siTotal = 0;
+  if(D.stockIn){ D.stockIn.forEach(function(b){ if(b && b.productId===pid) siTotal += (b.remainingQty||0); }); }
+  if(siTotal > 0) return siTotal;
+  if(D.inventory){
+    var inv = D.inventory.find(function(x){return x.productId===pid;});
+    if(inv) return inv.qty;
   }
   return 0;
 }
-function gp(id){ return D.products.find(function(p){return p.id===id;}); }
+function gp(id){ return findProduct(id); }
 function showToast(msg){
   var t=document.getElementById('toast');
   t.textContent=msg; t.style.display='block';

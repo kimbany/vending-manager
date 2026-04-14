@@ -378,147 +378,137 @@ function _doRenderSalesStats(machineDataList, range, panel){
 }
 
 // 현재 조회 기간의 판매량만큼 재고 차감
+// ─── 기간별 재고 차감 (제품명 기준 통합 로직) ────────────────────────────────
 function deductInventoryForPeriod(){
   console.log('[재고차감] 버튼 클릭됨');
   var range = getSalesDateRange();
   var periodLabel = range.from===range.to ? range.from : range.from+' ~ '+range.to;
-  console.log('[재고차감] 범위:', range);
 
-  if(!currentUser || !currentLocationId){
-    console.log('[재고차감] 로컬 D에서 차감');
-    // fallback: 현재 D에서 차감
-    var sales = D.salesData.filter(function(s){ return s.date>=range.from && s.date<=range.to && !s.cancelled; });
-    if(!sales.length){ showToast('❌ 차감할 데이터가 없어요'); return; }
-    var qtyMap = {};
-    sales.forEach(function(s){ if(s.productId) qtyMap[s.productId]=(qtyMap[s.productId]||0)+(s.qty||1); });
-    var totalQty = Object.values(qtyMap).reduce(function(a,b){return a+b;},0);
-    if(!totalQty){ showToast('❌ 차감할 productId가 있는 데이터 없음'); return; }
-    if(!confirm(periodLabel+' 판매 '+totalQty+'개를 재고에서 차감할까요?')) return;
-    Object.keys(qtyMap).forEach(function(pid){
-      if(typeof applyInventoryChange === 'function'){
-        applyInventoryChange(pid, -qtyMap[pid], periodLabel+' 판매분 재고차감');
-      }
-    });
-    save(); renderAll();
-    showToast('✅ '+totalQty+'개 재고 차감 완료');
-    return;
-  }
+  if(!currentUser || !currentLocationId){ showToast('❌ 위치/자판기 정보 없음'); return; }
 
-  // 모든 자판기에서 해당 기간 판매 데이터 로드
-  Promise.all([
-    db.ref('users/'+currentUser.uid+'/locations/'+currentLocationId+'/machines').once('value'),
-    db.ref('users/'+currentUser.uid+'/vmmsColumns/machines').once('value')
-  ]).then(function(rs){
-    var snap = rs[0];
-    var vmmsColAll = rs[1].val()||{};
+  // 모든 자판기 데이터 로드
+  db.ref('users/'+currentUser.uid+'/locations/'+currentLocationId+'/machines').once('value').then(function(snap){
     if(!snap.exists()){ showToast('❌ 자판기 없음'); return; }
     var machines = snap.val();
     var promises = Object.keys(machines).map(function(mid){
-      var m = machines[mid];
-      var devnos = Array.isArray(m.deviceNos)?m.deviceNos:(m.deviceNo?[m.deviceNo]:[]);
       return db.ref('users/'+currentUser.uid+'/locations/'+currentLocationId+'/machines/'+mid+'/appData').once('value').then(function(as){
-        return {mid:mid, val:as.val()||{}, devnos:devnos};
+        return {mid:mid, val:as.val()||{}};
       });
     });
 
     Promise.all(promises).then(function(results){
+      // 1. 기간 내 판매 수집 + 제품명별 수량 집계
       var grandTotal = 0;
+      var machineData = []; // [{mid, nameQty, products, inventory, stockIn, logs}]
+
       results.forEach(function(r){
-        var sales = (r.val.salesData||[]).filter(function(s){ return s.date>=range.from && s.date<=range.to && !s.cancelled; });
-        sales.forEach(function(s){ grandTotal += (s.qty||1); });
+        var prodsM = r.val.products || [];
+        if(!Array.isArray(prodsM)) prodsM = Object.values(prodsM);
+
+        var sales = (r.val.salesData||[]).filter(function(s){
+          return s.date>=range.from && s.date<=range.to && !s.cancelled;
+        });
+
+        // 제품명별로 수량 집계 (제품명이 없으면 productId 사용)
+        var nameQty = {};
+        sales.forEach(function(s){
+          var key = '';
+          if(s.itemName) key = s.itemName.trim();
+          else if(s.productId){
+            var p = prodsM.find(function(pp){return pp.id===s.productId;});
+            key = p ? (p.name||'').trim() : s.productId;
+          }
+          if(!key) return;
+          nameQty[key] = (nameQty[key]||0) + (s.qty||1);
+          grandTotal += (s.qty||1);
+        });
+
+        var stockIn = r.val.stockIn || [];
+        if(!Array.isArray(stockIn)) stockIn = Object.values(stockIn);
+        var inv = r.val.inventory || [];
+        if(!Array.isArray(inv)) inv = Object.values(inv);
+        var logs = r.val.inventoryLogs || [];
+        if(!Array.isArray(logs)) logs = Object.values(logs);
+
+        machineData.push({mid:r.mid, nameQty:nameQty, products:prodsM, inventory:inv, stockIn:stockIn, logs:logs});
       });
+
       console.log('[재고차감] 총 수량:', grandTotal);
       if(!grandTotal){ showToast('❌ 차감할 데이터가 없어요'); return; }
       if(!confirm(periodLabel+' 판매 '+grandTotal+'개를 재고에서 차감할까요?')) return;
 
-      var savePromises = results.map(function(r){
-        var sales = (r.val.salesData||[]).filter(function(s){ return s.date>=range.from && s.date<=range.to && !s.cancelled; });
-        if(!sales.length) return Promise.resolve();
-        var qtyMap = {};
-        var prodsM = r.val.products || [];
-        if(!Array.isArray(prodsM)) prodsM = Object.values(prodsM);
-        sales.forEach(function(s){
-          var pid = '';
-          // 1순위: itemName으로 D.products 매칭 (제품명 우선)
-          if(s.itemName){
-            var p = prodsM.find(function(pp){ return pp.name && pp.name.trim() === s.itemName.trim(); });
-            if(p) pid = p.id;
-          }
-          // 2순위: s.productId가 D.products에 있는지 확인
-          if(!pid && s.productId){
-            var byId = prodsM.find(function(pp){ return pp.id === s.productId; });
-            if(byId) pid = byId.id;
-          }
-          // 3순위: s.productId가 바코드면 D.products.productCode로 매칭
-          if(!pid && s.productId){
-            var byCode = prodsM.find(function(pp){ return pp.productCode === s.productId; });
-            if(byCode) pid = byCode.id;
-          }
-          // 4순위: itemName을 키로 사용
-          if(!pid && s.itemName) pid = s.itemName;
-          // 5순위: productId 그대로
-          if(!pid) pid = s.productId || '';
-          if(pid) qtyMap[pid]=(qtyMap[pid]||0)+(s.qty||1);
-        });
-        var mInv = r.val.inventory||[];
-        var mLogs = r.val.inventoryLogs||[];
-        var mStockIn = r.val.stockIn||[];
-        if(!Array.isArray(mStockIn)) mStockIn = Object.values(mStockIn);
-        // vmmsColumns에서 제품 ID 매핑 (판매 productId ↔ stockIn productId)
-        var colList = [];
-        (r.devnos||[]).forEach(function(dno){ var cd=vmmsColAll[dno]; if(cd&&cd.columns){ var c=cd.columns; if(!Array.isArray(c))c=Object.values(c); colList=colList.concat(c); }});
-        Object.keys(qtyMap).forEach(function(pid){
-          var qty = qtyMap[pid];
-          // 제품명 확보: pid 자체가 이름일 수 있고, D.products에서도 찾기
-          var prod = prodsM.find(function(p){return p.id===pid;});
-          var prodName = (prod && prod.name) ? prod.name.trim() : (typeof pid === 'string' ? pid.trim() : '');
-          var prodCode = prod ? prod.productCode : '';
+      // 2. 제품명 기준으로 각 자판기의 stockIn/inventory에서 차감
+      var savePromises = machineData.map(function(md){
+        // 제품명 → products 리스트 (같은 이름 여러 개 가능)
+        function findProdsByName(name){
+          var key = name.trim().toLowerCase();
+          return md.products.filter(function(p){
+            return p.name && p.name.trim().toLowerCase() === key;
+          });
+        }
 
-          // stockIn 매칭: productId, productCode, 이름 모두 시도
-          var siBatches = mStockIn.filter(function(b){
-            if(b.productId===pid) return b.remainingQty>0;
-            if(prodCode && (b.productId===prodCode || b.productCode===prodCode)) return b.remainingQty>0;
-            // batch의 productId로 D.products 역조회 → 이름 매칭
-            if(prodName){
-              var bProd = prodsM.find(function(p){return p.id===b.productId;});
-              if(bProd && bProd.name && bProd.name.trim()===prodName) return b.remainingQty>0;
-            }
+        Object.keys(md.nameQty).forEach(function(name){
+          var qty = md.nameQty[name];
+          var matchedProds = findProdsByName(name);
+
+          // stockIn에서 해당 제품명과 연관된 모든 batch 수집
+          var batches = md.stockIn.filter(function(b){
+            if(!b.remainingQty || b.remainingQty <= 0) return false;
+            // batch.productId가 매칭된 제품 중 하나면 포함
+            if(matchedProds.some(function(p){return p.id===b.productId || p.productCode===b.productId;})) return true;
+            // batch의 productId로 역조회해서 이름 비교
+            var bProd = md.products.find(function(p){return p.id===b.productId || p.productCode===b.productId;});
+            if(bProd && bProd.name && bProd.name.trim().toLowerCase() === name.toLowerCase()) return true;
             return false;
           });
 
-          // vmmsColumns 폴백
-          if(!siBatches.length){
-            var altIds = [];
-            colList.forEach(function(c){
-              var code=c.productCode||'',name=c.productName||'';
-              if(code===pid||name===pid||(prodName&&name&&name.trim()===prodName)){
-                if(code)altIds.push(code);
-                if(name)altIds.push(name);
-              }
-            });
-            for(var ai=0; ai<altIds.length && !siBatches.length; ai++){
-              siBatches=mStockIn.filter(function(b){return b.productId===altIds[ai]&&b.remainingQty>0;});
-            }
+          // FIFO 차감
+          batches.sort(function(a,b){return (a.date||'').localeCompare(b.date||'');});
+          var rem = qty;
+          for(var i=0; i<batches.length && rem>0; i++){
+            var use = Math.min(rem, batches[i].remainingQty);
+            batches[i].remainingQty -= use;
+            rem -= use;
           }
 
-          siBatches.sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
-          var rem = qty;
-          for(var bi=0; bi<siBatches.length && rem>0; bi++){
-            var use = Math.min(rem, siBatches[bi].remainingQty);
-            siBatches[bi].remainingQty -= use; rem -= use;
-          }
-          console.log('[재고차감]', prodName||pid, ':', qty, '개 → batch', siBatches.length, '개 사용, 남음', rem);
+          // stockIn에서 차감 안 된 수량은 inventory에서 차감
           if(rem > 0){
-            var idx = mInv.findIndex(function(i){return i.productId===pid;});
-            if(idx>=0) mInv[idx].qty = Math.max(0, mInv[idx].qty - rem);
+            matchedProds.forEach(function(p){
+              if(rem <= 0) return;
+              var inv = md.inventory.find(function(i){return i.productId===p.id;});
+              if(inv && inv.qty > 0){
+                var use = Math.min(rem, inv.qty);
+                inv.qty -= use;
+                rem -= use;
+              }
+            });
           }
-          mLogs.push({id:Date.now().toString()+Math.random(), productId:pid, delta:-qty, memo:periodLabel+' 판매분 재고차감', date:range.to});
+
+          // 로그 기록
+          md.logs.push({
+            id: Date.now().toString()+Math.random(),
+            productId: matchedProds[0] ? matchedProds[0].id : name,
+            productName: name,
+            delta: -(qty - rem),
+            memo: periodLabel + ' 판매분 재고차감',
+            date: range.to
+          });
+
+          console.log('[재고차감]', name, ':', qty, '개 →', (qty-rem), '개 차감, 부족', rem);
         });
-        var appRef = db.ref('users/'+currentUser.uid+'/locations/'+currentLocationId+'/machines/'+r.mid+'/appData');
-        if(r.mid === currentMachineId){ D.inventory = mInv; D.inventoryLogs = mLogs; D.stockIn = mStockIn; }
-        var upd = {inventory:mInv, inventoryLogs:mLogs};
-        if(mStockIn.length) upd.stockIn = mStockIn;
-        return appRef.update(upd);
+
+        // Firebase 저장
+        var ref = db.ref('users/'+currentUser.uid+'/locations/'+currentLocationId+'/machines/'+md.mid+'/appData');
+        if(md.mid === currentMachineId){
+          D.inventory = md.inventory;
+          D.inventoryLogs = md.logs;
+          D.stockIn = md.stockIn;
+        }
+        return ref.update({
+          inventory: md.inventory,
+          inventoryLogs: md.logs,
+          stockIn: md.stockIn
+        });
       });
 
       Promise.all(savePromises).then(function(){
@@ -529,13 +519,10 @@ function deductInventoryForPeriod(){
         console.error('[재고차감] 저장 실패:', err);
         showToast('❌ 저장 실패: '+(err && err.message || err));
       });
-    }).catch(function(err){
-      console.error('[재고차감] 로드 실패:', err);
-      showToast('❌ 로드 실패: '+(err && err.message || err));
     });
   }).catch(function(err){
     console.error('[재고차감] 초기 로드 실패:', err);
-    showToast('❌ 초기 로드 실패: '+(err && err.message || err));
+    showToast('❌ 로드 실패');
   });
 }
 

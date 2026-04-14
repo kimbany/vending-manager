@@ -540,7 +540,12 @@ function loadCoupangPending(){
     container.style.display = 'block';
     list.innerHTML = pending.map(function(p){
       var mapped = findMappedProduct(p.coupangProductName);
-      var matchLabel = mapped ? '✅ 매칭됨' : '⚠️ 매칭 필요';
+      // 매핑이 없으면 제품명 자동 매칭 시도
+      if(!mapped && typeof findProduct === 'function'){
+        var autoProd = findProduct(p.coupangProductName);
+        if(autoProd){ mapped = {productId: autoProd.id, unitsPerBox: 1, auto: true}; }
+      }
+      var matchLabel = mapped ? (mapped.auto ? '🔗 자동매칭' : '✅ 매칭됨') : '⚠️ 매칭 필요';
       var matchColor = mapped ? 'var(--green)' : 'var(--red)';
       var safeName = (p.coupangProductName || '').replace(/'/g, "\\'");
       var safeId = (p.id || '').replace(/'/g, "\\'");
@@ -920,7 +925,14 @@ function _stockInFromPurchaseAt(purchases, idx){
   if(!p){ showToast('❌ 구매 데이터 없음'); return; }
 
   var mapped = findMappedProduct(p.coupangProductName);
-  if(!mapped){ showToast('❌ 제품 매칭이 필요합니다'); return; }
+  // 자동 매칭 폴백: 제품명이 일치하는 D.products가 있으면 자동으로 매칭
+  if(!mapped && typeof findProduct === 'function'){
+    var autoProd = findProduct(p.coupangProductName);
+    if(autoProd){
+      mapped = { productId: autoProd.id, unitsPerBox: 1 };
+    }
+  }
+  if(!mapped){ showToast('❌ 제품 매칭이 필요합니다 - 매칭 버튼을 눌러주세요'); return; }
 
   // 매칭 저장 시 자판기 정보가 함께 저장됐으면, 현재 활성 자판기와
   // 다를 경우 사용자에게 전환을 요구 (쿠팡 매칭은 A자판기인데 재고는

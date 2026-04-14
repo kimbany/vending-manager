@@ -296,46 +296,23 @@ function _applyCrawledData(isAuto, customDate){
             });
             if(isDup){ dup++; return; }
 
-            // 제품 매칭 (제품명 기준 → 컬럼번호 폴백)
-            var pid = '';
-            // 1차: 제품명으로 매칭
-            if(itemName){
-              var nameMatch = prods.find(function(p){ return p.name && p.name.trim() === itemName.trim(); });
-              if(nameMatch) pid = nameMatch.id;
-            }
-            // 2차: 컬럼번호로 폴백 (appData.products)
-            if(!pid){
-              prods.forEach(function(p){
-                var cols = Array.isArray(p.column) ? p.column : (p.column ? [p.column] : []);
-                cols.forEach(function(c){
-                  var cStr = String(c).trim();
-                  if(cStr === colNo) pid = p.id;
-                  if(cStr.indexOf('~') >= 0){
-                    var range = cStr.split('~');
-                    var start = parseInt(range[0]), end = parseInt(range[1]);
-                    var cn = parseInt(colNo);
-                    if(cn >= start && cn <= end) pid = p.id;
-                  }
-                });
-              });
-            }
-            // 3차: vmmsColumns에서 컬럼번호/제품명으로 매칭
-            if(!pid && vmmsColList.length){
+            // 제품 매칭 (제품명 기준, VMMS에는 제품번호 없음)
+            // itemName이 없으면 vmmsColumns에서 컬럼번호로 제품명 가져오기
+            if(!itemName && vmmsColList.length){
               var vmCol = vmmsColList.find(function(vc){
                 return String(vc.columnNo||'').trim() === colNo;
-              }) || vmmsColList.find(function(vc){
-                return vc.productName && itemName && vc.productName.trim() === itemName.trim();
               });
-              if(vmCol){
-                // vmmsColumns 제품 → appData.products에서 찾기
-                var vmProd = prods.find(function(p){ return p.name && vmCol.productName && p.name.trim() === vmCol.productName.trim(); });
-                if(vmProd) pid = vmProd.id;
-                else {
-                  // appData.products에 없으면 productCode를 ID로 사용
-                  pid = vmCol.productCode || vmCol.productName || '';
-                  if(!itemName) itemName = vmCol.productName||'';
-                }
-              }
+              if(vmCol) itemName = vmCol.productName || '';
+            }
+
+            // 제품명으로 appData.products에서 제품 찾기
+            var pid = '';
+            var matchedProd = null;
+            if(itemName){
+              matchedProd = prods.find(function(p){
+                return p.name && p.name.trim().toLowerCase() === itemName.trim().toLowerCase();
+              });
+              if(matchedProd) pid = matchedProd.id;
             }
 
             sales.push({
@@ -354,30 +331,35 @@ function _applyCrawledData(isAuto, customDate){
             });
             added++;
 
-            // 재고 차감 (취소가 아닌 경우) - stockIn(batch) 우선, 없으면 inventory
-            if(!isCancelled && pid){
+            // 재고 차감 (취소가 아닌 경우) - 제품명 기준으로 stockIn/inventory 차감
+            if(!isCancelled && itemName){
               var siAll = machVal.stockIn||[];
               if(!Array.isArray(siAll)) siAll = Object.values(siAll);
-              // pid로 매칭 시도, 없으면 itemName으로 폴백
-              var siBatches = siAll.filter(function(b){ return b.productId===pid && b.remainingQty>0; });
-              if(!siBatches.length && itemName){
-                // productId에 제품명이 포함된 경우 or vmmsColumns에서 이름으로 찾기
-                var altPid = '';
-                var vc = vmmsColList.find(function(c){ return c.productName && c.productName.trim()===itemName.trim(); });
-                if(vc) altPid = vc.productCode||vc.productName||'';
-                if(altPid && altPid !== pid) siBatches = siAll.filter(function(b){ return b.productId===altPid && b.remainingQty>0; });
-              }
+              var nameKey = itemName.trim().toLowerCase();
+
+              // 제품명과 일치하는 모든 batch 수집 (productId로 역조회)
+              var siBatches = siAll.filter(function(b){
+                if(!b.remainingQty || b.remainingQty <= 0) return false;
+                if(matchedProd && (b.productId === matchedProd.id || b.productId === matchedProd.productCode)) return true;
+                // batch.productId를 products에서 역조회해서 이름 비교
+                var bProd = prods.find(function(p){return p.id===b.productId || p.productCode===b.productId;});
+                return bProd && bProd.name && bProd.name.trim().toLowerCase() === nameKey;
+              });
+
               siBatches.sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
-              if(siBatches.length){
-                var rem = 1;
-                for(var bi=0; bi<siBatches.length && rem>0; bi++){
-                  var use = Math.min(rem, siBatches[bi].remainingQty);
-                  siBatches[bi].remainingQty -= use;
-                  rem -= use;
+              var rem = 1;
+              for(var bi=0; bi<siBatches.length && rem>0; bi++){
+                var use = Math.min(rem, siBatches[bi].remainingQty);
+                siBatches[bi].remainingQty -= use;
+                rem -= use;
+              }
+
+              // stockIn에서 차감 못했으면 inventory에서 차감
+              if(rem > 0 && matchedProd){
+                var invIdx = inv.findIndex(function(x){ return x.productId === matchedProd.id; });
+                if(invIdx >= 0 && inv[invIdx].qty > 0){
+                  inv[invIdx].qty = Math.max(0, inv[invIdx].qty - rem);
                 }
-              } else {
-                var invIdx = inv.findIndex(function(x){ return x.productId === pid; });
-                if(invIdx >= 0) inv[invIdx].qty = Math.max(0, inv[invIdx].qty - 1);
               }
             }
           });
