@@ -456,18 +456,45 @@ function deductInventoryForPeriod(){
         (r.devnos||[]).forEach(function(dno){ var cd=vmmsColAll[dno]; if(cd&&cd.columns){ var c=cd.columns; if(!Array.isArray(c))c=Object.values(c); colList=colList.concat(c); }});
         Object.keys(qtyMap).forEach(function(pid){
           var qty = qtyMap[pid];
-          var siBatches = mStockIn.filter(function(b){ return b.productId===pid && b.remainingQty>0; });
-          // pid로 못 찾으면 vmmsColumns로 대체 ID 시도
+          // 제품명 확보: pid 자체가 이름일 수 있고, D.products에서도 찾기
+          var prod = prodsM.find(function(p){return p.id===pid;});
+          var prodName = (prod && prod.name) ? prod.name.trim() : (typeof pid === 'string' ? pid.trim() : '');
+          var prodCode = prod ? prod.productCode : '';
+
+          // stockIn 매칭: productId, productCode, 이름 모두 시도
+          var siBatches = mStockIn.filter(function(b){
+            if(b.productId===pid) return b.remainingQty>0;
+            if(prodCode && (b.productId===prodCode || b.productCode===prodCode)) return b.remainingQty>0;
+            // batch의 productId로 D.products 역조회 → 이름 매칭
+            if(prodName){
+              var bProd = prodsM.find(function(p){return p.id===b.productId;});
+              if(bProd && bProd.name && bProd.name.trim()===prodName) return b.remainingQty>0;
+            }
+            return false;
+          });
+
+          // vmmsColumns 폴백
           if(!siBatches.length){
-            var altIds = []; colList.forEach(function(c){ var code=c.productCode||'',name=c.productName||''; if(code===pid||name===pid){ if(code)altIds.push(code); if(name)altIds.push(name); }});
-            for(var ai=0; ai<altIds.length && !siBatches.length; ai++){ siBatches=mStockIn.filter(function(b){return b.productId===altIds[ai]&&b.remainingQty>0;}); }
+            var altIds = [];
+            colList.forEach(function(c){
+              var code=c.productCode||'',name=c.productName||'';
+              if(code===pid||name===pid||(prodName&&name&&name.trim()===prodName)){
+                if(code)altIds.push(code);
+                if(name)altIds.push(name);
+              }
+            });
+            for(var ai=0; ai<altIds.length && !siBatches.length; ai++){
+              siBatches=mStockIn.filter(function(b){return b.productId===altIds[ai]&&b.remainingQty>0;});
+            }
           }
+
           siBatches.sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
           var rem = qty;
           for(var bi=0; bi<siBatches.length && rem>0; bi++){
             var use = Math.min(rem, siBatches[bi].remainingQty);
             siBatches[bi].remainingQty -= use; rem -= use;
           }
+          console.log('[재고차감]', prodName||pid, ':', qty, '개 → batch', siBatches.length, '개 사용, 남음', rem);
           if(rem > 0){
             var idx = mInv.findIndex(function(i){return i.productId===pid;});
             if(idx>=0) mInv[idx].qty = Math.max(0, mInv[idx].qty - rem);
