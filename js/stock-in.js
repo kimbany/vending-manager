@@ -545,20 +545,107 @@ function loadCoupangPending(){
 
 // ─── 제품 매칭 모달 ──────────────────────────────────────────────────────────
 function openMatchingModal(coupangName){
-  var html = '<div style="margin-bottom:12px"><div style="font-size:13px;color:var(--text2);margin-bottom:4px">쿠팡 상품명</div>'+
-    '<div style="font-size:15px;font-weight:700;padding:8px;background:var(--bg3);border-radius:8px">'+coupangName+'</div></div>';
-  html += '<div class="fr" style="margin-bottom:8px"><label class="lbl">매칭할 제품 선택</label>'+
-    '<select id="match-product-sel" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;background:var(--bg2);color:var(--text)">'+
-    '<option value="">제품 선택</option>'+
-    D.products.map(function(p){return '<option value="'+p.id+'">'+p.name+'</option>';}).join('')+
-    '</select></div>';
-  html += '<div class="fr" style="margin-bottom:12px"><label class="lbl">박스당 낱개 수</label>'+
-    '<input type="number" id="match-units-per-box" value="1" min="1" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit"/></div>';
-  html += '<button onclick="confirmMatching(\''+coupangName.replace(/'/g,"\\'")+'\')" style="width:100%;background:var(--blue);color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">매칭 저장</button>';
+  // 모든 자판기의 제품 + VMMS 제품을 하나로 모아서 드롭다운 옵션 생성
+  //   (기존에는 D.products 만 사용해서 현재 자판기 제품만 표시되는 문제)
+  _collectAllMatchableProducts().then(function(options){
+    var html = '<div style="margin-bottom:12px"><div style="font-size:13px;color:var(--text2);margin-bottom:4px">쿠팡 상품명</div>'+
+      '<div style="font-size:15px;font-weight:700;padding:8px;background:var(--bg3);border-radius:8px">'+coupangName+'</div></div>';
+    html += '<div class="fr" style="margin-bottom:8px"><label class="lbl">매칭할 제품 선택 ('+options.length+'개)</label>'+
+      '<input type="text" id="match-product-filter" placeholder="제품명 검색..." oninput="_filterMatchProducts()" '+
+      'style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;background:var(--bg2);color:var(--text);margin-bottom:6px"/>'+
+      '<select id="match-product-sel" size="6" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;background:var(--bg2);color:var(--text)">'+
+      options.map(function(o){
+        var label = o.name + (o.machineName ? ' · '+o.machineName : '');
+        return '<option value="'+o.id+'" data-name="'+o.name.toLowerCase()+'">'+label+'</option>';
+      }).join('')+
+      '</select></div>';
+    html += '<div class="fr" style="margin-bottom:12px"><label class="lbl">박스당 낱개 수</label>'+
+      '<input type="number" id="match-units-per-box" value="1" min="1" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit"/></div>';
+    html += '<button onclick="confirmMatching(\''+coupangName.replace(/'/g,"\\'")+'\')" style="width:100%;background:var(--blue);color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">매칭 저장</button>';
 
-  document.getElementById('pdm-title').textContent = '제품 매칭';
-  document.getElementById('pdm-body').innerHTML = html;
-  openModal('prod-detail-modal');
+    document.getElementById('pdm-title').textContent = '제품 매칭';
+    document.getElementById('pdm-body').innerHTML = html;
+    openModal('prod-detail-modal');
+  });
+}
+
+// 드롭다운에 쓸 전체 제품 목록 수집:
+//   1. users/{uid}/locations 의 모든 machine.products
+//   2. users/{uid}/vmmsProducts.items (VMMS 등록 제품)
+// 중복 제거 + 가나다순 정렬
+function _collectAllMatchableProducts(){
+  if(!currentUser) return Promise.resolve([]);
+
+  return Promise.all([
+    db.ref('users/'+currentUser.uid+'/locations').once('value'),
+    db.ref('users/'+currentUser.uid+'/vmmsProducts').once('value'),
+  ]).then(function(results){
+    var locSnap = results[0];
+    var vmmsSnap = results[1].val();
+    var seen = {};
+    var out = [];
+
+    // 1) 모든 자판기의 제품
+    if(locSnap && locSnap.exists()){
+      locSnap.forEach(function(locChild){
+        var loc = locChild.val() || {};
+        var locName = loc.name || '';
+        var machines = loc.machines || {};
+        Object.keys(machines).forEach(function(mid){
+          var m = machines[mid] || {};
+          var machineName = m.name || '';
+          var label = [locName, machineName].filter(Boolean).join(' / ');
+          // 자판기 레벨의 products 가 있는지 (구형) + appData.products (신형) 둘 다 확인
+          var prodList = [];
+          if(Array.isArray(m.products)) prodList = prodList.concat(m.products);
+          else if(m.products) prodList = prodList.concat(Object.values(m.products));
+          if(m.appData && m.appData.products){
+            if(Array.isArray(m.appData.products)) prodList = prodList.concat(m.appData.products);
+            else prodList = prodList.concat(Object.values(m.appData.products));
+          }
+          prodList.forEach(function(p){
+            if(!p || !p.name) return;
+            var key = (p.id || p.name) + '|' + p.name;
+            if(seen[key]) return;
+            seen[key] = true;
+            out.push({ id: p.id || p.name, name: p.name, machineName: label });
+          });
+        });
+      });
+    }
+
+    // 2) VMMS 제품 (자판기에 배치 안 됐어도 매칭 대상)
+    var vmmsItems = (vmmsSnap && vmmsSnap.items) ? vmmsSnap.items : [];
+    if(!Array.isArray(vmmsItems)) vmmsItems = Object.values(vmmsItems);
+    vmmsItems.forEach(function(v){
+      if(!v || !v.productName) return;
+      var pid = v.productCode || v.productName;
+      var key = pid + '|' + v.productName;
+      if(seen[key]) return;
+      seen[key] = true;
+      out.push({ id: pid, name: v.productName, machineName: 'VMMS 등록' });
+    });
+
+    // 가나다순
+    out.sort(function(a, b){ return a.name.localeCompare(b.name, 'ko'); });
+    return out;
+  }).catch(function(e){
+    console.error('[_collectAllMatchableProducts] error:', e);
+    return Array.isArray(D.products) ? D.products.map(function(p){ return { id: p.id, name: p.name, machineName: '' }; }) : [];
+  });
+}
+
+// 매칭 모달 내 검색 필터 (텍스트 입력 시 option 표시/숨김)
+function _filterMatchProducts(){
+  var q = (document.getElementById('match-product-filter').value || '').toLowerCase().trim();
+  var sel = document.getElementById('match-product-sel');
+  if(!sel) return;
+  var opts = sel.querySelectorAll('option');
+  for(var i=0; i<opts.length; i++){
+    var name = opts[i].getAttribute('data-name') || '';
+    var label = (opts[i].textContent || '').toLowerCase();
+    opts[i].style.display = (!q || name.indexOf(q) >= 0 || label.indexOf(q) >= 0) ? '' : 'none';
+  }
 }
 
 function confirmMatching(coupangName){
