@@ -309,21 +309,34 @@ function renderMachineView(mc, prods, inv){
       var p=entry?entry.prod:null;
       var span=entry?entry.span:1;
       var q=p?getQLocal(p.id):0;
-      // 이 제품의 재고 데이터가 있는지 확인 (없으면 중립 표시)
+      // 이름으로 D.inventory/stockIn 모두 검사
+      if(p && q===0 && p.name){
+        // D.products에서 이름 일치하는 제품 찾아서 그 ID로 재고 조회
+        var dProd = D.products && D.products.find(function(x){return x.name && x.name.trim()===p.name.trim();});
+        if(dProd){ q = getQLocal(dProd.id); }
+      }
+      // 이 제품의 재고 데이터가 전혀 없으면 중립 표시
       var hasProductStock = false;
       if(p){
-        // stockIn에서 이름 또는 ID로 찾기
+        var searchName = p.name ? p.name.trim() : '';
         if(D.stockIn && D.stockIn.length){
           hasProductStock = D.stockIn.some(function(b){
             if(b.productId===p.id) return true;
-            // 이름으로 다른 제품 찾아서 매칭
-            var otherP = D.products.find(function(x){return x.id===b.productId;});
-            return otherP && otherP.name && p.name && otherP.name.trim()===p.name.trim();
+            if(!searchName) return false;
+            var otherP = D.products && D.products.find(function(x){return x.id===b.productId;});
+            return otherP && otherP.name && otherP.name.trim()===searchName;
           });
         }
         if(!hasProductStock && D.inventory && D.inventory.length){
-          hasProductStock = D.inventory.some(function(i){return i.productId===p.id;});
+          hasProductStock = D.inventory.some(function(i){
+            if(i.productId===p.id) return true;
+            if(!searchName) return false;
+            var otherP = D.products && D.products.find(function(x){return x.id===i.productId;});
+            return otherP && otherP.name && otherP.name.trim()===searchName;
+          });
         }
+        // 어떻게든 수량이 조회되면 재고 있는 걸로 취급
+        if(q > 0) hasProductStock = true;
       }
       var cl=!p?'':(!hasProductStock?' hp':(q<=5?' ls':' hp'));
 
