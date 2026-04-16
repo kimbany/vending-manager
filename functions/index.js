@@ -1531,11 +1531,31 @@ exports.receiveForwardedEmail = onRequest(
             if (anyLong) code = anyLong[1];
           }
           // 승인 링크 — mail.google.com 과 mail-settings.google.com 양쪽 대응
+          // bodyEarly 가 base64 인코딩된 채로 올 수 있으므로 디코딩 후에도 탐색.
           let url = "";
-          const urlMatch =
-            bodyEarly.match(/https:\/\/mail(?:[.-]settings)?\.google\.com\/mail\/[^\s"<>\r\n]+/i) ||
-            rawStrEarly.match(/https:\/\/mail(?:[.-]settings)?\.google\.com\/mail\/[^\s"<>\r\n]+/i);
-          if (urlMatch) url = urlMatch[0];
+          const urlRe = /https:\/\/mail(?:[.-]settings)?\.google\.com\/mail\/[^\s"<>\r\n]+/i;
+          const urlMatch = urlRe.exec(bodyEarly) || urlRe.exec(rawStrEarly);
+          if (urlMatch) {
+            url = urlMatch[0];
+          } else {
+            // bodyEarly 가 base64 통째로 들어왔을 수 있음 — 디코딩 후 재시도
+            try {
+              const decodedBody = Buffer.from(bodyEarly.replace(/\s/g, ""), "base64").toString("utf8");
+              const m2 = urlRe.exec(decodedBody);
+              if (m2) url = m2[0];
+            } catch (_) { /* not base64, ignore */ }
+          }
+          if (!url) {
+            // raw 본문 안의 base64 블록을 찾아 디코딩
+            try {
+              const b64Block = rawStrEarly.match(/\r?\n\r?\n([A-Za-z0-9+/=\s]{100,})/);
+              if (b64Block) {
+                const decoded2 = Buffer.from(b64Block[1].replace(/\s/g, ""), "base64").toString("utf8");
+                const m3 = urlRe.exec(decoded2);
+                if (m3) url = m3[0];
+              }
+            } catch (_) { /* ignore */ }
+          }
 
           const nowStr = new Date().toISOString().replace("T", " ").slice(0, 19);
 
