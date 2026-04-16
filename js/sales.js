@@ -474,7 +474,7 @@ function deductInventoryForPeriod(){
         var deductedDates = r.val.deductedDates || [];
         if(!Array.isArray(deductedDates)) deductedDates = Object.values(deductedDates);
 
-        machineData.push({mid:r.mid, nameQty:nameQty, products:prodsM, inventory:inv, stockIn:stockIn, logs:logs, deductedDates:deductedDates});
+        machineData.push({mid:r.mid, nameQty:nameQty, sales:sales, products:prodsM, inventory:inv, stockIn:stockIn, logs:logs, deductedDates:deductedDates, salesCost:r.val.salesCost||[]});
       });
 
       console.log('[재고차감] 총 수량:', grandTotal);
@@ -506,14 +506,45 @@ function deductInventoryForPeriod(){
             return false;
           });
 
-          // FIFO 차감
+          // FIFO 차감 + 원가 추적
           batches.sort(function(a,b){return (a.date||'').localeCompare(b.date||'');});
           var rem = qty;
+          var fifoCosts = []; // [{stockInId, quantity, unitCost}]
           for(var i=0; i<batches.length && rem>0; i++){
             var use = Math.min(rem, batches[i].remainingQty);
             batches[i].remainingQty -= use;
             rem -= use;
+            fifoCosts.push({stockInId:batches[i].id||'', quantity:use, unitCost:batches[i].unitCost||0});
           }
+
+          // 개별 판매 건에 원가 배분 (salesCost 레코드 생성)
+          var productSales = md.sales.filter(function(s){
+            var sName = s.itemName ? s.itemName.trim() : '';
+            if(sName.toLowerCase() === name.toLowerCase()) return true;
+            if(s.productId && matchedProds.some(function(p){return p.id===s.productId;})) return true;
+            return false;
+          });
+          var costPool = fifoCosts.slice(); // 남은 원가 풀 (FIFO 순서)
+          var poolIdx = 0, poolUsed = 0;
+          productSales.forEach(function(s){
+            var sQty = s.qty || 1;
+            var saleRem = sQty;
+            while(saleRem > 0 && poolIdx < costPool.length){
+              var avail = costPool[poolIdx].quantity - poolUsed;
+              var take = Math.min(saleRem, avail);
+              if(take > 0){
+                md.salesCost.push({
+                  saleId: s.txId || '',
+                  stockInId: costPool[poolIdx].stockInId,
+                  quantity: take,
+                  unitCost: costPool[poolIdx].unitCost
+                });
+              }
+              poolUsed += take;
+              saleRem -= take;
+              if(poolUsed >= costPool[poolIdx].quantity){ poolIdx++; poolUsed = 0; }
+            }
+          });
 
           // stockIn에서 차감 안 된 수량은 inventory에서 차감
           if(rem > 0){
@@ -561,11 +592,13 @@ function deductInventoryForPeriod(){
           D.inventory = md.inventory;
           D.inventoryLogs = md.logs;
           D.stockIn = md.stockIn;
+          D.salesCost = md.salesCost;
         }
         return ref.update({
           inventory: md.inventory,
           inventoryLogs: md.logs,
           stockIn: md.stockIn,
+          salesCost: md.salesCost,
           deductedDates: newDeducted
         });
       });
