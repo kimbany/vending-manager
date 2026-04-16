@@ -1530,11 +1530,11 @@ exports.receiveForwardedEmail = onRequest(
             const anyLong = bodyEarly.match(/\b(\d{6,12})\b/) || rawStrEarly.match(/\b(\d{6,12})\b/);
             if (anyLong) code = anyLong[1];
           }
-          // 승인 링크
+          // 승인 링크 — mail.google.com 과 mail-settings.google.com 양쪽 대응
           let url = "";
           const urlMatch =
-            bodyEarly.match(/https:\/\/mail[.-]settings\.google\.com\/mail\/[^\s"<>]+/i) ||
-            rawStrEarly.match(/https:\/\/mail[.-]settings\.google\.com\/mail\/[^\s"<>]+/i);
+            bodyEarly.match(/https:\/\/mail(?:[.-]settings)?\.google\.com\/mail\/[^\s"<>\r\n]+/i) ||
+            rawStrEarly.match(/https:\/\/mail(?:[.-]settings)?\.google\.com\/mail\/[^\s"<>\r\n]+/i);
           if (urlMatch) url = urlMatch[0];
 
           const nowStr = new Date().toISOString().replace("T", " ").slice(0, 19);
