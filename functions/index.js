@@ -1089,12 +1089,22 @@ function parseCoupangEmail(text, dateHint) {
   const idMatch = text.match(/주문\s*번호\s*[:：]?\s*([A-Z0-9\-]{6,})/);
   if (idMatch) orderId = idMatch[1];
 
-  // 주문일자: 메일 헤더(Date)에서 온 dateHint 우선, 없으면 본문 검색
-  let orderDate = dateHint || "";
+  // 주문일자: 본문에서 먼저 찾고, 없으면 메일 헤더(dateHint) 사용.
+  // 이유: 네이버/Gmail 에서 "전달"하면 Date 헤더가 전달 시각으로 바뀌어서
+  //       원래 주문일(본문 안)과 다를 수 있음.
+  let orderDate = "";
+  // 1차: "주문일시" / "주문일" 레이블 근처의 날짜
+  const odLabel = text.match(/주문\s*일(?:시|자)?\s*[:：]?\s*(\d{4})[.\-\/\s]*(\d{1,2})[.\-\/\s]*(\d{1,2})/);
+  if (odLabel) {
+    orderDate = `${odLabel[1]}.${odLabel[2].padStart(2, "0")}.${odLabel[3].padStart(2, "0")}`;
+  }
+  // 2차: 본문 어딘가의 yyyy.mm.dd 패턴
   if (!orderDate) {
-    const dm = text.match(/(\d{4})\.?\s*(\d{1,2})\.?\s*(\d{1,2})/);
+    const dm = text.match(/(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})/);
     if (dm) orderDate = `${dm[1]}.${dm[2].padStart(2, "0")}.${dm[3].padStart(2, "0")}`;
   }
+  // 3차: 헤더 날짜 (폴백)
+  if (!orderDate) orderDate = dateHint || "";
 
   if (deduped.length === 0) return null;
   return {
