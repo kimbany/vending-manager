@@ -273,29 +273,41 @@ function closeMailForwardModal(){
 function _mfmShowVerificationCode(v){
   var body = document.getElementById('mfm-body');
   if(!body) return;
-  // 이미 표시된 박스가 있으면 갱신
   var existing = document.getElementById('mfm-verify-box');
   if(existing) existing.remove();
 
   var code = (v.code || '').replace(/[^\d]/g,'').slice(0,12);
   var url = v.url || '';
   var codeSafe = code.replace(/"/g,'&quot;');
-  var urlSafe = url.replace(/"/g,'&quot;');
+  var urlSafe = url.replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 
-  var codeBlock = code
-    ? '<div style="font-size:28px;font-weight:900;letter-spacing:3px;font-family:monospace;text-align:center;margin:10px 0;color:#1b5e20">'+codeSafe+'</div>' +
-      '<button onclick="_mfmCopyVerifyCode()" style="width:100%;background:#2e7d32;color:#fff;border:none;border-radius:8px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">📋 코드 복사</button>'
-    : '';
-  var urlBlock = url
-    ? '<div style="margin-top:10px;font-size:12px;color:var(--text2);text-align:center">또는 <a href="'+urlSafe+'" target="_blank" rel="noopener" style="color:#1565c0;font-weight:700">승인 링크 바로 열기 ▸</a></div>'
-    : '';
+  var contentHtml = '';
+
+  if(url){
+    // 승인 링크가 있으면 — 메인 액션
+    contentHtml =
+      '<div style="font-size:14px;font-weight:800;color:#1b5e20;margin-bottom:6px">📬 Gmail 확인 메일 도착!</div>' +
+      '<div style="font-size:12px;color:#2e7d32;line-height:1.5;margin-bottom:12px">아래 버튼을 눌러 Gmail 전달을 승인해주세요.</div>' +
+      '<a href="'+urlSafe+'" target="_blank" rel="noopener" ' +
+        'style="display:block;width:100%;background:#2e7d32;color:#fff;border:none;border-radius:8px;padding:14px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;text-align:center;text-decoration:none;box-sizing:border-box">' +
+        '👆 Gmail 전달 승인하기</a>' +
+      '<div style="margin-top:8px;font-size:11px;color:#558b2f;text-align:center;line-height:1.4">' +
+        '버튼을 누르면 Google 페이지가 열려요. "확인" 을 눌러주세요.</div>';
+  } else if(code){
+    // 링크 아직 안 왔고 코드만 있으면 — 대기 안내
+    contentHtml =
+      '<div style="font-size:14px;font-weight:800;color:#1b5e20;margin-bottom:6px">📬 Gmail 확인 메일 도착!</div>' +
+      '<div style="font-size:12px;color:#2e7d32;line-height:1.5;margin-bottom:8px">' +
+        '승인 링크를 불러오는 중이에요...<br>잠시만 기다려주세요. 자동으로 버튼이 나타나요.</div>' +
+      '<div style="text-align:center;padding:10px 0">' +
+        '<div style="display:inline-block;width:24px;height:24px;border:3px solid #a5d6a7;border-top-color:#2e7d32;border-radius:50%;animation:mfm-spin 1s linear infinite"></div>' +
+      '</div>' +
+      '<style>@keyframes mfm-spin{to{transform:rotate(360deg)}}</style>';
+  }
 
   var html =
     '<div id="mfm-verify-box" style="background:#E8F5E9;border:2px solid #4CAF50;border-radius:12px;padding:14px 16px;margin-bottom:14px">' +
-      '<div style="font-size:14px;font-weight:800;color:#1b5e20;margin-bottom:4px">📬 Gmail 확인 코드 도착!</div>' +
-      '<div style="font-size:12px;color:#2e7d32;line-height:1.5">Gmail 설정 페이지로 돌아가서 이 코드를 입력해주세요.</div>' +
-      codeBlock +
-      urlBlock +
+      contentHtml +
       '<input type="hidden" id="mfm-verify-code" value="'+codeSafe+'"/>' +
     '</div>';
 
