@@ -1166,11 +1166,24 @@ function _stockInFromPurchaseAt(purchases, idx){
   if(!mapped){ showToast('❌ 제품 매칭이 필요합니다 - 매칭 버튼을 눌러주세요'); return; }
 
   // 매칭 저장 시 자판기 정보가 함께 저장됐으면, 현재 활성 자판기와
-  // 다를 경우 사용자에게 전환을 요구 (쿠팡 매칭은 A자판기인데 재고는
-  // B자판기에 들어가는 문제 방지)
+  // 다를 경우 자동으로 해당 자판기로 전환 후 입고 진행.
   if(mapped.locId && mapped.machineId &&
      (mapped.locId !== currentLocationId || mapped.machineId !== currentMachineId)){
-    showToast('⚠️ 상단바에서 매칭된 자판기로 먼저 전환해주세요');
+    // 자동 전환
+    var targetLoc = mapped.locId;
+    var targetMach = mapped.machineId;
+    showToast('🔄 매칭된 자판기로 전환 중...');
+    if(targetLoc !== currentLocationId){
+      var locSel = document.getElementById('location-select');
+      if(locSel){ locSel.value = targetLoc; }
+      currentLocationId = targetLoc;
+    }
+    currentMachineId = targetMach;
+    var machSel = document.getElementById('machine-select');
+    if(machSel){ machSel.value = targetMach; }
+    loadMachineData(targetLoc, targetMach);
+    // 데이터 로드 후 입고 재시도 (약간의 지연)
+    setTimeout(function(){ _stockInFromPurchaseAt(idx); }, 1500);
     return;
   }
 
