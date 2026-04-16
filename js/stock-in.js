@@ -582,6 +582,14 @@ function crawlCoupangPurchases(){
 }
 
 // ─── Firebase에서 쿠팡 주문 데이터 로드 → 미입고 구매 목록 생성 ──────────────
+function _toggleCoupangDatePanel(){
+  var panel = document.getElementById('coupang-date-panel');
+  if(!panel) return;
+  var isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'block';
+  if(!isOpen) _initCoupangDateRange();
+}
+
 function _initCoupangDateRange(){
   var from = document.getElementById('coupang-date-from');
   var to = document.getElementById('coupang-date-to');

@@ -572,7 +572,8 @@ var _resetDescriptions = {
   inventory: {title:'📦 재고 초기화', desc:'모든 자판기의 재고 수량과 재고 기록(입출고 로그)이 삭제됩니다.'},
   products:  {title:'🏷️ 제품 초기화', desc:'등록된 모든 제품과 컬럼 매칭이 삭제됩니다. VMMS에서 다시 수집하면 복구할 수 있습니다.'},
   sales:     {title:'📊 판매 내역 초기화', desc:'모든 자판기의 판매 내역이 삭제됩니다.'},
-  all:       {title:'🗑️ 전체 초기화', desc:'재고, 제품, 판매내역, 자판기 위치, 자판기 단말기, VMMS 계정, 쿠팡 계정이 모두 삭제됩니다. 내 정보는 유지되며 재고 부족 기준은 기본값(고정 수량 10개)으로 초기화됩니다.'}
+  coupang:   {title:'🛒 쿠팡 입고 데이터 초기화', desc:'쿠팡 주문 데이터, 구매 내역(미입고 포함), 제품 매핑이 삭제됩니다. 메일 연동 설정은 유지됩니다.'},
+  all:       {title:'🗑️ 전체 초기화', desc:'재고, 제품, 판매내역, 자판기 위치, 자판기 단말기, VMMS 계정, 쿠팡 데이터가 모두 삭제됩니다. 내 정보와 메일 연동 설정은 유지됩니다.'}
 };
 
 function openResetConfirm(type){
@@ -639,15 +640,22 @@ function executeReset(){
       });
     }
 
+    if(type==='coupang' || type==='all'){
+      // 쿠팡 관련 데이터 삭제 (메일 연동 설정은 유지)
+      updates['purchases'] = null;
+      updates['coupangOrders'] = null;
+      updates['productMapping'] = null;
+      updates['coupangAccount'] = null;
+    }
+
     if(type==='all'){
       // 자판기 위치/단말기 전부 삭제
       updates['locations'] = null;
       updates['mainLocationId'] = null;
-      // VMMS, 쿠팡 삭제
+      // VMMS 삭제
       updates['vmms'] = null;
       updates['vmmsMachines'] = null;
       updates['vmmsColumns'] = null;
-      updates['coupangAccount'] = null;
       updates['doubleColumns'] = null;
       // 재고 부족 기준 기본값
       updates['settings/lowStock'] = {mode:'fixed', fixedQty:10};
@@ -669,6 +677,9 @@ function executeReset(){
     }
     if(type==='sales' || type==='all'){
       D.salesData=[];
+    }
+    if(type==='coupang' || type==='all'){
+      if(typeof _productMappings !== 'undefined') _productMappings = [];
     }
     if(type==='all'){
       currentLocationId=null; currentMachineId=null;
