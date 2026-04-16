@@ -309,12 +309,18 @@ function renderVmmsAccountStatus(){
       decryptAES(v.id, currentUser.uid).then(function(decId){
         var masked = decId ? decId.slice(0,3)+'••••••' : '등록됨';
         el.textContent = '등록됨: '+masked;
-        btn.textContent = 'VMMS 계정 변경';
+        if(btn) btn.textContent = 'VMMS 계정 변경';
+      }).catch(function(){
+        // 복호화 실패해도 데이터가 있으면 등록됨으로 표시
+        el.textContent = '등록됨';
+        if(btn) btn.textContent = 'VMMS 계정 변경';
       });
     } else {
       el.textContent = '미등록 · VMMS 계정을 등록하면 판매 데이터가 자동 수집됩니다';
-      btn.textContent = 'VMMS 계정 등록';
+      if(btn) btn.textContent = 'VMMS 계정 등록';
     }
+  }).catch(function(){
+    // DB 읽기 실패 시 기본값 유지
   });
 }
 
@@ -327,10 +333,12 @@ function renderMailForwardStatus(){
   var el = document.getElementById('mail-forward-status');
   var btn = document.getElementById('mail-forward-settings-btn');
   if(!el || !currentUser) return;
-  db.ref('users/'+currentUser.uid+'/mailForward').once('value').then(function(snap){
-    var v = snap.val();
-    if(v && v.address){
-      var lastAt = v.last_received_at || '';
+  // DB 직접 읽기가 보안 규칙에 막힐 수 있으므로 Cloud Function 경유
+  var fn = firebase.app().functions('asia-northeast3').httpsCallable('getMailForwardAddress', {timeout:15000});
+  fn({}).then(function(result){
+    var d = (result && result.data) || {};
+    if(d.address){
+      var lastAt = d.last_received_at || '';
       if(lastAt){
         el.innerHTML = '<span style="color:var(--green)">✅ 연동됨</span> · 마지막 수신: '+lastAt;
       } else {
@@ -341,6 +349,8 @@ function renderMailForwardStatus(){
       el.textContent = '미설정 · 쿠팡 메일 연동을 하면 주문이 자동 수집됩니다';
       if(btn) btn.textContent = '메일 연동 설정';
     }
+  }).catch(function(){
+    // 실패 시 기본값 유지
   });
 }
 
