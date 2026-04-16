@@ -246,7 +246,9 @@ function _doRenderSalesStats(machineDataList, range, panel){
   } else if(totalQty > 0 && alreadyDeducted){
     html += '<div style="width:100%;margin-top:10px;background:rgba(122,218,154,.08);border:1px solid rgba(122,218,154,.25);border-radius:8px;padding:10px;text-align:center">';
     html += '<div style="font-size:12px;font-weight:600;color:var(--green)">✅ 이 기간은 이미 재고 차감 완료</div>';
-    html += '<button onclick="reDeductInventoryForPeriod()" style="margin-top:6px;background:transparent;border:1px solid var(--border);border-radius:6px;padding:6px 14px;font-size:11px;color:var(--text3);cursor:pointer;font-family:inherit">🔄 재차감 (원가 재계산)</button>';
+    if(!hasCost){
+      html += '<button onclick="backfillSalesCost()" style="margin-top:6px;background:transparent;border:1px solid var(--border);border-radius:6px;padding:6px 14px;font-size:11px;color:var(--text3);cursor:pointer;font-family:inherit">💰 원가 보정 (입고 데이터 기반)</button>';
+    }
     html += '</div>';
   }
   html += '</div>';
@@ -621,13 +623,12 @@ function deductInventoryForPeriod(){
   });
 }
 
-function reDeductInventoryForPeriod(){
-  if(!confirm('이 기간의 차감 기록을 초기화하고 다시 차감합니다.\n원가가 재계산됩니다. 계속할까요?')) return;
+// 이미 차감 완료된 기간에 원가 데이터만 보정 (재고 수량은 건드리지 않음)
+// stockIn 배치의 unitCost 를 기반으로 salesCost 레코드를 채워넣음.
+function backfillSalesCost(){
+  if(!confirm('입고된 제품의 원가를 기준으로 이익을 계산합니다.\n재고 수량은 변하지 않습니다. 계속할까요?')) return;
   var range = getSalesDateRange();
 
-  // 1. 해당 기간 날짜들을 deductedDates 에서 제거
-  // 2. 해당 기간 salesCost 레코드 제거
-  // 3. stockIn remainingQty 복원 (차감분 되돌리기)
   db.ref('users/'+currentUser.uid+'/locations/'+currentLocationId+'/machines').once('value').then(function(snap){
     if(!snap.exists()) return;
     var machines = snap.val();
@@ -638,58 +639,77 @@ function reDeductInventoryForPeriod(){
     });
 
     Promise.all(promises).then(function(results){
-      var datesInRange = [];
-      var cur = new Date(range.from);
-      var end = new Date(range.to);
-      while(cur <= end){
-        datesInRange.push(cur.getFullYear()+'-'+('0'+(cur.getMonth()+1)).slice(-2)+'-'+('0'+cur.getDate()).slice(-2));
-        cur.setDate(cur.getDate()+1);
-      }
+      var totalAdded = 0;
 
-      // 기간 내 판매 txId 수집
-      var periodTxIds = {};
-      results.forEach(function(r){
+      var savePs = results.map(function(r){
+        var prodsM = r.val.products || [];
+        if(!Array.isArray(prodsM)) prodsM = Object.values(prodsM);
+        var stockIn = r.val.stockIn || [];
+        if(!Array.isArray(stockIn)) stockIn = Object.values(stockIn);
+        var sc = r.val.salesCost || [];
+        if(!Array.isArray(sc)) sc = Object.values(sc);
+
+        // 이미 원가가 있는 txId 세트
+        var existingTxIds = {};
+        sc.forEach(function(c){ if(c.saleId) existingTxIds[c.saleId] = true; });
+
+        // 제품별 가중평균 단가 계산 (stockIn 배치 기반)
+        var prodCostMap = {}; // productId → weightedAvgUnitCost
+        stockIn.forEach(function(b){
+          if(!b.productId || !b.unitCost) return;
+          if(!prodCostMap[b.productId]) prodCostMap[b.productId] = {totalCost:0, totalQty:0};
+          prodCostMap[b.productId].totalCost += (b.unitCost||0) * (b.quantity||0);
+          prodCostMap[b.productId].totalQty += (b.quantity||0);
+        });
+        // 제품명 → 단가 매핑도 만듦
+        var nameCostMap = {};
+        prodsM.forEach(function(p){
+          var pc = prodCostMap[p.id];
+          if(pc && pc.totalQty > 0){
+            nameCostMap[p.name ? p.name.trim().toLowerCase() : ''] = Math.round(pc.totalCost / pc.totalQty);
+            nameCostMap[p.id] = Math.round(pc.totalCost / pc.totalQty);
+          }
+        });
+
+        // 기간 내 판매 건 중 원가 없는 것에 보정
         var sales = (r.val.salesData||[]).filter(function(s){
           return s.date>=range.from && s.date<=range.to && !s.cancelled;
         });
-        sales.forEach(function(s){ if(s.txId) periodTxIds[s.txId] = true; });
-      });
 
-      var savePs = results.map(function(r){
-        var dd = r.val.deductedDates || [];
-        if(!Array.isArray(dd)) dd = Object.values(dd);
-        // 날짜 제거
-        var newDD = dd.filter(function(d){ return datesInRange.indexOf(d) < 0; });
-
-        // salesCost 에서 해당 기간 판매 건 제거 + 사용된 stockIn 복원
-        var sc = r.val.salesCost || [];
-        if(!Array.isArray(sc)) sc = Object.values(sc);
-        var stockIn = r.val.stockIn || [];
-        if(!Array.isArray(stockIn)) stockIn = Object.values(stockIn);
-
-        var newSC = [];
-        sc.forEach(function(c){
-          if(periodTxIds[c.saleId]){
-            // 이 레코드의 차감분을 stockIn 에 복원
-            var batch = stockIn.find(function(b){ return b.id === c.stockInId; });
-            if(batch) batch.remainingQty = (batch.remainingQty||0) + (c.quantity||0);
-          } else {
-            newSC.push(c);
+        sales.forEach(function(s){
+          if(!s.txId || existingTxIds[s.txId]) return; // 이미 있으면 스킵
+          var unitCost = 0;
+          // productId 로 찾기
+          if(s.productId && nameCostMap[s.productId]) unitCost = nameCostMap[s.productId];
+          // itemName 으로 찾기
+          if(!unitCost && s.itemName){
+            var sn = s.itemName.trim().toLowerCase();
+            if(nameCostMap[sn]) unitCost = nameCostMap[sn];
+            // 부분 매칭
+            if(!unitCost){
+              Object.keys(nameCostMap).forEach(function(k){
+                if(!unitCost && k.length > 2 && (sn.indexOf(k) >= 0 || k.indexOf(sn) >= 0)){
+                  unitCost = nameCostMap[k];
+                }
+              });
+            }
+          }
+          if(unitCost > 0){
+            sc.push({ saleId: s.txId, stockInId: 'backfill', quantity: s.qty||1, unitCost: unitCost });
+            totalAdded++;
           }
         });
 
         var ref = db.ref('users/'+currentUser.uid+'/locations/'+currentLocationId+'/machines/'+r.mid+'/appData');
         if(r.mid === currentMachineId){
-          D.stockIn = stockIn;
-          D.salesCost = newSC;
+          D.salesCost = sc;
         }
-        return ref.update({ deductedDates: newDD, salesCost: newSC, stockIn: stockIn });
+        return ref.update({ salesCost: sc });
       });
 
       Promise.all(savePs).then(function(){
-        showToast('🔄 차감 기록 초기화 완료. 재차감합니다...');
-        // 0.5초 후 재차감 실행
-        setTimeout(function(){ deductInventoryForPeriod(); }, 500);
+        showToast('💰 원가 보정 완료 ('+totalAdded+'건)');
+        renderAll();
       });
     });
   });
