@@ -1054,6 +1054,31 @@ function parseCoupangEmail(text, dateHint) {
     }
   }
 
+  // ── 중복 제거: 섹션 제목(가격 없음)과 상세 테이블 행(가격 있음) 양쪽에서
+  //    같은 상품이 추출되는 경우, 가격 있는 쪽만 남긴다.
+  //    예: "싱싱 스낵 100g" (qty=20, price=undefined) vs
+  //        "싱싱 스낵 100g, 20개" (qty=1, price=13900) → 후자만 유지.
+  const deduped = [];
+  for (const p of products) {
+    const hasPrice = p.price && p.price > 0;
+    if (hasPrice) {
+      // 가격 있는 항목: 이전에 같은 이름(부분 일치)으로 가격 없이 추가된 게 있으면 제거
+      const dupIdx = deduped.findIndex(
+        (d) => (!d.price || d.price === 0) &&
+               (p.product_name.includes(d.product_name) || d.product_name.includes(p.product_name))
+      );
+      if (dupIdx >= 0) deduped.splice(dupIdx, 1);
+      deduped.push(p);
+    } else {
+      // 가격 없는 항목: 이미 같은 이름으로 가격 있는 게 있으면 스킵
+      const alreadyHasPrice = deduped.some(
+        (d) => d.price && d.price > 0 &&
+               (p.product_name.includes(d.product_name) || d.product_name.includes(p.product_name))
+      );
+      if (!alreadyHasPrice) deduped.push(p);
+    }
+  }
+
   // 결제금액 추출
   let totalAmount = 0;
   const payMatch = text.match(/결제\s*금액\s*[:：]?\s*([\d,]+)\s*원/);
@@ -1071,10 +1096,10 @@ function parseCoupangEmail(text, dateHint) {
     if (dm) orderDate = `${dm[1]}.${dm[2].padStart(2, "0")}.${dm[3].padStart(2, "0")}`;
   }
 
-  if (products.length === 0) return null;
+  if (deduped.length === 0) return null;
   return {
     order_date: orderDate,
-    products,
+    products: deduped,
     total_amount: totalAmount,
     order_id: orderId,
   };
