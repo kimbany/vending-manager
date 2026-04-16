@@ -299,6 +299,11 @@ function saveAccountEdit(){
   }
 }
 
+function initSecuritySection(){
+  renderVmmsAccountStatus();
+  renderMailForwardStatus();
+}
+
 function renderVmmsAccountStatus(){
   var el = document.getElementById('vmms-account-status');
   var btn = document.getElementById('vmms-account-btn');
