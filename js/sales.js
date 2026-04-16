@@ -246,9 +246,7 @@ function _doRenderSalesStats(machineDataList, range, panel){
   } else if(totalQty > 0 && alreadyDeducted){
     html += '<div style="width:100%;margin-top:10px;background:rgba(122,218,154,.08);border:1px solid rgba(122,218,154,.25);border-radius:8px;padding:10px;text-align:center">';
     html += '<div style="font-size:12px;font-weight:600;color:var(--green)">✅ 이 기간은 이미 재고 차감 완료</div>';
-    if(!hasCost){
-      html += '<button onclick="backfillSalesCost()" style="margin-top:6px;background:transparent;border:1px solid var(--border);border-radius:6px;padding:6px 14px;font-size:11px;color:var(--text3);cursor:pointer;font-family:inherit">💰 원가 보정 (입고 데이터 기반)</button>';
-    }
+    html += '<button onclick="backfillSalesCost()" style="margin-top:6px;background:transparent;border:1px solid var(--border);border-radius:6px;padding:6px 14px;font-size:11px;color:var(--text3);cursor:pointer;font-family:inherit">💰 원가 보정 (입고 데이터 기반)</button>';
     html += '</div>';
   }
   html += '</div>';
@@ -624,7 +622,7 @@ function deductInventoryForPeriod(){
 }
 
 // 이미 차감 완료된 기간에 원가 데이터만 보정 (재고 수량은 건드리지 않음)
-// stockIn 배치의 unitCost 를 기반으로 salesCost 레코드를 채워넣음.
+// stockIn 배치의 unitCost 기준. 자판기 경계 없이 위치 전체에서 단가 조회.
 function backfillSalesCost(){
   if(!confirm('입고된 제품의 원가를 기준으로 이익을 계산합니다.\n재고 수량은 변하지 않습니다. 계속할까요?')) return;
   var range = getSalesDateRange();
@@ -639,76 +637,101 @@ function backfillSalesCost(){
     });
 
     Promise.all(promises).then(function(results){
-      var totalAdded = 0;
-
-      var savePs = results.map(function(r){
+      // 1. 위치 전체의 제품명/ID → 가중평균 단가 맵 (자판기 경계 무시)
+      var globalCostMap = {}; // key (lowercase name 또는 productId) → unitCost
+      var prodIdToName = {};
+      results.forEach(function(r){
         var prodsM = r.val.products || [];
         if(!Array.isArray(prodsM)) prodsM = Object.values(prodsM);
+        prodsM.forEach(function(p){
+          if(p.id && p.name) prodIdToName[p.id] = p.name.trim().toLowerCase();
+        });
+      });
+      var byName = {}; // lowercase name → {totalCost, totalQty}
+      results.forEach(function(r){
         var stockIn = r.val.stockIn || [];
         if(!Array.isArray(stockIn)) stockIn = Object.values(stockIn);
-        var sc = r.val.salesCost || [];
-        if(!Array.isArray(sc)) sc = Object.values(sc);
-
-        // 이미 원가가 있는 txId 세트
-        var existingTxIds = {};
-        sc.forEach(function(c){ if(c.saleId) existingTxIds[c.saleId] = true; });
-
-        // 제품별 가중평균 단가 계산 (stockIn 배치 기반)
-        var prodCostMap = {}; // productId → weightedAvgUnitCost
         stockIn.forEach(function(b){
           if(!b.productId || !b.unitCost) return;
-          if(!prodCostMap[b.productId]) prodCostMap[b.productId] = {totalCost:0, totalQty:0};
-          prodCostMap[b.productId].totalCost += (b.unitCost||0) * (b.quantity||0);
-          prodCostMap[b.productId].totalQty += (b.quantity||0);
+          var nm = prodIdToName[b.productId] || '';
+          var key = nm || b.productId;
+          if(!byName[key]) byName[key] = {totalCost:0, totalQty:0};
+          byName[key].totalCost += (b.unitCost||0) * (b.quantity||0);
+          byName[key].totalQty += (b.quantity||0);
         });
-        // 제품명 → 단가 매핑도 만듦
-        var nameCostMap = {};
-        prodsM.forEach(function(p){
-          var pc = prodCostMap[p.id];
-          if(pc && pc.totalQty > 0){
-            nameCostMap[p.name ? p.name.trim().toLowerCase() : ''] = Math.round(pc.totalCost / pc.totalQty);
-            nameCostMap[p.id] = Math.round(pc.totalCost / pc.totalQty);
-          }
-        });
+      });
+      Object.keys(byName).forEach(function(k){
+        var v = byName[k];
+        if(v.totalQty > 0) globalCostMap[k] = Math.round(v.totalCost / v.totalQty);
+      });
+      console.log('[원가보정] 단가 맵:', globalCostMap);
 
-        // 기간 내 판매 건 중 원가 없는 것에 보정
+      function findCost(sale){
+        // productId 우선 (productId → name → cost)
+        if(sale.productId){
+          var nm = prodIdToName[sale.productId];
+          if(nm && globalCostMap[nm]) return {cost:globalCostMap[nm], via:'pid→name'};
+          if(globalCostMap[sale.productId]) return {cost:globalCostMap[sale.productId], via:'pid'};
+        }
+        // itemName 완전 일치
+        if(sale.itemName){
+          var sn = sale.itemName.trim().toLowerCase();
+          if(globalCostMap[sn]) return {cost:globalCostMap[sn], via:'name-exact'};
+          // 부분 매칭
+          var found = null;
+          Object.keys(globalCostMap).forEach(function(k){
+            if(!found && k.length > 2 && (sn.indexOf(k) >= 0 || k.indexOf(sn) >= 0)){
+              found = {cost:globalCostMap[k], via:'name-partial:'+k};
+            }
+          });
+          if(found) return found;
+        }
+        return null;
+      }
+
+      var totalAdded = 0, totalUpdated = 0, totalSkipped = 0, totalNoMatch = 0;
+
+      var savePs = results.map(function(r){
+        var sc = r.val.salesCost || [];
+        if(!Array.isArray(sc)) sc = Object.values(sc);
         var sales = (r.val.salesData||[]).filter(function(s){
           return s.date>=range.from && s.date<=range.to && !s.cancelled;
         });
+        // txId → salesCost 레코드 인덱스
+        var txToScIdx = {};
+        sc.forEach(function(c, i){ if(c.saleId) txToScIdx[c.saleId] = i; });
 
         sales.forEach(function(s){
-          if(!s.txId || existingTxIds[s.txId]) return; // 이미 있으면 스킵
-          var unitCost = 0;
-          // productId 로 찾기
-          if(s.productId && nameCostMap[s.productId]) unitCost = nameCostMap[s.productId];
-          // itemName 으로 찾기
-          if(!unitCost && s.itemName){
-            var sn = s.itemName.trim().toLowerCase();
-            if(nameCostMap[sn]) unitCost = nameCostMap[sn];
-            // 부분 매칭
-            if(!unitCost){
-              Object.keys(nameCostMap).forEach(function(k){
-                if(!unitCost && k.length > 2 && (sn.indexOf(k) >= 0 || k.indexOf(sn) >= 0)){
-                  unitCost = nameCostMap[k];
-                }
-              });
+          if(!s.txId){ totalSkipped++; return; }
+          var found = findCost(s);
+          if(!found){ totalNoMatch++; return; }
+          var existing = txToScIdx[s.txId];
+          if(existing !== undefined){
+            // 이미 있으면 unitCost 가 0이거나 낮으면 덮어쓰기
+            if(!sc[existing].unitCost || sc[existing].unitCost <= 0){
+              sc[existing].unitCost = found.cost;
+              sc[existing].stockInId = 'backfill';
+              sc[existing].quantity = s.qty||1;
+              totalUpdated++;
+            } else {
+              totalSkipped++;
             }
-          }
-          if(unitCost > 0){
-            sc.push({ saleId: s.txId, stockInId: 'backfill', quantity: s.qty||1, unitCost: unitCost });
+          } else {
+            sc.push({ saleId:s.txId, stockInId:'backfill', quantity:s.qty||1, unitCost:found.cost });
             totalAdded++;
           }
         });
 
         var ref = db.ref('users/'+currentUser.uid+'/locations/'+currentLocationId+'/machines/'+r.mid+'/appData');
-        if(r.mid === currentMachineId){
-          D.salesCost = sc;
-        }
+        if(r.mid === currentMachineId){ D.salesCost = sc; }
         return ref.update({ salesCost: sc });
       });
 
       Promise.all(savePs).then(function(){
-        showToast('💰 원가 보정 완료 ('+totalAdded+'건)');
+        var msg = '💰 원가 보정: 추가 '+totalAdded+'건, 갱신 '+totalUpdated+'건';
+        if(totalNoMatch > 0) msg += ', 매칭실패 '+totalNoMatch+'건';
+        console.log('[원가보정]', msg);
+        showToast(msg);
         renderAll();
       });
     });
