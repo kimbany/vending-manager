@@ -585,12 +585,44 @@ function crawlCoupangPurchases(){
 function _initCoupangDateRange(){
   var from = document.getElementById('coupang-date-from');
   var to = document.getElementById('coupang-date-to');
-  if(!from || !to || from.value) return; // 이미 설정돼 있으면 건드리지 않음
+  if(!from || !to || from.value) return;
+  _setCoupangDatePreset('week');
+}
+
+function _setCoupangDatePreset(preset){
+  var from = document.getElementById('coupang-date-from');
+  var to = document.getElementById('coupang-date-to');
+  if(!from || !to) return;
   var today = new Date();
-  var weekAgo = new Date(today);
-  weekAgo.setDate(weekAgo.getDate() - 7);
+  var start = new Date(today);
+
+  if(preset==='today'){
+    // 오늘 하루
+  } else if(preset==='yesterday'){
+    start.setDate(start.getDate() - 1);
+    today = new Date(start); // to 도 어제
+  } else if(preset==='week'){
+    start.setDate(start.getDate() - 7);
+  } else if(preset==='month'){
+    start.setMonth(start.getMonth() - 1);
+  }
+
+  from.value = start.toISOString().slice(0,10);
   to.value = today.toISOString().slice(0,10);
-  from.value = weekAgo.toISOString().slice(0,10);
+
+  // 선택된 버튼 하이라이트
+  var btns = document.querySelectorAll('.coupang-date-preset');
+  btns.forEach(function(b){
+    b.style.background = 'var(--bg2)';
+    b.style.color = 'var(--text2)';
+    b.style.borderColor = 'var(--border)';
+  });
+  var labels = {today:0, yesterday:1, week:2, month:3};
+  if(labels[preset] !== undefined && btns[labels[preset]]){
+    btns[labels[preset]].style.background = 'var(--blue)';
+    btns[labels[preset]].style.color = '#fff';
+    btns[labels[preset]].style.borderColor = 'var(--blue)';
+  }
 }
 
 function loadCoupangOrders(){
