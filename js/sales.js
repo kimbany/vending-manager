@@ -241,14 +241,17 @@ function _doRenderSalesStats(machineDataList, range, panel){
     if(allDeducted) alreadyDeducted = true;
   }
 
-  if(totalQty > 0 && !isOnlyToday && !alreadyDeducted){
+  if(totalQty > 0 && !alreadyDeducted){
     html += '<button onclick="deductInventoryForPeriod()" style="width:100%;margin-top:10px;background:rgba(224,88,88,.12);border:1px solid rgba(224,88,88,.3);border-radius:8px;padding:10px;font-size:13px;font-weight:700;color:var(--red);cursor:pointer;font-family:inherit">📦 이 기간 재고 차감 ('+fmt(totalQty)+'개)</button>';
-  } else if(totalQty > 0 && !isOnlyToday && alreadyDeducted){
+  } else if(totalQty > 0 && alreadyDeducted){
     html += '<div style="width:100%;margin-top:10px;background:rgba(122,218,154,.08);border:1px solid rgba(122,218,154,.25);border-radius:8px;padding:10px;font-size:12px;font-weight:600;color:var(--green);text-align:center">✅ 이 기간은 이미 재고 차감 완료</div>';
   }
   html += '</div>';
 
   // 제품 판매 순위
+  // 제품별 이익 계산
+  var prodProfits = (typeof calculateProductProfits === 'function') ? calculateProductProfits(range.from, range.to) : {};
+
   if(prodRank.length){
     html += '<div class="card" style="margin-bottom:12px">';
     html += '<div class="ch"><div class="ca" style="background:var(--blue)"></div><div><div class="ct">🏆 제품 판매 순위 ('+prodRank.length+'종)</div></div></div>';
@@ -259,12 +262,20 @@ function _doRenderSalesStats(machineDataList, range, panel){
       if(!showAll && i >= 10) return;
       var pct = Math.round(item.qty / maxQ * 100);
       var color = item.unmatched ? 'var(--text3)' : i===0 ? '#F5A623' : i===1 ? '#8B95A1' : i===2 ? '#CD7F32' : 'var(--blue)';
+      var pp = prodProfits[item.name];
       html += '<div style="margin-bottom:10px">';
       html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">';
       html += '<span style="font-size:11px;color:var(--text3);min-width:20px;font-weight:700">#'+(i+1)+'</span>';
       html += '<span style="font-size:13px;flex:1;margin:0 6px">'+ item.name +'</span>';
       html += '<span style="font-size:12px;font-weight:700;color:'+color+'">'+item.qty+'개</span>';
       html += '</div>';
+      if(pp && pp.cost > 0){
+        html += '<div style="display:flex;gap:8px;font-size:11px;color:var(--text3);margin-bottom:3px;padding-left:26px">';
+        html += '<span>매출 '+fmt(pp.revenue)+'원</span>';
+        html += '<span>원가 '+fmt(pp.cost)+'원</span>';
+        html += '<span style="color:var(--green);font-weight:700">이익 '+fmt(pp.profit)+'원 ('+pp.margin+'%)</span>';
+        html += '</div>';
+      }
       html += '<div style="height:4px;background:var(--bg3);border-radius:2px">';
       html += '<div style="height:4px;width:'+pct+'%;background:'+color+';border-radius:2px"></div></div>';
       html += '</div>';
@@ -274,12 +285,20 @@ function _doRenderSalesStats(machineDataList, range, panel){
       prodRank.slice(10).forEach(function(item, ii){
         var i = ii + 10;
         var pct = Math.round(item.qty / maxQ * 100);
+        var pp = prodProfits[item.name];
         html += '<div style="margin-bottom:10px">';
         html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">';
         html += '<span style="font-size:11px;color:var(--text3);min-width:20px;font-weight:700">#'+(i+1)+'</span>';
         html += '<span style="font-size:13px;flex:1;margin:0 6px">'+item.name+'</span>';
         html += '<span style="font-size:12px;font-weight:700;color:var(--blue)">'+item.qty+'개</span>';
         html += '</div>';
+        if(pp && pp.cost > 0){
+          html += '<div style="display:flex;gap:8px;font-size:11px;color:var(--text3);margin-bottom:3px;padding-left:26px">';
+          html += '<span>매출 '+fmt(pp.revenue)+'원</span>';
+          html += '<span>원가 '+fmt(pp.cost)+'원</span>';
+          html += '<span style="color:var(--green);font-weight:700">이익 '+fmt(pp.profit)+'원 ('+pp.margin+'%)</span>';
+          html += '</div>';
+        }
         html += '<div style="height:4px;background:var(--bg3);border-radius:2px">';
         html += '<div style="height:4px;width:'+pct+'%;background:var(--blue);border-radius:2px"></div></div>';
         html += '</div>';

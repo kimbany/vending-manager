@@ -172,6 +172,46 @@ function calculateProfit(fromDate, toDate){
   };
 }
 
+// 제품별 원가/이익 계산 (판매 순위 표시용)
+function calculateProductProfits(fromDate, toDate){
+  var salesCost = D.salesCost || [];
+  var salesData = D.salesData || [];
+  var result = {}; // productName → { cost, revenue, profit, margin }
+
+  var periodSales = salesData.filter(function(s){
+    return s.date >= fromDate && s.date <= toDate && !s.cancelled;
+  });
+
+  // txId → productId/productName 매핑
+  var txToProduct = {};
+  periodSales.forEach(function(s){
+    if(!s.txId) return;
+    var p = null;
+    if(s.productId && typeof gp==='function') p = gp(s.productId);
+    if(!p && s.itemName) p = (D.products||[]).find(function(x){ return x.name && x.name.trim() === (s.itemName||'').trim(); });
+    var name = p ? p.name : (s.itemName || '미매칭');
+    txToProduct[s.txId] = name;
+    if(!result[name]) result[name] = { cost:0, revenue:0, profit:0, margin:0 };
+    result[name].revenue += (s.amt || s.amount || 0);
+  });
+
+  // salesCost 에서 원가 집계
+  salesCost.forEach(function(sc){
+    var name = txToProduct[sc.saleId];
+    if(!name || !result[name]) return;
+    result[name].cost += (sc.unitCost || 0) * (sc.quantity || 0);
+  });
+
+  // 이익/이익률 계산
+  Object.keys(result).forEach(function(name){
+    var r = result[name];
+    r.profit = r.revenue - r.cost;
+    r.margin = r.revenue > 0 ? Math.round(r.profit / r.revenue * 100) : 0;
+  });
+
+  return result;
+}
+
 // ─── D 객체에 새 필드 초기화 ─────────────────────────────────────────────────
 function initStockData(){
   if(!D.stockIn) D.stockIn = [];
