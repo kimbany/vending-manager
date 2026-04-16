@@ -637,51 +637,59 @@ function backfillSalesCost(){
     });
 
     Promise.all(promises).then(function(results){
-      // 1. 위치 전체의 제품명/ID → 가중평균 단가 맵 (자판기 경계 무시)
-      var globalCostMap = {}; // key (lowercase name 또는 productId) → unitCost
-      var prodIdToName = {};
+      // 1. products 전체 수집: id / productCode / name 세 키로 동일 제품 매핑
+      var keyToName = {}; // p.id / p.productCode → lowercase name
+      var allProducts = [];
       results.forEach(function(r){
         var prodsM = r.val.products || [];
         if(!Array.isArray(prodsM)) prodsM = Object.values(prodsM);
         prodsM.forEach(function(p){
-          if(p.id && p.name) prodIdToName[p.id] = p.name.trim().toLowerCase();
+          if(!p.name) return;
+          var nm = p.name.trim().toLowerCase();
+          allProducts.push(p);
+          if(p.id) keyToName[p.id] = nm;
+          if(p.productCode) keyToName[p.productCode] = nm;
         });
       });
+
+      // 2. stockIn 배치를 제품명 기준으로 집계
+      // stockIn.productId 는 p.id 또는 p.productCode 일 수 있음
       var byName = {}; // lowercase name → {totalCost, totalQty}
       results.forEach(function(r){
         var stockIn = r.val.stockIn || [];
         if(!Array.isArray(stockIn)) stockIn = Object.values(stockIn);
         stockIn.forEach(function(b){
           if(!b.productId || !b.unitCost) return;
-          var nm = prodIdToName[b.productId] || '';
-          var key = nm || b.productId;
-          if(!byName[key]) byName[key] = {totalCost:0, totalQty:0};
-          byName[key].totalCost += (b.unitCost||0) * (b.quantity||0);
-          byName[key].totalQty += (b.quantity||0);
+          var nm = keyToName[b.productId];
+          if(!nm) return; // 매칭되는 제품 없으면 스킵
+          if(!byName[nm]) byName[nm] = {totalCost:0, totalQty:0};
+          byName[nm].totalCost += (b.unitCost||0) * (b.quantity||0);
+          byName[nm].totalQty += (b.quantity||0);
         });
       });
+
+      var globalCostMap = {}; // lowercase name → unitCost
       Object.keys(byName).forEach(function(k){
         var v = byName[k];
         if(v.totalQty > 0) globalCostMap[k] = Math.round(v.totalCost / v.totalQty);
       });
-      console.log('[원가보정] 단가 맵:', globalCostMap);
+      console.log('[원가보정] 제품명별 단가 맵:', globalCostMap);
 
       function findCost(sale){
-        // productId 우선 (productId → name → cost)
+        // 1) productId 로 제품 찾아 → 이름 → 단가
         if(sale.productId){
-          var nm = prodIdToName[sale.productId];
-          if(nm && globalCostMap[nm]) return {cost:globalCostMap[nm], via:'pid→name'};
-          if(globalCostMap[sale.productId]) return {cost:globalCostMap[sale.productId], via:'pid'};
+          var nm = keyToName[sale.productId];
+          if(nm && globalCostMap[nm]) return {cost:globalCostMap[nm], via:'pid→name:'+nm};
         }
-        // itemName 완전 일치
+        // 2) itemName 완전 일치
         if(sale.itemName){
           var sn = sale.itemName.trim().toLowerCase();
-          if(globalCostMap[sn]) return {cost:globalCostMap[sn], via:'name-exact'};
-          // 부분 매칭
+          if(globalCostMap[sn]) return {cost:globalCostMap[sn], via:'itemName:'+sn};
+          // 3) 부분 매칭
           var found = null;
           Object.keys(globalCostMap).forEach(function(k){
             if(!found && k.length > 2 && (sn.indexOf(k) >= 0 || k.indexOf(sn) >= 0)){
-              found = {cost:globalCostMap[k], via:'name-partial:'+k};
+              found = {cost:globalCostMap[k], via:'partial:'+k};
             }
           });
           if(found) return found;
