@@ -1589,64 +1589,12 @@ exports.receiveForwardedEmail = onRequest(
         console.error("[receiveForwardedEmail] gmail verify detection failed:", e);
       }
 
-      // 4. 사용자 신원 검증 — forwarder 의 메일 주소가 그 UID에 등록된
-      //    쿠팡 계정 이메일과 일치해야 함. 다르면 데이터 오염 방지를 위해 드롭.
-      //    예: mango(쿠팡=sgkim8848@naver.com)의 전달 주소로 gimbany@naver.com
-      //         에서 온 메일이 들어오면 → 거부.
-      let registeredCoupangEmail = "";
-      try {
-        const accSnap = await admin.database().ref(`users/${uid}/coupangAccount`).once("value");
-        const acc = accSnap.val();
-        if (acc && acc.email) {
-          // 저장 시 base64 또는 AES 암호화 — decryptAES 가 base64 폴백 처리함
-          try {
-            registeredCoupangEmail = decryptAES(acc.email, uid).toLowerCase().trim();
-          } catch (_) {
-            try { registeredCoupangEmail = Buffer.from(acc.email, "base64").toString("utf8").toLowerCase().trim(); }
-            catch (__) { registeredCoupangEmail = ""; }
-          }
-        }
-      } catch (e) {
-        console.error("[receiveForwardedEmail] coupangAccount read failed:", e);
-      }
-
-      if (registeredCoupangEmail) {
-        // 본문 안의 원본 To 헤더에서도 한 번 더 후보 추출 (자동전달 vs 수동전달
-        // 양쪽 호환). 원본 메일 헤더에는 "To: 사용자@naver.com" 형태로 들어있음.
-        const rawStrAll = String(raw || "");
-        let originalTo = "";
-        const toLineMatch = rawStrAll.match(/^To:\s*([^\r\n]+)/im);
-        if (toLineMatch) originalTo = extractAddr(toLineMatch[1]);
-
-        const matches = (a, b) => a && b && a === b;
-        const ok =
-          matches(fromAddr, registeredCoupangEmail) ||
-          matches(originalTo, registeredCoupangEmail);
-
-        if (!ok) {
-          // 검증 실패 — 데이터 오염 방지를 위해 드롭
-          const nowStr = new Date().toISOString().replace("T", " ").slice(0, 19);
-          await admin.database().ref(`users/${uid}/mailForward/last_received_at`).set(nowStr);
-          await admin.database().ref(`users/${uid}/mailForward/last_sender`).set(fromAddr.slice(0, 100));
-          await admin.database().ref(`users/${uid}/mailForward/last_rejected`).set({
-            at: nowStr,
-            reason: "coupang_account_mismatch",
-            from_addr: fromAddr.slice(0, 100),
-            original_to: originalTo.slice(0, 100),
-            registered: registeredCoupangEmail.slice(0, 100),
-          });
-          console.log(`[receiveForwardedEmail] account mismatch: from=${fromAddr}, original_to=${originalTo}, registered=${registeredCoupangEmail}, uid=${uid.slice(0, 8)}`);
-          res.status(200).json({
-            ok: true,
-            dropped: true,
-            reason: "coupang_account_mismatch",
-          });
-          return;
-        }
-      } else {
-        // 등록된 쿠팡 계정이 없는 경우 — 검증 불가. 일단 통과시키되 로그.
-        console.log(`[receiveForwardedEmail] no registered coupang account for uid=${uid.slice(0, 8)}, skipping identity check`);
-      }
+      // 4. 발신자 신원 검증 — 비활성화
+      //    이메일 전달 방식에서는 전달 주소(u-xxx@invendory.kr) 자체가 사용자별
+      //    고유하므로, 해당 주소로 도착한 메일은 해당 사용자의 것으로 신뢰.
+      //    기존의 coupangAccount 이메일 대조 검증은 네이버→Gmail 전환, 수동 전달
+      //    등 정상 시나리오에서 false positive 가 많아 제거함.
+      console.log(`[receiveForwardedEmail] identity check skipped (trust unique address) uid=${uid.slice(0, 8)} from=${fromAddr.slice(0, 40)}`);
 
       // 5. 발신자/본문 검증 — 쿠팡 관련 메일인지 판단
       //    네이버에서 사용자가 수동으로 "전달"한 경우 from은 본인 주소가 되고
