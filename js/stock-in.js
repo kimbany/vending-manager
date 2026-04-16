@@ -582,13 +582,42 @@ function crawlCoupangPurchases(){
 }
 
 // ─── Firebase에서 쿠팡 주문 데이터 로드 → 미입고 구매 목록 생성 ──────────────
+function _initCoupangDateRange(){
+  var from = document.getElementById('coupang-date-from');
+  var to = document.getElementById('coupang-date-to');
+  if(!from || !to || from.value) return; // 이미 설정돼 있으면 건드리지 않음
+  var today = new Date();
+  var weekAgo = new Date(today);
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  to.value = today.toISOString().slice(0,10);
+  from.value = weekAgo.toISOString().slice(0,10);
+}
+
 function loadCoupangOrders(){
   if(!currentUser) return;
-  showToast('⏳ 쿠팡 데이터 확인 중...');
 
-  db.ref('users/'+currentUser.uid+'/coupangOrders').orderByKey().limitToLast(7).once('value').then(function(snap){
+  // 날짜 범위 읽기
+  var fromEl = document.getElementById('coupang-date-from');
+  var toEl = document.getElementById('coupang-date-to');
+  _initCoupangDateRange();
+  var fromDate = (fromEl && fromEl.value) || '';
+  var toDate = (toEl && toEl.value) || '';
+
+  if(!fromDate || !toDate){
+    showToast('⚠️ 날짜를 선택해주세요');
+    return;
+  }
+
+  showToast('⏳ '+fromDate+' ~ '+toDate+' 데이터 확인 중...');
+
+  // Firebase key 는 날짜 문자열 (YYYY-MM-DD). orderByKey + startAt/endAt 으로 범위 쿼리.
+  db.ref('users/'+currentUser.uid+'/coupangOrders')
+    .orderByKey()
+    .startAt(fromDate)
+    .endAt(toDate)
+    .once('value').then(function(snap){
     var data = snap.val();
-    if(!data){showToast('📭 쿠팡 주문 데이터 없음');return;}
+    if(!data){showToast('📭 해당 기간 주문 데이터 없음');return;}
 
     // 기존 purchases 로드
     db.ref('users/'+currentUser.uid+'/purchases').once('value').then(function(pSnap){

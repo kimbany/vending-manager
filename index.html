@@ -273,6 +273,11 @@
       <div id="inv-panel-stock">
         <!-- 쿠팡 구매 내역 수집 -->
         <div style="margin-bottom:10px">
+          <div style="display:flex;gap:8px;margin-bottom:6px">
+            <input type="date" id="coupang-date-from" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:12px;font-family:inherit;background:var(--bg2);color:var(--text)"/>
+            <span style="align-self:center;font-size:12px;color:var(--text3)">~</span>
+            <input type="date" id="coupang-date-to" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:12px;font-family:inherit;background:var(--bg2);color:var(--text)"/>
+          </div>
           <button onclick="loadCoupangOrders()" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;font-family:inherit">📥 쿠팡 데이터 가져오기</button>
         </div>
         <!-- 미입고 목록 -->

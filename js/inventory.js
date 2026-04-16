@@ -8,6 +8,7 @@ function switchInvSub(sub){
   invSubCurrent = sub;
   var isStock = sub === 'stock';
   document.getElementById('inv-panel-stock').style.display = isStock ? 'block' : 'none';
+  if(isStock && typeof _initCoupangDateRange==='function') _initCoupangDateRange();
   document.getElementById('inv-panel-purchase').style.display = isStock ? 'none' : 'block';
   var btnStock    = document.getElementById('inv-sub-stock');
   var btnPurchase = document.getElementById('inv-sub-purchase');
