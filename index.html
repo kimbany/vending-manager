@@ -272,15 +272,6 @@
       <!-- 재고현황 서브탭 -->
       <div id="inv-panel-stock">
         <!-- 쿠팡 구매 내역 수집 -->
-        <div style="display:flex;gap:8px;margin-bottom:8px">
-          <button class="btn-p" style="flex:1;margin:0;background:#00A67E" id="mail-forward-btn" onclick="openMailForwardModal()">✉️ 쿠팡 메일 연동</button>
-        </div>
-        <div style="display:flex;gap:8px;margin-bottom:8px">
-          <button class="btn-p" style="flex:1;margin:0;background:#EA4335" id="gmail-sync-btn" onclick="syncCoupangFromGmail()">📧 Gmail로 쿠팡 주문 가져오기</button>
-        </div>
-        <div style="display:flex;gap:8px;margin-bottom:8px">
-          <button class="btn-p" style="flex:1;margin:0" id="coupang-crawl-btn" onclick="crawlCoupangPurchases()">🛒 쿠팡 크롤링 실행</button>
-        </div>
         <div style="margin-bottom:10px">
           <button onclick="loadCoupangOrders()" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;font-family:inherit">📥 쿠팡 데이터 가져오기</button>
         </div>
@@ -486,10 +477,10 @@
           </div>
           <!-- 쿠팡 계정 -->
           <div style="background:var(--bg3);border-radius:10px;padding:14px">
-            <div style="font-size:13px;font-weight:700;margin-bottom:4px">🛒 쿠팡 계정</div>
-            <div style="font-size:11px;color:var(--text3);margin-bottom:8px">주문내역 자동 수집용</div>
-            <div id="coupang-account-status" style="font-size:13px;color:var(--text2);margin-bottom:8px">미등록</div>
-            <button onclick="openAccountEditModal('coupang')" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;font-family:inherit" id="coupang-account-btn">쿠팡 계정 등록</button>
+            <div style="font-size:13px;font-weight:700;margin-bottom:4px">✉️ 쿠팡 메일 연동</div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:8px">쿠팡 주문 메일 자동 수집 설정</div>
+            <div id="mail-forward-status" style="font-size:13px;color:var(--text2);margin-bottom:8px">미설정</div>
+            <button onclick="openMailForwardModal()" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;font-family:inherit" id="mail-forward-settings-btn">메일 연동 설정</button>
           </div>
         </div>
 
@@ -1097,7 +1088,7 @@
 <script src="js/double-column.js"></script>
 <script src="js/bulk.js"></script>
 <script src="js/coupang.js"></script>
-<script src="js/stock-in.js?v=20260414b"></script>
+<script src="js/stock-in.js?v=20260416a"></script>
 <script src="js/crawl.js"></script>
 <script src="js/lock.js"></script>
 <script src="js/ui.js"></script>
