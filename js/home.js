@@ -177,8 +177,22 @@ function renderAllMachineLowStock(){
         });
       }
 
+      // 위치명 찾기 (locSnap 에서 devno 로 역조회)
+      var _machLabel = devno;
+      if(locSnap){
+        Object.keys(locSnap).forEach(function(locId){
+          var loc = locSnap[locId];
+          Object.keys(loc.machines||{}).forEach(function(mid){
+            var m = loc.machines[mid];
+            var devnos = Array.isArray(m.deviceNos)?m.deviceNos:(m.deviceNo?[m.deviceNo]:[]);
+            if(devnos.indexOf(devno)>=0){
+              _machLabel = (loc.name||locId) + ' · ' + devno;
+            }
+          });
+        });
+      }
+
       var locLow = [];
-      // 제품별 재고 확인
       var seen = {};
       columns.forEach(function(c){
         var code = c.productCode||'';
@@ -186,18 +200,17 @@ function renderAllMachineLowStock(){
         var id = code||name;
         if(seen[id]) return;
         seen[id] = true;
-        // stockIn(batch)에서 해당 제품 찾고, 없으면 inventory(구 시스템)
         var q = 0, siFound = false;
         stockIn.forEach(function(b){ if(b.productId===id){ q+=(b.remainingQty||0); siFound=true; } });
         if(!siFound){ var qi = inv.find(function(x){return x.productId===id;}); q = qi ? qi.qty : 0; }
-        if(q <= lt2) locLow.push({p:{name:name}, q:q, machineName:vm.machineName||''});
+        if(q <= lt2) locLow.push({p:{name:name}, q:q});
       });
       if(!locLow.length) return;
       totalLow += locLow.length;
       var itemsHtml = locLow.map(function(x){
-        return '<div class="li"><div style="min-width:0"><div class="in">'+x.p.name+'</div><div class="is">'+x.machineName+'</div></div><span class="badge '+(x.q===0?'br':'bo')+'">'+x.q+'개</span></div>';
+        return '<div class="li"><div style="min-width:0"><div class="in">'+x.p.name+'</div></div><span class="badge '+(x.q===0?'br':'bo')+'">'+x.q+'개</span></div>';
       }).join('');
-      cards.push('<div class="low-stock-card"><div style="font-size:12px;font-weight:700;color:var(--blue);padding:0 0 6px">🏪 '+(vm.machineName||devno)+' <span style="color:var(--red)">('+locLow.length+')</span></div>'+itemsHtml+'</div>');
+      cards.push('<div class="low-stock-card"><div style="font-size:12px;font-weight:700;color:var(--blue);padding:0 0 6px">🏪 '+_machLabel+' <span style="color:var(--red)">('+locLow.length+')</span></div>'+itemsHtml+'</div>');
     });
 
     if(!totalLow){
