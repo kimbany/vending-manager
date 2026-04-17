@@ -637,6 +637,10 @@ function _initCoupangDateRange(){
   _setCoupangDatePreset('week');
 }
 
+function _localDateStr(d){
+  return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);
+}
+
 function _setCoupangDatePreset(preset){
   var from = document.getElementById('coupang-date-from');
   var to = document.getElementById('coupang-date-to');
@@ -648,15 +652,15 @@ function _setCoupangDatePreset(preset){
     // 오늘 하루
   } else if(preset==='yesterday'){
     start.setDate(start.getDate() - 1);
-    today = new Date(start); // to 도 어제
+    today = new Date(start);
   } else if(preset==='week'){
     start.setDate(start.getDate() - 7);
   } else if(preset==='month'){
     start.setMonth(start.getMonth() - 1);
   }
 
-  from.value = start.toISOString().slice(0,10);
-  to.value = today.toISOString().slice(0,10);
+  from.value = _localDateStr(start);
+  to.value = _localDateStr(today);
 
   // 선택된 버튼 하이라이트
   var btns = document.querySelectorAll('.coupang-date-preset');
