@@ -1364,6 +1364,15 @@ function extractEmailBody(raw) {
         continue;
       }
 
+      // message/rfc822 (Gmail 자동 전달 등 — 원본 메일이 첨부 형태로 포함)
+      if (partLower.includes("content-type: message/rfc822")) {
+        const nested = extractEmailBody(part);
+        if (nested && nested.length > (htmlPart || plainPart || "").length) {
+          htmlPart = nested;
+        }
+        continue;
+      }
+
       if (partLower.includes("content-type: text/html")) {
         htmlPart = _decodeMimePart(part);
       } else if (partLower.includes("content-type: text/plain") && !plainPart) {
