@@ -251,6 +251,17 @@ function renderInv(){
           if(ep.sellPrice!=null) vp.sellPrice = ep.sellPrice;
           if(ep.buyPrice!=null) vp.buyPrice = ep.buyPrice;
         }
+        // sellPrice 가 비어있으면 판매 데이터에서 추출
+        if(!vp.sellPrice){
+          var salesData = isCurrent ? D.salesData : [];
+          if(salesData && salesData.length){
+            var matched = salesData.find(function(s){
+              return !s.cancelled && s.amt > 0 && s.qty > 0 &&
+                s.itemName && s.itemName.trim() === vp.name.trim();
+            });
+            if(matched) vp.sellPrice = Math.round(matched.amt / matched.qty);
+          }
+        }
       });
 
       // locSnap에서 deviceNo로 위치명/자판기종류/ID 조회
