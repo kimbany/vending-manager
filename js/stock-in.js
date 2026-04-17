@@ -27,11 +27,23 @@ users/{uid}/
 */
 
 // ─── 현재 재고 조회 (batch remaining 합산) ───────────────────────────────────
+function _getProductIdSet(productId){
+  var ids = {};
+  ids[productId] = true;
+  var prod = findProductById(productId);
+  if(prod){
+    if(prod.id) ids[prod.id] = true;
+    if(prod.productCode) ids[String(prod.productCode).trim()] = true;
+  }
+  return ids;
+}
+
 function getStockQty(productId){
   var stockIn = D.stockIn || [];
+  var ids = _getProductIdSet(productId);
   var total = 0;
   stockIn.forEach(function(b){
-    if(b.productId === productId) total += (b.remainingQty || 0);
+    if(ids[b.productId]) total += (b.remainingQty || 0);
   });
   return total;
 }
@@ -40,8 +52,9 @@ function getStockQty(productId){
 // 오래된 batch부터 차감, 사용한 batch별 원가 배열 반환
 function fifoDeduct(productId, qty){
   var stockIn = D.stockIn || [];
+  var ids = _getProductIdSet(productId);
   var batches = stockIn
-    .filter(function(b){ return b.productId === productId && b.remainingQty > 0; })
+    .filter(function(b){ return ids[b.productId] && b.remainingQty > 0; })
     .sort(function(a,b){ return (a.date||'').localeCompare(b.date||'') || (a.id||'').localeCompare(b.id||''); });
 
   var remaining = qty;
@@ -115,22 +128,23 @@ function deductSale(productId, qty, saleTxId){
 // ─── 제품별 입고 내역 조회 ───────────────────────────────────────────────────
 function getStockInHistory(productId){
   var stockIn = D.stockIn || [];
+  var ids = _getProductIdSet(productId);
   return stockIn
-    .filter(function(b){ return b.productId === productId; })
-    .sort(function(a,b){ return (b.date||'').localeCompare(a.date||''); }); // 최신순
+    .filter(function(b){ return ids[b.productId]; })
+    .sort(function(a,b){ return (b.date||'').localeCompare(a.date||''); });
 }
 
 // ─── 제품별 차감 내역 조회 ───────────────────────────────────────────────────
 function getDeductionHistory(productId){
   var deductions = D.stockDeductions || [];
-  // 판매 차감도 salesData에서 가져오기
+  var ids = _getProductIdSet(productId);
   var salesDeductions = (D.salesData || [])
-    .filter(function(s){ return s.productId === productId && !s.cancelled; })
+    .filter(function(s){ return ids[s.productId] && !s.cancelled; })
     .map(function(s){
       return { date: s.date, quantity: s.qty || 1, reason: 'sale', memo: '판매 (자동)', txId: s.txId };
     });
   var manualDeductions = deductions
-    .filter(function(d){ return d.productId === productId; })
+    .filter(function(d){ return ids[d.productId]; })
     .map(function(d){
       return { date: d.date, quantity: d.quantity, reason: d.reason, memo: d.memo };
     });
