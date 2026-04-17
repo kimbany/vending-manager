@@ -793,6 +793,7 @@ function loadCoupangPending(){
           '<span style="font-size:11px;color:'+matchColor+'">'+matchLabel+'</span>'+
           (!mapped ? '<button onclick="openMatchingModal(\''+safeName+'\')" style="font-size:11px;background:var(--blue);color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-family:inherit">제품 매칭</button>' : '')+
           (mapped ? '<button onclick="stockInFromPurchaseById(\''+safeId+'\')" style="font-size:11px;background:var(--green);color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-family:inherit">입고 처리</button>' : '')+
+          (mapped ? '<button onclick="openMatchingModal(\''+safeName+'\')" style="font-size:11px;background:var(--bg3);color:var(--text2);border:1px solid var(--border);border-radius:6px;padding:4px 10px;cursor:pointer;font-family:inherit">매칭 수정</button>' : '')+
           '<button onclick="skipPurchaseById(\''+safeId+'\')" style="font-size:11px;background:var(--bg3);color:var(--text2);border:1px solid var(--border);border-radius:6px;padding:4px 10px;cursor:pointer;font-family:inherit">건너뛰기</button>'+
         '</div>'+
       '</div>';
