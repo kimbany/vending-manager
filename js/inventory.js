@@ -468,18 +468,60 @@ function applyInventoryChange(pid, delta, memo){
   }
 }
 
-function submitInventory(){
-  var pid=document.getElementById('inv-product').value;
-  var qty=parseInt(document.getElementById('inv-qty').value);
-  var memo=document.getElementById('inv-memo').value;
-  if(!pid||isNaN(qty)||qty<=0){showToast('❌ 제품과 수량을 입력하세요');return;}
-  var delta=invDir==='plus'?qty:-qty;
-  applyInventoryChange(pid,delta,memo);
+function openManualStockIn(){
+  // 제품 드롭다운 채우기 (현재 자판기의 제품 목록)
+  var sel = document.getElementById('inv-product');
+  if(!sel) return;
+  sel.innerHTML = '<option value="">-- 제품 선택 --</option>';
+  (D.products||[]).sort(function(a,b){return (a.name||'').localeCompare(b.name||'');}).forEach(function(p){
+    sel.innerHTML += '<option value="'+p.id+'">'+p.name+'</option>';
+  });
+  // 초기화
+  document.getElementById('inv-units-per-box').value = '';
+  document.getElementById('inv-box-count').value = '';
+  document.getElementById('inv-total-price').value = '';
+  document.getElementById('inv-memo').value = '';
+  document.getElementById('inv-date').value = typeof td==='function' ? td() : new Date().toISOString().slice(0,10);
+  document.getElementById('inv-calc-preview').style.display = 'none';
+  openModal('inv-modal');
+}
+
+function _calcManualStockIn(){
+  var unitsPerBox = parseInt(document.getElementById('inv-units-per-box').value) || 0;
+  var boxCount = parseInt(document.getElementById('inv-box-count').value) || 0;
+  var totalPrice = parseInt(document.getElementById('inv-total-price').value) || 0;
+  var preview = document.getElementById('inv-calc-preview');
+  if(unitsPerBox > 0 && boxCount > 0){
+    var totalUnits = unitsPerBox * boxCount;
+    var unitCost = totalPrice > 0 ? Math.round(totalPrice / totalUnits) : 0;
+    preview.innerHTML =
+      '📦 입고 수량: <b>'+totalUnits+'개</b> ('+unitsPerBox+' × '+boxCount+'박스)' +
+      (unitCost > 0 ? '<br>💰 개당 원가: <b>'+unitCost+'원</b>' : '');
+    preview.style.display = 'block';
+  } else {
+    preview.style.display = 'none';
+  }
+}
+
+function submitManualStockIn(){
+  var pid = document.getElementById('inv-product').value;
+  var unitsPerBox = parseInt(document.getElementById('inv-units-per-box').value) || 0;
+  var boxCount = parseInt(document.getElementById('inv-box-count').value) || 0;
+  var totalPrice = parseInt(document.getElementById('inv-total-price').value) || 0;
+  var date = document.getElementById('inv-date').value || (typeof td==='function' ? td() : '');
+  var memo = document.getElementById('inv-memo').value.trim();
+
+  if(!pid){ showToast('❌ 제품을 선택하세요'); return; }
+  if(unitsPerBox <= 0 || boxCount <= 0){ showToast('❌ 박스당 수량과 구매 수량을 입력하세요'); return; }
+
+  var totalUnits = unitsPerBox * boxCount;
+  var unitCost = totalPrice > 0 ? Math.round(totalPrice / totalUnits) : 0;
+
+  initStockData();
+  addStockIn(pid, totalUnits, unitCost, 'manual', memo, date);
   save();
   closeModal('inv-modal');
-  document.getElementById('inv-qty').value='';
-  document.getElementById('inv-memo').value='';
-  showToast(invDir==='plus'?'✅ +'+qty+'개 입고 완료':'✅ -'+qty+'개 출고 완료');
+  showToast('✅ '+totalUnits+'개 입고 완료 (단가 '+(typeof fmt==='function'?fmt(unitCost):unitCost)+'원)');
   renderAll();
 }
 

@@ -294,7 +294,7 @@
           <div style="font-size:12px;font-weight:700;color:var(--blue);margin-bottom:8px">📦 미입고 구매 내역</div>
           <div id="coupang-pending-list"></div>
         </div>
-        <button class="btn-p" style="margin-bottom:10px" onclick="openModal('inv-type-modal')">➕ 수기 재고 입력</button>
+        <button class="btn-p" style="margin-bottom:10px" onclick="openManualStockIn()">➕ 수기 재고 입력</button>
         <div class="stabs" style="margin-bottom:10px">
           <button class="stab active" id="isort-name" onclick="setInvSort('name',this)">제품명</button>
           <button class="stab" id="isort-col" onclick="setInvSort('col',this)">컬럼순</button>
@@ -957,18 +957,19 @@
 <!-- 재고 모달 -->
 <div class="modal-bg" id="inv-modal">
   <div class="modal">
-    <div class="mh"><div class="mt">재고 입력</div><button class="mc" onclick="closeModal('inv-modal')">✕</button></div>
-    <div class="fr"><label class="lbl">제품 선택</label><select id="inv-product"></select></div>
-    <div class="fr"><label class="lbl">수량</label><input type="number" id="inv-qty" placeholder="수량 입력" min="1"/></div>
-    <div class="fr">
-      <label class="lbl">입출고 선택</label>
-      <div class="dbtns">
-        <button class="dbtn plus active" id="dir-plus" onclick="setDir('plus')">➕ 입고</button>
-        <button class="dbtn minus" id="dir-minus" onclick="setDir('minus')">➖ 출고</button>
-      </div>
+    <div class="mh"><div class="mt">➕ 수기 재고 입력</div><button class="mc" onclick="closeModal('inv-modal')">✕</button></div>
+    <div class="fr"><label class="lbl">제품 선택</label><select id="inv-product" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;background:var(--bg2);color:var(--text)"></select></div>
+    <div class="f2">
+      <div class="fr"><label class="lbl">박스당 수량 (낱개)</label><input type="number" id="inv-units-per-box" placeholder="예: 20" min="1" oninput="_calcManualStockIn()"/></div>
+      <div class="fr"><label class="lbl">구매 수량 (박스)</label><input type="number" id="inv-box-count" placeholder="예: 2" min="1" oninput="_calcManualStockIn()"/></div>
     </div>
-    <div class="fr"><label class="lbl">메모 (선택)</label><input type="text" id="inv-memo" placeholder="메모를 입력하세요"/></div>
-    <button class="btn-p" style="margin-bottom:0" onclick="submitInventory()">확인</button>
+    <div class="fr"><label class="lbl">구매 총액 (원)</label><input type="number" id="inv-total-price" placeholder="예: 51820" oninput="_calcManualStockIn()"/></div>
+    <div id="inv-calc-preview" style="background:var(--bg3);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:var(--text2);line-height:1.6;display:none"></div>
+    <div class="f2">
+      <div class="fr"><label class="lbl">날짜</label><input type="date" id="inv-date"/></div>
+      <div class="fr"><label class="lbl">메모 (선택)</label><input type="text" id="inv-memo" placeholder="슈퍼 구매 등"/></div>
+    </div>
+    <button class="btn-p" style="margin-bottom:0" onclick="submitManualStockIn()">입고 확인</button>
   </div>
 </div>
 
