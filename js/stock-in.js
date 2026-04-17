@@ -706,6 +706,39 @@ function _setCoupangDatePreset(preset){
   }
 }
 
+function deleteCoupangOrders(){
+  if(!currentUser) return;
+  _initCoupangDateRange();
+  var fromDate = (document.getElementById('coupang-date-from')||{}).value || '';
+  var toDate = (document.getElementById('coupang-date-to')||{}).value || '';
+  if(!fromDate || !toDate){ showToast('⚠️ 날짜를 선택해주세요'); return; }
+  var label = fromDate === toDate ? fromDate : fromDate+' ~ '+toDate;
+  if(!confirm(label+' 쿠팡 주문 데이터를 삭제할까요?\n(메일은 삭제되지 않아요. 다시 전달하면 복구 가능)')) return;
+
+  // coupangOrders 에서 해당 날짜 범위 삭제
+  db.ref('users/'+currentUser.uid+'/coupangOrders').orderByKey().startAt(fromDate).endAt(toDate).once('value').then(function(snap){
+    var data = snap.val();
+    if(!data){ showToast('📭 해당 기간 데이터 없음'); return; }
+    var updates = {};
+    Object.keys(data).forEach(function(dateKey){ updates[dateKey] = null; });
+    db.ref('users/'+currentUser.uid+'/coupangOrders').update(updates).then(function(){
+      // purchases 에서도 해당 날짜 구매 내역 제거
+      db.ref('users/'+currentUser.uid+'/purchases').once('value').then(function(pSnap){
+        var purchases = pSnap.val() || [];
+        if(!Array.isArray(purchases)) purchases = Object.values(purchases);
+        var filtered = purchases.filter(function(p){
+          var d = (p.purchaseDate||'').replace(/\./g,'-');
+          return !(d >= fromDate && d <= toDate);
+        });
+        db.ref('users/'+currentUser.uid+'/purchases').set(filtered).then(function(){
+          showToast('🗑️ '+label+' 데이터 삭제 완료 ('+Object.keys(data).length+'일치)');
+          loadCoupangPending();
+        });
+      });
+    });
+  });
+}
+
 function loadCoupangOrders(){
   if(!currentUser) return;
 

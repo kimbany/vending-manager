@@ -286,7 +286,10 @@
               <span style="align-self:center;font-size:12px;color:var(--text3)">~</span>
               <input type="date" id="coupang-date-to" style="flex:1;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:12px;font-family:inherit;background:var(--bg2);color:var(--text)"/>
             </div>
-            <button onclick="loadCoupangOrders()" style="width:100%;background:var(--blue);color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">가져오기</button>
+            <div style="display:flex;gap:6px">
+              <button onclick="loadCoupangOrders()" style="flex:1;background:var(--blue);color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">가져오기</button>
+              <button onclick="deleteCoupangOrders()" style="background:rgba(224,88,88,.1);color:var(--red);border:1px solid rgba(224,88,88,.3);border-radius:8px;padding:10px 14px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">삭제</button>
+            </div>
           </div>
         </div>
         <!-- 미입고 목록 -->
