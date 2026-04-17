@@ -168,18 +168,22 @@ function gq(pid){
     var total = 0;
     var key = normName(prod.name);
 
-    // stockIn 합산 (제품명 기준)
+    // stockIn 합산 (제품명 기준 — ID 체계 차이 대응)
     if(D.stockIn && D.stockIn.length){
       D.stockIn.forEach(function(b){
         if(!b || !b.remainingQty) return;
-        // batch의 productId가 이 제품의 id 또는 productCode면 포함
+        // 1) batch의 productId 가 이 제품의 id 또는 productCode 면 포함
         if(b.productId === prod.id) { total += b.remainingQty; return; }
         if(prod.productCode && (b.productId === prod.productCode || b.productCode === prod.productCode)) {
           total += b.remainingQty; return;
         }
-        // batch의 productId가 다른 제품이면 그 제품의 이름 비교
-        var otherProd = D.products.find(function(x){return x.id===b.productId;});
+        // 2) batch의 productId 로 D.products 에서 이름 찾아 비교
+        var otherProd = D.products.find(function(x){return x.id===b.productId || x.productCode===b.productId;});
         if(otherProd && otherProd.name && normName(otherProd.name)===key){
+          total += b.remainingQty; return;
+        }
+        // 3) batch의 memo 에서 제품명 포함 여부 (쿠팡 입고: "쿠팡 구매 (제품명)")
+        if(b.memo && key && normName(b.memo).indexOf(key) >= 0){
           total += b.remainingQty;
         }
       });
