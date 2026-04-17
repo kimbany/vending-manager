@@ -131,7 +131,11 @@ function getStockInHistory(productId){
   var ids = _getProductIdSet(productId);
   return stockIn
     .filter(function(b){ return ids[b.productId]; })
-    .sort(function(a,b){ return (b.date||'').localeCompare(a.date||''); });
+    .sort(function(a,b){
+      var dc = (b.date||'').localeCompare(a.date||'');
+      if(dc !== 0) return dc;
+      return (b.id||'').localeCompare(a.id||'');
+    });
 }
 
 // ─── 제품별 차감 내역 조회 ───────────────────────────────────────────────────
