@@ -138,16 +138,27 @@ function getStockInHistory(productId){
 function getDeductionHistory(productId){
   var deductions = D.stockDeductions || [];
   var ids = _getProductIdSet(productId);
-  var salesDeductions = (D.salesData || [])
-    .filter(function(s){ return ids[s.productId] && !s.cancelled; })
-    .map(function(s){
-      return { date: s.date, quantity: s.qty || 1, reason: 'sale', memo: '판매 (자동)', txId: s.txId };
-    });
-  var manualDeductions = deductions
-    .filter(function(d){ return ids[d.productId]; })
-    .map(function(d){
-      return { date: d.date, quantity: d.quantity, reason: d.reason, memo: d.memo };
-    });
+
+  // 판매 차감: 같은 날짜끼리 합산
+  var salesByDate = {};
+  (D.salesData || []).forEach(function(s){
+    if(!ids[s.productId] || s.cancelled) return;
+    var d = s.date || '';
+    if(!salesByDate[d]) salesByDate[d] = {date:d, quantity:0, reason:'sale', memo:'판매 (자동)'};
+    salesByDate[d].quantity += (s.qty || 1);
+  });
+  var salesDeductions = Object.values(salesByDate);
+
+  // 수기 차감: 같은 날짜+사유 합산
+  var manualByKey = {};
+  deductions.forEach(function(d){
+    if(!ids[d.productId]) return;
+    var key = (d.date||'') + '_' + (d.reason||'') + '_' + (d.memo||'');
+    if(!manualByKey[key]) manualByKey[key] = {date:d.date, quantity:0, reason:d.reason, memo:d.memo};
+    manualByKey[key].quantity += (d.quantity || 0);
+  });
+  var manualDeductions = Object.values(manualByKey);
+
   return salesDeductions.concat(manualDeductions)
     .sort(function(a,b){ return (b.date||'').localeCompare(a.date||''); });
 }
