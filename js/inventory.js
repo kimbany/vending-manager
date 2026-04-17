@@ -251,15 +251,20 @@ function renderInv(){
           if(ep.sellPrice!=null) vp.sellPrice = ep.sellPrice;
           if(ep.buyPrice!=null) vp.buyPrice = ep.buyPrice;
         }
-        // sellPrice 가 비어있으면 판매 데이터에서 추출
+        // sellPrice 가 비어있으면 판매 데이터에서 추출 (가장 최근 판매 기준)
         if(!vp.sellPrice){
           var salesData = isCurrent ? D.salesData : [];
           if(salesData && salesData.length){
-            var matched = salesData.find(function(s){
+            var matchedSales = salesData.filter(function(s){
               return !s.cancelled && s.amt > 0 && s.qty > 0 &&
                 s.itemName && s.itemName.trim() === vp.name.trim();
             });
-            if(matched) vp.sellPrice = Math.round(matched.amt / matched.qty);
+            if(matchedSales.length){
+              // 날짜+시간 기준 최신순 정렬
+              matchedSales.sort(function(a,b){ return (b.date||'').localeCompare(a.date||'') || (b.hour||0)-(a.hour||0); });
+              var latest = matchedSales[0];
+              vp.sellPrice = Math.round(latest.amt / latest.qty);
+            }
           }
         }
       });
@@ -530,6 +535,8 @@ function submitManualStockIn(){
 
   initStockData();
   addStockIn(pid, totalUnits, unitCost, 'manual', memo, date);
+  // inventory 배열도 함께 갱신 (gq 호환)
+  applyInventoryChange(pid, totalUnits, memo || '수기 입고');
   save();
   closeModal('inv-modal');
   showToast('✅ '+totalUnits+'개 입고 완료 (단가 '+(typeof fmt==='function'?fmt(unitCost):unitCost)+'원)');
