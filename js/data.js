@@ -103,15 +103,16 @@ function normName(s){ return (s||'').toString().trim().toLowerCase().replace(/\s
 // 어떤 소스(이름/ID/코드)든 받아서 D.products의 제품을 반환
 function findProduct(identifier){
   if(!identifier || !D.products) return null;
-  var key = normName(identifier);
+  var id = String(identifier).trim();
+  var key = normName(id);
   // 1차: id 직접 매칭
-  var p = D.products.find(function(x){return x.id===identifier;});
+  var p = D.products.find(function(x){return x.id===id;});
   if(p) return p;
   // 2차: 제품명 매칭 (공백/대소문자 무시)
   p = D.products.find(function(x){return x.name && normName(x.name)===key;});
   if(p) return p;
-  // 3차: productCode 매칭 (바코드)
-  p = D.products.find(function(x){return x.productCode===identifier;});
+  // 3차: productCode 매칭 (문자열 변환 + trim)
+  p = D.products.find(function(x){return x.productCode && String(x.productCode).trim()===id;});
   if(p) return p;
   return null;
 }
