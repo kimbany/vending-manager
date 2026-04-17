@@ -1006,6 +1006,8 @@ function getHeader(headers, name) {
  */
 function parseCoupangEmail(text, dateHint) {
   if (!text) return null;
+  // \u00A0 (non-breaking space) → 일반 공백 치환 (Gmail 전달 시 발생)
+  text = text.replace(/\u00A0/g, " ");
   const products = [];
 
   // 금액 패턴 (1,234원 또는 1234원)
