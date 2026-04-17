@@ -1676,9 +1676,17 @@ exports.receiveForwardedEmail = onRequest(
       await admin.database().ref(`users/${uid}/mailForward/last_received_at`).set(nowStr);
       await admin.database().ref(`users/${uid}/mailForward/last_sender`).set(fromLower.slice(0, 100));
 
+      // 파싱 디버그: 성공/실패 무관하게 본문 샘플 저장
+      await admin.database().ref(`users/${uid}/mailForward/last_parse_debug`).set({
+        at: nowStr,
+        subject: String(subject || "").slice(0, 200),
+        body_sample: bodyText.slice(0, 1500),
+        products_found: order ? (order.products || []).length : 0,
+        has_prices: order ? (order.products || []).some(p => p.price > 0) : false,
+      });
+
       if (!order || !order.products || order.products.length === 0) {
         console.log(`[receiveForwardedEmail] parse failed: to=${to}, subject=${subject}`);
-        // 파싱 실패한 샘플 본문 일부를 debug에 저장 (파서 개선용)
         await admin.database().ref(`users/${uid}/mailForward/last_parse_failed`).set({
           at: nowStr,
           subject: String(subject || "").slice(0, 200),
