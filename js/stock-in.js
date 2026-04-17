@@ -777,7 +777,7 @@ function loadCoupangPending(){
       var mapped = findMappedProduct(p.coupangProductName);
       // 매핑이 없으면 제품명 자동 매칭 시도
       if(!mapped && typeof findProduct === 'function'){
-        var autoProd = findProduct(p.coupangProductName);
+        var autoProd = findProductById(p.coupangProductName);
         if(autoProd){ mapped = {productId: autoProd.id, unitsPerBox: 1, auto: true}; }
       }
       var matchLabel = mapped ? (mapped.auto ? '🔗 자동매칭' : '✅ 매칭됨') : '⚠️ 매칭 필요';
@@ -1163,7 +1163,7 @@ function _stockInFromPurchaseAt(purchases, idx){
   var mapped = findMappedProduct(p.coupangProductName);
   // 자동 매칭 폴백: 제품명이 일치하는 D.products가 있으면 자동으로 매칭
   if(!mapped && typeof findProduct === 'function'){
-    var autoProd = findProduct(p.coupangProductName);
+    var autoProd = findProductById(p.coupangProductName);
     if(autoProd){
       mapped = { productId: autoProd.id, unitsPerBox: 1 };
     }

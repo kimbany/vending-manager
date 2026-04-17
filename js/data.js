@@ -101,7 +101,7 @@ function normName(s){ return (s||'').toString().trim().toLowerCase().replace(/\s
 
 // ─── 공통 제품 매칭 함수 (제품명 기준, 단일 소스 오브 트루스) ──────────────
 // 어떤 소스(이름/ID/코드)든 받아서 D.products의 제품을 반환
-function findProduct(identifier){
+function findProductById(identifier){
   if(!identifier || !D.products) return null;
   var id = String(identifier).trim();
   var key = normName(id);
@@ -122,12 +122,12 @@ function findProductForSale(sale){
   if(!sale) return null;
   // 1순위: itemName (제품명)
   if(sale.itemName){
-    var p = findProduct(sale.itemName);
+    var p = findProductById(sale.itemName);
     if(p) return p;
   }
   // 2순위: productId
   if(sale.productId){
-    var p2 = findProduct(sale.productId);
+    var p2 = findProductById(sale.productId);
     if(p2) return p2;
   }
   return null;
@@ -146,7 +146,7 @@ function findProductForPurchase(purchase){
   }
   // 2순위: 제품명 자동 매칭
   if(purchase.coupangProductName){
-    var p2 = findProduct(purchase.coupangProductName);
+    var p2 = findProductById(purchase.coupangProductName);
     if(p2) return p2;
   }
   return null;
@@ -161,7 +161,7 @@ if(typeof window !== 'undefined'){ window.DEBUG_GQ = function(on){ _gqDebug = !!
 function gq(pid){
   if(!pid) return 0;
   // D.products에서 제품 찾기 (id/이름/코드 모두 시도)
-  var prod = findProduct(pid);
+  var prod = findProductById(pid);
   if(_gqDebug) console.log('[gq]', pid, '→ prod:', prod ? (prod.name+' ('+prod.id+')') : 'NULL');
 
   // 제품을 찾았으면 해당 제품과 같은 이름인 모든 batch 합산
@@ -212,7 +212,7 @@ function gq(pid){
   }
   return 0;
 }
-function gp(id){ return findProduct(id); }
+function gp(id){ return findProductById(id); }
 function showToast(msg){
   var t=document.getElementById('toast');
   t.textContent=msg; t.style.display='block';
