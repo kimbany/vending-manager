@@ -94,130 +94,36 @@
       <div style="font-size:13px;color:var(--text3);margin-top:4px">Vending Manager</div>
     </div>
 
-    <!-- 탭 -->
-    <div style="display:flex;background:var(--bg3);border-radius:10px;padding:3px;margin-bottom:24px;gap:3px">
-      <button id="auth-tab-login" onclick="switchAuthTab('login')" style="flex:1;border:none;border-radius:8px;padding:10px;font-size:14px;font-weight:700;cursor:pointer;background:var(--blue);color:#fff;font-family:inherit">로그인</button>
-      <button id="auth-tab-signup" onclick="switchAuthTab('signup')" style="flex:1;border:none;border-radius:8px;padding:10px;font-size:14px;font-weight:600;cursor:pointer;background:transparent;color:var(--text2);font-family:inherit">회원가입</button>
-    </div>
-
-    <!-- 로그인 폼 -->
+    <!-- 구글 로그인 -->
     <div id="auth-login-form">
-      <div style="margin-bottom:14px">
-        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">아이디</label>
-        <input type="text" id="login-uid" placeholder="아이디 입력" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;"/>
-      </div>
-      <div style="margin-bottom:20px">
-        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">비밀번호</label>
-        <input type="password" id="login-pw" placeholder="비밀번호 입력" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;" onkeydown="if(event.key==='Enter')doLogin()"/>
-      </div>
-      <button onclick="doLogin()" style="width:100%;background:var(--blue);border:none;border-radius:10px;padding:14px;font-size:15px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit;margin-bottom:12px">로그인</button>
-      <div style="display:flex;justify-content:center;gap:16px;margin-top:4px">
-        <button onclick="switchAuthTab('find-id')" style="background:transparent;border:none;color:var(--text3);font-size:12px;cursor:pointer;font-family:inherit;padding:6px">아이디 찾기</button>
-        <span style="color:var(--border);font-size:12px;line-height:2">|</span>
-        <button onclick="switchAuthTab('find-pw')" style="background:transparent;border:none;color:var(--text3);font-size:12px;cursor:pointer;font-family:inherit;padding:6px">비밀번호 찾기</button>
-      </div>
+      <div style="font-size:14px;color:var(--text2);text-align:center;margin-bottom:24px;line-height:1.7">매출 · 재고 · 자판기를<br/>한 곳에서 관리하세요</div>
+      <button onclick="doGoogleLogin()" style="width:100%;background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px;font-size:15px;font-weight:600;color:var(--text);cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:12px">
+        <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+        Google로 시작하기
+      </button>
       <div id="login-msg" style="margin-top:10px;text-align:center;font-size:13px"></div>
     </div>
 
-    <!-- 아이디 찾기 폼 -->
-    <div id="auth-find-id-form" style="display:none">
-      <div style="font-size:14px;font-weight:700;margin-bottom:16px;color:var(--text)">🔍 아이디 찾기</div>
-      <div style="margin-bottom:12px">
-        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">이름</label>
-        <input type="text" id="fi-name" placeholder="가입 시 입력한 이름" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;"/>
+    <!-- 기존 계정 마이그레이션 (구글 연결) -->
+    <div id="auth-migrate-form" style="display:none">
+      <div style="background:rgba(0,100,255,.06);border:1px solid rgba(0,100,255,.15);border-radius:10px;padding:14px;margin-bottom:16px;font-size:13px;color:var(--text2);line-height:1.7;text-align:center">
+        기존 계정이 발견되었어요!<br/>기존 비밀번호를 한 번만 입력하면<br/>앞으로 구글 로그인으로 이용할 수 있어요.
       </div>
-      <div style="margin-bottom:12px">
-        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">이메일</label>
-        <input type="email" id="fi-email" placeholder="가입 시 입력한 이메일" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;"/>
+      <div id="migrate-email-display" style="text-align:center;font-size:14px;font-weight:700;color:var(--text);margin-bottom:14px"></div>
+      <div style="margin-bottom:14px">
+        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">기존 비밀번호</label>
+        <input type="password" id="migrate-pw" placeholder="기존 비밀번호 입력" onkeydown="if(event.key==='Enter')doMigrateLink()" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;"/>
       </div>
-      <div style="margin-bottom:20px">
-        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">생년월일</label>
-        <input type="date" id="fi-birth" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;"/>
-      </div>
-      <button onclick="doFindId()" style="width:100%;background:var(--blue);border:none;border-radius:10px;padding:14px;font-size:15px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit;margin-bottom:12px">아이디 찾기</button>
-      <button onclick="switchAuthTab('login')" style="width:100%;background:transparent;border:none;color:var(--text3);font-size:13px;cursor:pointer;font-family:inherit;padding:6px">← 로그인으로</button>
-      <div id="find-id-msg" style="margin-top:12px;text-align:center;font-size:13px"></div>
-    </div>
-
-    <!-- 비밀번호 찾기 폼 -->
-    <div id="auth-find-pw-form" style="display:none">
-      <div style="font-size:14px;font-weight:700;margin-bottom:16px;color:var(--text)">🔑 비밀번호 찾기</div>
-      <div style="margin-bottom:12px">
-        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">아이디</label>
-        <input type="text" id="fp-uid" placeholder="가입 시 입력한 아이디" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;"/>
-      </div>
-      <div style="margin-bottom:20px">
-        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">이메일</label>
-        <input type="email" id="fp-email" placeholder="가입 시 입력한 이메일" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;"/>
-      </div>
-      <button onclick="doFindPw()" style="width:100%;background:var(--blue);border:none;border-radius:10px;padding:14px;font-size:15px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit;margin-bottom:12px">비밀번호 재설정 메일 발송</button>
-      <button onclick="switchAuthTab('login')" style="width:100%;background:transparent;border:none;color:var(--text3);font-size:13px;cursor:pointer;font-family:inherit;padding:6px">← 로그인으로</button>
-      <div id="find-pw-msg" style="margin-top:12px;text-align:center;font-size:13px"></div>
-    </div>
-
-    <!-- 회원가입 폼 -->
-    <div id="auth-signup-form" style="display:none">
-      <div style="margin-bottom:12px">
-        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">이름 <span style="color:var(--red)">*</span></label>
-        <input type="text" id="su-name" placeholder="실명 입력" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;"/>
-      </div>
-      <div style="margin-bottom:12px">
-        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">아이디 <span style="color:var(--red)">*</span></label>
-        <div style="display:flex;gap:8px">
-          <input type="text" id="su-uid" placeholder="영문+숫자 4~16자" style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;"/>
-          <button onclick="checkUid()" style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:0 14px;color:var(--text2);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit">중복확인</button>
-        </div>
-        <div id="uid-msg" style="font-size:11px;margin-top:4px"></div>
-      </div>
-      <!-- 이메일: 아이디 + 도메인 드롭다운 -->
-      <div style="margin-bottom:12px">
-        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">이메일 <span style="color:var(--red)">*</span></label>
-        <div style="display:flex;align-items:center;gap:6px">
-          <input type="text" id="su-email-id" placeholder="이메일 아이디" style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;"/>
-          <span style="color:var(--text3);flex-shrink:0">@</span>
-          <select id="su-email-domain" onchange="toggleEmailDomain()" style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 8px;color:var(--text);font-size:13px;font-family:inherit;">
-            <option value="gmail.com">gmail.com</option>
-            <option value="naver.com">naver.com</option>
-            <option value="nate.com">nate.com</option>
-            <option value="daum.net">daum.net</option>
-            <option value="kakao.com">kakao.com</option>
-            <option value="direct">직접 입력</option>
-          </select>
-        </div>
-        <input type="text" id="su-email-domain-custom" placeholder="도메인 직접 입력" style="display:none;width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;margin-top:6px;"/>
-      </div>
-      <!-- 연락처 -->
-      <div style="margin-bottom:12px">
-        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">연락처 <span style="color:var(--text3);font-weight:400">(선택)</span></label>
-        <input type="tel" id="su-phone" placeholder="010-1234-5678" oninput="formatPhone(this)" maxlength="13" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;"/>
-      </div>
-      <div style="margin-bottom:12px">
-        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">비밀번호 <span style="color:var(--red)">*</span> <span style="color:var(--text3);font-weight:400">(영문+숫자 8자 이상)</span></label>
-        <input type="password" id="su-pw" placeholder="비밀번호 입력" oninput="checkPwStrength()" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;"/>
-        <div id="pw-strength" style="font-size:11px;margin-top:4px"></div>
-      </div>
-      <div style="margin-bottom:12px">
-        <label style="font-size:12px;color:var(--text2);display:block;margin-bottom:6px;font-weight:600">비밀번호 확인 <span style="color:var(--red)">*</span></label>
-        <input type="password" id="su-pw2" placeholder="비밀번호 재입력" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;"/>
-      </div>
-      <button onclick="doSignup()" style="width:100%;background:var(--blue);border:none;border-radius:10px;padding:14px;font-size:15px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit;margin-bottom:8px">회원가입</button>
-      <div id="signup-msg" style="margin-top:10px;text-align:center;font-size:13px"></div>
+      <button onclick="doMigrateLink()" style="width:100%;background:var(--blue);border:none;border-radius:10px;padding:14px;font-size:15px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit;margin-bottom:8px">계정 연결</button>
+      <button onclick="cancelMigrate()" style="width:100%;background:transparent;border:none;color:var(--text3);font-size:13px;cursor:pointer;font-family:inherit;padding:6px">취소</button>
+      <div id="migrate-msg" style="margin-top:10px;text-align:center;font-size:13px"></div>
     </div>
   </div>
   </div>
 </div>
 
-<!-- 이메일 인증 안내 화면 -->
-<div id="verify-screen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:997;display:none;align-items:center;justify-content:center;">
-  <div style="max-width:380px;padding:32px 24px;text-align:center">
-    <div style="font-size:52px;margin-bottom:16px">📧</div>
-    <div style="font-size:18px;font-weight:700;margin-bottom:10px">이메일 인증이 필요해요</div>
-    <div style="font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:24px" id="verify-email-msg">가입하신 이메일로 인증 링크를 보냈어요.<br/>이메일을 확인하고 링크를 클릭해주세요.</div>
-    <button onclick="checkVerified()" style="width:100%;background:var(--blue);border:none;border-radius:10px;padding:13px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit;margin-bottom:10px">✅ 인증 완료했어요</button>
-    <button onclick="resendVerify()" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;font-size:13px;color:var(--text2);cursor:pointer;font-family:inherit;margin-bottom:10px">📨 인증 메일 재발송</button>
-    <button onclick="doLogout()" style="background:transparent;border:none;color:var(--text3);font-size:12px;cursor:pointer;font-family:inherit">로그아웃</button>
-  </div>
-</div>
+<!-- verify-screen 하위호환 (숨김) -->
+<div id="verify-screen" style="display:none"></div>
 
 
 
@@ -751,11 +657,10 @@
 <div class="modal-bg" id="account-edit-modal">
   <div class="modal">
     <div class="mh"><div class="mt" id="acct-modal-title">계정 설정</div><button class="mc" onclick="closeModal('account-edit-modal')">✕</button></div>
-    <!-- 비밀번호 인증 -->
+    <!-- 구글 재인증 -->
     <div id="acct-lock">
-      <div style="font-size:13px;color:var(--text2);margin-bottom:14px">보안을 위해 비밀번호를 먼저 입력해주세요.</div>
-      <div class="fr"><label class="lbl">현재 비밀번호</label><input type="password" id="acct-lock-pw" placeholder="로그인 비밀번호" onkeydown="if(event.key==='Enter')unlockAccountEdit()"/></div>
-      <button class="btn-p" style="margin-bottom:0" onclick="unlockAccountEdit()">확인</button>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:14px;text-align:center">보안을 위해 구글 인증이 필요해요.</div>
+      <button class="btn-p" style="margin-bottom:0" onclick="unlockAccountEdit()">Google 인증</button>
       <div id="acct-lock-msg" style="font-size:12px;color:var(--red);margin-top:8px;text-align:center"></div>
     </div>
     <!-- 인증 후 수정 폼 -->
@@ -795,9 +700,8 @@
     <div style="background:rgba(224,88,88,.08);border:1px solid rgba(224,88,88,.25);border-radius:10px;padding:12px;margin-bottom:14px;font-size:12px;color:var(--red);line-height:1.6;font-weight:600">
       모든 데이터가 삭제되며 복구할 수 없습니다.
     </div>
-    <div class="fr"><label class="lbl">비밀번호 확인</label><input type="password" id="reset-pw" placeholder="로그인 비밀번호" onkeydown="if(event.key==='Enter')executeReset()"/></div>
     <input type="hidden" id="reset-type" value=""/>
-    <button onclick="executeReset()" style="width:100%;background:var(--red);border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit">초기화 실행</button>
+    <button onclick="executeReset()" style="width:100%;background:var(--red);border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit">초기화 실행 (Google 인증)</button>
     <div id="reset-msg" style="font-size:12px;margin-top:8px;text-align:center"></div>
   </div>
 </div>

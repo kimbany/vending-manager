@@ -77,11 +77,9 @@ function toggleProfileEdit(){
 }
 
 function unlockProfileEdit(){
-  var pw = document.getElementById('set-prof-lock-pw').value;
   var msg = document.getElementById('set-prof-lock-msg');
-  if(!pw){ msg.textContent='비밀번호를 입력하세요'; return; }
-  var cred = firebase.auth.EmailAuthProvider.credential(currentUser.email, pw);
-  currentUser.reauthenticateWithCredential(cred).then(function(){
+  msg.textContent='인증 중...';
+  reauthWithGoogle().then(function(){
     document.getElementById('set-prof-edit-lock').style.display='none';
     document.getElementById('set-prof-edit-form').style.display='block';
     // 현재 정보 로드
@@ -96,8 +94,8 @@ function unlockProfileEdit(){
     document.getElementById('set-prof-new-pw2').value='';
     document.getElementById('set-prof-pw-strength').textContent='';
     document.getElementById('set-prof-save-msg').textContent='';
-  }).catch(function(){
-    msg.textContent='비밀번호가 올바르지 않아요';
+  }).catch(function(e){
+    msg.textContent = e.code==='auth/popup-closed-by-user' ? '' : '인증 실패';
   });
 }
 
@@ -232,16 +230,15 @@ function openAccountEditModal(type){
 }
 
 function unlockAccountEdit(){
-  var pw = document.getElementById('acct-lock-pw').value;
   var msg = document.getElementById('acct-lock-msg');
-  if(!pw){ msg.textContent='비밀번호를 입력하세요'; return; }
-  var cred = firebase.auth.EmailAuthProvider.credential(currentUser.email, pw);
-  currentUser.reauthenticateWithCredential(cred).then(function(){
+  msg.textContent='인증 중...';
+  reauthWithGoogle().then(function(){
     document.getElementById('acct-lock').style.display = 'none';
     document.getElementById('acct-form').style.display = 'block';
     _loadAccountData();
-  }).catch(function(){
-    msg.textContent='비밀번호가 올바르지 않아요';
+  }).catch(function(e){
+    if(e.code!=='auth/popup-closed-by-user') msg.textContent='인증 실패';
+    else msg.textContent='';
   });
 }
 
@@ -589,13 +586,10 @@ function openResetConfirm(type){
 
 function executeReset(){
   var type = document.getElementById('reset-type').value;
-  var pw = document.getElementById('reset-pw').value;
   var msg = document.getElementById('reset-msg');
-  if(!pw){ msg.style.color='var(--red)'; msg.textContent='비밀번호를 입력하세요'; return; }
-  msg.style.color='var(--text2)'; msg.textContent='확인 중...';
+  msg.style.color='var(--text2)'; msg.textContent='인증 중...';
 
-  var cred = firebase.auth.EmailAuthProvider.credential(currentUser.email, pw);
-  currentUser.reauthenticateWithCredential(cred).then(function(){
+  reauthWithGoogle().then(function(){
     msg.textContent='초기화 중...';
     return db.ref('users/'+currentUser.uid+'/locations').once('value');
   }).then(function(snap){
@@ -689,7 +683,7 @@ function executeReset(){
     if(type==='all') loadLocationDropdown();
     setTimeout(function(){ closeModal('reset-confirm-modal'); showToast('✅ 초기화 완료'); }, 1200);
   }).catch(function(e){
-    if(e.code==='auth/wrong-password') msg.textContent='비밀번호가 올바르지 않아요';
+    if(e.code==='auth/popup-closed-by-user') msg.textContent='';
     else{ msg.style.color='var(--red)'; msg.textContent='오류: '+e.message; }
   });
 }
