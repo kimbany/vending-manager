@@ -596,96 +596,82 @@ function executeReset(){
   verifyPin(function(){
     showToast('⏳ 초기화 중...');
     db.ref('users/'+currentUser.uid+'/locations').once('value').then(function(snap){
-  }).then(function(snap){
-    var locations = snap.val()||{};
-    var updates = {};
+      var locations = snap.val()||{};
+      var updates = {};
 
-    if(type==='inventory' || type==='all'){
-      // 모든 자판기의 재고 관련 데이터 삭제
-      Object.keys(locations).forEach(function(locId){
-        var machines = locations[locId].machines||{};
-        Object.keys(machines).forEach(function(mid){
-          updates['locations/'+locId+'/machines/'+mid+'/appData/inventory'] = null;
-          updates['locations/'+locId+'/machines/'+mid+'/appData/inventoryLogs'] = null;
-          updates['locations/'+locId+'/machines/'+mid+'/appData/stockIn'] = null;
-          updates['locations/'+locId+'/machines/'+mid+'/appData/stockDeductions'] = null;
-          updates['locations/'+locId+'/machines/'+mid+'/appData/salesCost'] = null;
+      if(type==='inventory' || type==='all'){
+        Object.keys(locations).forEach(function(locId){
+          var machines = locations[locId].machines||{};
+          Object.keys(machines).forEach(function(mid){
+            updates['locations/'+locId+'/machines/'+mid+'/appData/inventory'] = null;
+            updates['locations/'+locId+'/machines/'+mid+'/appData/inventoryLogs'] = null;
+            updates['locations/'+locId+'/machines/'+mid+'/appData/stockIn'] = null;
+            updates['locations/'+locId+'/machines/'+mid+'/appData/stockDeductions'] = null;
+            updates['locations/'+locId+'/machines/'+mid+'/appData/salesCost'] = null;
+          });
         });
-      });
-    }
+      }
 
-    if(type==='products' || type==='all'){
-      // 모든 자판기의 products 삭제
-      Object.keys(locations).forEach(function(locId){
-        var machines = locations[locId].machines||{};
-        Object.keys(machines).forEach(function(mid){
-          updates['locations/'+locId+'/machines/'+mid+'/appData/products'] = null;
+      if(type==='products' || type==='all'){
+        Object.keys(locations).forEach(function(locId){
+          var machines = locations[locId].machines||{};
+          Object.keys(machines).forEach(function(mid){
+            updates['locations/'+locId+'/machines/'+mid+'/appData/products'] = null;
+          });
         });
-      });
-      // vmmsColumns 삭제 (컬럼 매칭) + vmmsProducts (제품 마스터) + doubleColumns (2칸 설정)
-      updates['vmmsColumns'] = null;
-      updates['vmmsProducts'] = null;
-      updates['doubleColumns'] = null;
-    }
+        updates['vmmsColumns'] = null;
+        updates['vmmsProducts'] = null;
+        updates['doubleColumns'] = null;
+      }
 
-    if(type==='sales' || type==='all'){
-      // 모든 자판기의 salesData 삭제
-      Object.keys(locations).forEach(function(locId){
-        var machines = locations[locId].machines||{};
-        Object.keys(machines).forEach(function(mid){
-          updates['locations/'+locId+'/machines/'+mid+'/appData/salesData'] = null;
+      if(type==='sales' || type==='all'){
+        Object.keys(locations).forEach(function(locId){
+          var machines = locations[locId].machines||{};
+          Object.keys(machines).forEach(function(mid){
+            updates['locations/'+locId+'/machines/'+mid+'/appData/salesData'] = null;
+          });
         });
-      });
-    }
+      }
 
-    if(type==='coupang' || type==='all'){
-      // 쿠팡 관련 데이터 삭제 (메일 연동 설정은 유지)
-      updates['purchases'] = null;
-      updates['coupangOrders'] = null;
-      updates['productMapping'] = null;
-      updates['coupangAccount'] = null;
-    }
+      if(type==='coupang' || type==='all'){
+        updates['purchases'] = null;
+        updates['coupangOrders'] = null;
+        updates['productMapping'] = null;
+        updates['coupangAccount'] = null;
+      }
 
-    if(type==='all'){
-      // 자판기 위치/단말기 전부 삭제
-      updates['locations'] = null;
-      updates['mainLocationId'] = null;
-      // VMMS 삭제
-      updates['vmms'] = null;
-      updates['vmmsMachines'] = null;
-      updates['vmmsColumns'] = null;
-      updates['doubleColumns'] = null;
-      // 재고 부족 기준 기본값
-      updates['settings/lowStock'] = {mode:'fixed', fixedQty:10};
-    }
+      if(type==='all'){
+        updates['locations'] = null;
+        updates['mainLocationId'] = null;
+        updates['vmms'] = null;
+        updates['vmmsMachines'] = null;
+        updates['vmmsColumns'] = null;
+        updates['doubleColumns'] = null;
+        updates['settings/lowStock'] = {mode:'fixed', fixedQty:10};
+      }
 
-    return db.ref('users/'+currentUser.uid).update(updates);
-  }).then(function(){
-    msg.style.color='var(--green)'; msg.textContent='✅ 초기화 완료';
-    // 현재 데이터 초기화
-    if(type==='inventory' || type==='all'){
-      D.inventory=[]; D.inventoryLogs=[]; D.stockIn=[]; D.stockDeductions=[]; D.salesCost=[];
-    }
-    if(type==='products' || type==='all'){
-      D.products=[];
-      // VMMS 메모리 데이터도 초기화
-      if(typeof _vmmsProducts !== 'undefined') _vmmsProducts = [];
-      if(typeof _vmmsColumns !== 'undefined') _vmmsColumns = {};
-      if(typeof _vmmsMachines !== 'undefined') _vmmsMachines = [];
-    }
-    if(type==='sales' || type==='all'){
-      D.salesData=[];
-    }
-    if(type==='coupang' || type==='all'){
-      if(typeof _productMappings !== 'undefined') _productMappings = [];
-    }
-    if(type==='all'){
-      currentLocationId=null; currentMachineId=null;
-      _lowStockThreshold=10;
-    }
-    renderAll();
-    if(type==='all') loadLocationDropdown();
-    showToast('✅ 초기화 완료');
+      return db.ref('users/'+currentUser.uid).update(updates);
+    }).then(function(){
+      if(type==='inventory' || type==='all'){
+        D.inventory=[]; D.inventoryLogs=[]; D.stockIn=[]; D.stockDeductions=[]; D.salesCost=[];
+      }
+      if(type==='products' || type==='all'){
+        D.products=[];
+        if(typeof _vmmsProducts !== 'undefined') _vmmsProducts = [];
+        if(typeof _vmmsColumns !== 'undefined') _vmmsColumns = {};
+        if(typeof _vmmsMachines !== 'undefined') _vmmsMachines = [];
+      }
+      if(type==='sales' || type==='all'){ D.salesData=[]; }
+      if(type==='coupang' || type==='all'){
+        if(typeof _productMappings !== 'undefined') _productMappings = [];
+      }
+      if(type==='all'){
+        currentLocationId=null; currentMachineId=null;
+        _lowStockThreshold=10;
+      }
+      renderAll();
+      if(type==='all') loadLocationDropdown();
+      showToast('✅ 초기화 완료');
     }).catch(function(e){
       showToast('❌ 초기화 오류: '+e.message);
     });
