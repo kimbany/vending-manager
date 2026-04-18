@@ -1026,33 +1026,11 @@ function parseCoupangEmail(text, dateHint) {
   // 줄 단위 파싱
   const lines = section.split(/\n|\r/).map((l) => l.trim()).filter(Boolean);
 
-  // 전략 1: 여러 줄을 합쳐서 "이름 가격원 수량 가격원" 패턴 탐색
-  // Gmail 전달 시 HTML 테이블의 각 셀이 별도 줄로 분리되는 경우 대응.
-  const joinedSection = lines.join(" ");
-  const multiRe = /([가-힣a-zA-Z][\w\s가-힣(),.]+?\d+\s*개)\s+([\d,]+)\s*원\s+(\d{1,3})\s+([\d,]+)\s*원/g;
-  let mm;
-  while ((mm = multiRe.exec(joinedSection)) !== null) {
-    const name = mm[1].replace(/[,\s]+$/g, "").trim();
-    const unitPrice = parseInt(mm[2].replace(/,/g, ""), 10);
-    const qty = parseInt(mm[3], 10);
-    const totalPrice = parseInt(mm[4].replace(/,/g, ""), 10);
-    if (name.length > 2 && qty > 0 && unitPrice > 0) {
-      products.push({
-        product_name: name,
-        quantity: qty,
-        unit_price: unitPrice,
-        price: totalPrice || unitPrice * qty,
-      });
-    }
-  }
-
-  // 전략 2: 줄 단위 파싱 (전략 1에서 못 잡은 경우)
-  if (!products.length) {
   for (let li = 0; li < lines.length; li++) {
     const line = lines[li];
     // 헤더 줄 스킵
-    if (/^(구매|상품|쿠팡가|수량|구매금액|배송정보|판매자|결제)/.test(line)) continue;
-    // 한 줄에 "이름 가격원 수량 가격원" 패턴
+    if (/^(구매|상품|쿠팡가|수량|구매금액|배송정보|판매자|결제|주문)/.test(line)) continue;
+    // 한 줄에 "이름 가격원 수량 가격원" 패턴 (네이버 수동 전달)
     const m = line.match(/(.{3,}?)\s+([\d,]+)\s*원\s+(\d{1,3})\s+([\d,]+)\s*원/);
     if (m) {
       const name = m[1].replace(/[,\u00A0]+$/g, "").trim();
@@ -1069,17 +1047,18 @@ function parseCoupangEmail(text, dateHint) {
       }
       continue;
     }
-    // 여러 줄에 걸친 패턴: 상품명 줄 → 가격원 줄 → 수량 줄 → 가격원 줄
+    // 여러 줄에 걸친 패턴 (Gmail 전달): "상품명, N개" 줄 → 다음 줄들에서 가격/수량 탐색
     const nameMatch = line.match(/^(.{3,}?)[,\s]+(\d+)\s*개\s*$/);
     if (nameMatch) {
-      // 다음 5줄 이내에서 가격+수량 탐색
       let unitPrice = 0, qty = 0, totalPrice = 0;
-      for (let j = li + 1; j < Math.min(li + 8, lines.length); j++) {
+      for (let j = li + 1; j < Math.min(li + 10, lines.length); j++) {
         const nl = lines[j];
         if (/^(구매|상품|쿠팡가|수량|구매금액|배송정보|판매자)/.test(nl)) continue;
-        const priceM = nl.match(/^([\d,]+)\s*원$/);
+        // 다음 상품 섹션 시작이면 중단
+        if (nl.match(/^(.{3,}?)[,\s]+\d+\s*개\s*$/) && unitPrice) break;
+        const priceM = nl.match(/^([\d,]+)\s*원\s*$/);
         if (priceM) {
-          var val = parseInt(priceM[1].replace(/,/g, ""), 10);
+          const val = parseInt(priceM[1].replace(/,/g, ""), 10);
           if (!unitPrice) unitPrice = val;
           else if (!totalPrice) totalPrice = val;
         }
@@ -1101,7 +1080,6 @@ function parseCoupangEmail(text, dateHint) {
         });
       }
     }
-  }
   }
 
   // ── 중복 제거: 섹션 제목(가격 없음)과 상세 테이블 행(가격 있음) 양쪽에서
