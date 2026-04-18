@@ -592,9 +592,9 @@ function openResetConfirm(type){
 
 function executeReset(){
   var type = document.getElementById('reset-type').value;
-  var msg = document.getElementById('reset-msg');
+  closeModal('reset-confirm-modal');
   verifyPin(function(){
-    msg.style.color='var(--text2)'; msg.textContent='초기화 중...';
+    showToast('⏳ 초기화 중...');
     db.ref('users/'+currentUser.uid+'/locations').once('value').then(function(snap){
   }).then(function(snap){
     var locations = snap.val()||{};
@@ -685,9 +685,9 @@ function executeReset(){
     }
     renderAll();
     if(type==='all') loadLocationDropdown();
-    setTimeout(function(){ closeModal('reset-confirm-modal'); showToast('✅ 초기화 완료'); }, 1200);
+    showToast('✅ 초기화 완료');
     }).catch(function(e){
-      msg.style.color='var(--red)'; msg.textContent='오류: '+e.message;
+      showToast('❌ 초기화 오류: '+e.message);
     });
   });
 }
