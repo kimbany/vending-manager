@@ -201,6 +201,19 @@ function _buildMachineView(mc, columns, doubleItems){
       if(dProd.totalQty!=null) vmProd.totalQty = dProd.totalQty;
       if(dProd.marginAmt!=null) vmProd.marginAmt = dProd.marginAmt;
       if(dProd.marginRate!=null) vmProd.marginRate = dProd.marginRate;
+    }
+    // sellPrice 비어있으면 판매 데이터에서 최근 판매가 추출
+    if(!vmProd.sellPrice && D.salesData && D.salesData.length){
+      var matchedSales = D.salesData.filter(function(s){
+        return !s.cancelled && s.amt > 0 && s.qty > 0 &&
+          s.itemName && s.itemName.trim() === vmProd.name.trim();
+      });
+      if(matchedSales.length){
+        matchedSales.sort(function(a,b){ return (b.date||'').localeCompare(a.date||'') || (b.hour||0)-(a.hour||0); });
+        vmProd.sellPrice = Math.round(matchedSales[0].amt / matchedSales[0].qty);
+      }
+    }
+    if(dProd){
       // D.inventory에 VMMS 코드로 저장된 항목 → D.products ID로 마이그레이션
       if(origId !== dProd.id){
         var vmmsIdx = D.inventory.findIndex(function(x){ return x.productId === origId; });
