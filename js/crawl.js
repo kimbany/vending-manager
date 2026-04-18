@@ -43,9 +43,9 @@ function triggerCrawlForDate(){
     btn.textContent = '⏳ 데이터 반영 중...';
     return _applyCrawledData(true, date);
   }).then(function(){
-    btn.textContent = '⚡ 선택 날짜 크롤링 실행'; btn.disabled = false;
+    btn.textContent = '⚡ 선택 날짜 데이터 수집'; btn.disabled = false;
   }).catch(function(e){
-    btn.textContent = '⚡ 선택 날짜 크롤링 실행'; btn.disabled = false;
+    btn.textContent = '⚡ 선택 날짜 데이터 수집'; btn.disabled = false;
     showToast('❌ 수집 실패: ' + (e.message || '알 수 없는 오류'));
   });
 }
