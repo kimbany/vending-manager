@@ -12,17 +12,23 @@ auth.onAuthStateChanged(function(user){
   currentUser = user;
   REF = db.ref('users/' + user.uid + '/appData');
   CRAWL_REF = db.ref('users/' + user.uid + '/crawledSales');
-  // 프로필 없으면 자동 생성 (구글 신규 가입)
-  db.ref('users/' + user.uid + '/profile').once('value').then(function(snap){
-    if(!snap.exists()){
+  db.ref('users/' + user.uid).once('value').then(function(snap){
+    var val = snap.val()||{};
+    var profile = val.profile||{};
+    var pin = val.settings && val.settings.securityPin;
+    if(!profile.name && !profile.email){
       db.ref('users/' + user.uid + '/profile').set({
         name: user.displayName || '',
         email: user.email || '',
         createdAt: new Date().toISOString()
       });
     }
+    if(!pin){
+      showOnboarding(profile);
+      return;
+    }
+    loadUserData();
   });
-  loadUserData();
 });
 
 // ─── Auth 화면 제어 ───────────────────────────────────────────────────────────
@@ -100,10 +106,61 @@ function cancelMigrate(){
   showAuthScreen();
 }
 
-// ─── 구글 재인증 (보안 기능용) ───────────────────────────────────────────────
-function reauthWithGoogle(){
-  return currentUser.reauthenticateWithPopup(googleProvider);
+// ─── 온보딩 (첫 로그인 시 이름/연락처/PIN 설정) ─────────────────────────────
+function showOnboarding(profile){
+  document.getElementById('auth-screen').style.display='none';
+  document.getElementById('verify-screen').style.display='none';
+  document.getElementById('app').style.display='none';
+  var el = document.getElementById('onboarding-screen');
+  el.style.display='flex';
+  var nameEl = document.getElementById('ob-name');
+  var phoneEl = document.getElementById('ob-phone');
+  if(nameEl) nameEl.value = profile.name || currentUser.displayName || '';
+  if(phoneEl) phoneEl.value = profile.phone || '';
+  document.getElementById('ob-pin').value='';
+  document.getElementById('ob-pin2').value='';
+  document.getElementById('ob-msg').textContent='';
 }
+
+function completeOnboarding(){
+  var name = document.getElementById('ob-name').value.trim();
+  var phone = document.getElementById('ob-phone').value.trim();
+  var pin = document.getElementById('ob-pin').value.trim();
+  var pin2 = document.getElementById('ob-pin2').value.trim();
+  var msg = document.getElementById('ob-msg');
+  if(!name){ msg.style.color='var(--red)'; msg.textContent='이름을 입력하세요'; return; }
+  if(!pin || pin.length < 4){ msg.style.color='var(--red)'; msg.textContent='보안 PIN 4자리 이상 입력하세요'; return; }
+  if(pin !== pin2){ msg.style.color='var(--red)'; msg.textContent='PIN이 일치하지 않아요'; return; }
+  msg.style.color='var(--text2)'; msg.textContent='설정 중...';
+  hashSHA256(pin).then(function(hash){
+    return db.ref('users/'+currentUser.uid).update({
+      'profile/name': name,
+      'profile/phone': phone,
+      'profile/email': currentUser.email||'',
+      'settings/securityPin': hash
+    });
+  }).then(function(){
+    document.getElementById('onboarding-screen').style.display='none';
+    if(currentUser.displayName !== name) currentUser.updateProfile({displayName: name});
+    loadUserData();
+  }).catch(function(e){
+    msg.style.color='var(--red)'; msg.textContent='설정 실패: '+e.message;
+  });
+}
+
+// ─── PIN 인증 ────────────────────────────────────────────────────────────────
+function verifyPin(callback){
+  var pin = prompt('보안 PIN을 입력하세요');
+  if(!pin) return;
+  hashSHA256(pin).then(function(hash){
+    db.ref('users/'+currentUser.uid+'/settings/securityPin').once('value').then(function(snap){
+      if(snap.val() === hash) callback();
+      else showToast('❌ PIN이 올바르지 않아요');
+    });
+  });
+}
+
+function reauthWithGoogle(){ return Promise.resolve(); }
 
 // ─── 로그아웃 ─────────────────────────────────────────────────────────────────
 function doLogout(){

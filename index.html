@@ -125,6 +125,26 @@
 <!-- verify-screen 하위호환 (숨김) -->
 <div id="verify-screen" style="display:none"></div>
 
+<!-- 온보딩 (첫 로그인) -->
+<div id="onboarding-screen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:998;align-items:center;justify-content:center;overflow-y:auto">
+  <div style="max-width:420px;width:100%;padding:40px 20px;margin:0 auto">
+    <div style="text-align:center;margin-bottom:32px">
+      <img src="img/logo.png" style="width:80px;height:80px;margin-bottom:12px"/>
+      <div style="font-size:20px;font-weight:800;color:var(--text)">환영합니다!</div>
+      <div style="font-size:13px;color:var(--text3);margin-top:4px">시작하기 전에 기본 정보를 설정해주세요</div>
+    </div>
+    <div class="fr"><label class="lbl">이름 <span style="color:var(--red)">*</span></label><input type="text" id="ob-name" placeholder="실명 입력"/></div>
+    <div class="fr"><label class="lbl">연락처 <span style="color:var(--text3);font-weight:400">(선택)</span></label><input type="tel" id="ob-phone" placeholder="010-1234-5678" oninput="formatPhone(this)" maxlength="13"/></div>
+    <div style="background:rgba(0,100,255,.06);border:1px solid rgba(0,100,255,.15);border-radius:10px;padding:12px;margin-bottom:14px;font-size:12px;color:var(--text2);line-height:1.6">
+      🔒 보안 PIN은 정보 수정, 계정 설정, 초기화 시 사용됩니다.<br/>설정 후 변경할 수 있어요.
+    </div>
+    <div class="fr"><label class="lbl">보안 PIN <span style="color:var(--red)">*</span> <span style="color:var(--text3);font-weight:400">(4자리 이상)</span></label><input type="password" id="ob-pin" placeholder="PIN 입력" maxlength="8" inputmode="numeric"/></div>
+    <div class="fr"><label class="lbl">보안 PIN 확인</label><input type="password" id="ob-pin2" placeholder="PIN 다시 입력" maxlength="8" inputmode="numeric"/></div>
+    <button onclick="completeOnboarding()" style="width:100%;background:var(--blue);border:none;border-radius:10px;padding:14px;font-size:15px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit;margin-bottom:8px">시작하기</button>
+    <div id="ob-msg" style="margin-top:8px;text-align:center;font-size:13px"></div>
+  </div>
+</div>
+
 
 
 <div id="app" style="display:none">

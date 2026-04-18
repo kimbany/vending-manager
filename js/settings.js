@@ -77,25 +77,20 @@ function toggleProfileEdit(){
 }
 
 function unlockProfileEdit(){
-  var msg = document.getElementById('set-prof-lock-msg');
-  msg.textContent='인증 중...';
-  reauthWithGoogle().then(function(){
+  verifyPin(function(){
     document.getElementById('set-prof-edit-lock').style.display='none';
     document.getElementById('set-prof-edit-form').style.display='block';
-    // 현재 정보 로드
     db.ref('users/'+currentUser.uid+'/profile').once('value').then(function(snap){
       var p = snap.val()||{};
       document.getElementById('set-prof-email-input').value = p.email||currentUser.email||'';
       document.getElementById('set-prof-phone-input').value = p.phone||'';
     });
-    // 비밀번호 필드 초기화
-    document.getElementById('set-prof-cur-pw').value='';
-    document.getElementById('set-prof-new-pw').value='';
-    document.getElementById('set-prof-new-pw2').value='';
-    document.getElementById('set-prof-pw-strength').textContent='';
-    document.getElementById('set-prof-save-msg').textContent='';
-  }).catch(function(e){
-    msg.textContent = e.code==='auth/popup-closed-by-user' ? '' : '인증 실패';
+    var el;
+    el=document.getElementById('set-prof-cur-pw'); if(el) el.value='';
+    el=document.getElementById('set-prof-new-pw'); if(el) el.value='';
+    el=document.getElementById('set-prof-new-pw2'); if(el) el.value='';
+    el=document.getElementById('set-prof-pw-strength'); if(el) el.textContent='';
+    el=document.getElementById('set-prof-save-msg'); if(el) el.textContent='';
   });
 }
 
@@ -230,15 +225,10 @@ function openAccountEditModal(type){
 }
 
 function unlockAccountEdit(){
-  var msg = document.getElementById('acct-lock-msg');
-  msg.textContent='인증 중...';
-  reauthWithGoogle().then(function(){
+  verifyPin(function(){
     document.getElementById('acct-lock').style.display = 'none';
     document.getElementById('acct-form').style.display = 'block';
     _loadAccountData();
-  }).catch(function(e){
-    if(e.code!=='auth/popup-closed-by-user') msg.textContent='인증 실패';
-    else msg.textContent='';
   });
 }
 
@@ -587,11 +577,9 @@ function openResetConfirm(type){
 function executeReset(){
   var type = document.getElementById('reset-type').value;
   var msg = document.getElementById('reset-msg');
-  msg.style.color='var(--text2)'; msg.textContent='인증 중...';
-
-  reauthWithGoogle().then(function(){
-    msg.textContent='초기화 중...';
-    return db.ref('users/'+currentUser.uid+'/locations').once('value');
+  verifyPin(function(){
+    msg.style.color='var(--text2)'; msg.textContent='초기화 중...';
+    db.ref('users/'+currentUser.uid+'/locations').once('value').then(function(snap){
   }).then(function(snap){
     var locations = snap.val()||{};
     var updates = {};
@@ -682,8 +670,8 @@ function executeReset(){
     renderAll();
     if(type==='all') loadLocationDropdown();
     setTimeout(function(){ closeModal('reset-confirm-modal'); showToast('✅ 초기화 완료'); }, 1200);
-  }).catch(function(e){
-    if(e.code==='auth/popup-closed-by-user') msg.textContent='';
-    else{ msg.style.color='var(--red)'; msg.textContent='오류: '+e.message; }
+    }).catch(function(e){
+      msg.style.color='var(--red)'; msg.textContent='오류: '+e.message;
+    });
   });
 }
