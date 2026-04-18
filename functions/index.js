@@ -1048,8 +1048,9 @@ function parseCoupangEmail(text, dateHint) {
       continue;
     }
     // 여러 줄에 걸친 패턴 (Gmail 전달): "상품명, N개" 줄 → 다음 줄들에서 가격/수량 탐색
-    const nameMatch = line.match(/^(.{3,}?)[,\s]+(\d+)\s*개\s*$/);
+    const nameMatch = line.match(/^(.{3,}[,\s]+\d+\s*개)\s*$/);
     if (nameMatch) {
+      const fullName = nameMatch[1].trim();
       let unitPrice = 0, qty = 0, totalPrice = 0;
       for (let j = li + 1; j < Math.min(li + 10, lines.length); j++) {
         const nl = lines[j];
@@ -1068,15 +1069,15 @@ function parseCoupangEmail(text, dateHint) {
       }
       if (unitPrice > 0 && qty > 0) {
         products.push({
-          product_name: nameMatch[1].trim(),
+          product_name: fullName,
           quantity: qty,
           unit_price: unitPrice,
           price: totalPrice || unitPrice * qty,
         });
       } else {
         products.push({
-          product_name: nameMatch[1].trim(),
-          quantity: parseInt(nameMatch[2], 10),
+          product_name: fullName,
+          quantity: 1,
         });
       }
     }
