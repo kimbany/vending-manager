@@ -3,12 +3,18 @@ var googleProvider = new firebase.auth.GoogleAuthProvider();
 var _pendingGoogleCred = null;
 
 // ─── Auth 상태 감지 ──────────────────────────────────────────────────────────
+var _lastUid = null;
 auth.onAuthStateChanged(function(user){
   document.getElementById('loading').style.display='none';
   if(!user){
+    // 이전에 로그인된 상태였다면 새로고침 (DOM 캐시 제거)
+    if(_lastUid){ location.reload(); return; }
     showAuthScreen();
     return;
   }
+  // 다른 유저로 변경된 경우 새로고침
+  if(_lastUid && _lastUid !== user.uid){ location.reload(); return; }
+  _lastUid = user.uid;
   currentUser = user;
   REF = db.ref('users/' + user.uid + '/appData');
   CRAWL_REF = db.ref('users/' + user.uid + '/crawledSales');
@@ -198,7 +204,12 @@ function reauthWithGoogle(){ return Promise.resolve(); }
 // ─── 로그아웃 ─────────────────────────────────────────────────────────────────
 function doLogout(){
   if(!confirm('로그아웃 할까요?')) return;
-  auth.signOut();
+  // 로그아웃 후 페이지 완전 새로고침 (이전 유저의 DOM 캐시 제거)
+  auth.signOut().then(function(){
+    location.reload();
+  }).catch(function(){
+    location.reload();
+  });
 }
 
 // ─── 하위호환 (사용하지 않지만 참조 에러 방지) ───────────────────────────────

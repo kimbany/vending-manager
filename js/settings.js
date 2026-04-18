@@ -15,7 +15,24 @@ function switchSettingsSub(sub){
 // ─── 1. 내 정보 ────────────────────────────────────────────────────────────────
 function renderProfileSummary(){
   if(!currentUser) return;
+  // 이전 유저 DOM 캐시 초기화
+  var detailEl = document.getElementById('set-prof-detail');
+  var fullEl = document.getElementById('set-prof-full-info');
+  var manageBtn = document.getElementById('set-prof-manage-btn');
+  var editArea = document.getElementById('set-prof-edit-area');
+  var editBtn = document.getElementById('set-prof-edit-btn');
+  var editLock = document.getElementById('set-prof-edit-lock');
+  var editForm = document.getElementById('set-prof-edit-form');
+  if(detailEl) detailEl.style.display = 'none';
+  if(fullEl) fullEl.innerHTML = '';
+  if(manageBtn) manageBtn.textContent = '관리';
+  if(editArea) editArea.style.display = 'none';
+  if(editBtn) editBtn.textContent = '정보 수정';
+  if(editLock) editLock.style.display = 'block';
+  if(editForm) editForm.style.display = 'none';
+
   db.ref('users/'+currentUser.uid+'/profile').once('value').then(function(snap){
+    if(!currentUser || currentUser.uid !== auth.currentUser.uid) return;
     var p = snap.val()||{};
     var nameEl = document.getElementById('set-prof-name');
     var emailEl = document.getElementById('set-prof-email');
