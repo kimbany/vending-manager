@@ -122,6 +122,15 @@ function showOnboarding(profile){
   document.getElementById('ob-msg').textContent='';
 }
 
+function toggleObPinEye(n){
+  var id = n===2 ? 'ob-pin2' : 'ob-pin';
+  var eyeId = n===2 ? 'ob-pin2-eye' : 'ob-pin-eye';
+  var inp = document.getElementById(id);
+  var eye = document.getElementById(eyeId);
+  if(inp.type==='password'){ inp.type='text'; eye.textContent='🙈'; }
+  else { inp.type='password'; eye.textContent='👁'; }
+}
+
 function completeOnboarding(){
   var name = document.getElementById('ob-name').value.trim();
   var phone = document.getElementById('ob-phone').value.trim();
@@ -148,14 +157,38 @@ function completeOnboarding(){
   });
 }
 
-// ─── PIN 인증 ────────────────────────────────────────────────────────────────
+// ─── PIN 인증 (커스텀 모달) ──────────────────────────────────────────────────
+var _pinVerifyCallback = null;
+
 function verifyPin(callback){
-  var pin = prompt('보안 PIN을 입력하세요');
-  if(!pin) return;
+  _pinVerifyCallback = callback;
+  document.getElementById('pin-verify-input').value = '';
+  document.getElementById('pin-verify-input').type = 'password';
+  document.getElementById('pin-verify-eye').textContent = '👁';
+  document.getElementById('pin-verify-msg').textContent = '';
+  openModal('pin-verify-modal');
+  setTimeout(function(){ document.getElementById('pin-verify-input').focus(); }, 100);
+}
+
+function togglePinVerifyEye(){
+  var inp = document.getElementById('pin-verify-input');
+  var eye = document.getElementById('pin-verify-eye');
+  if(inp.type==='password'){ inp.type='text'; eye.textContent='🙈'; }
+  else { inp.type='password'; eye.textContent='👁'; }
+}
+
+function submitPinVerify(){
+  var pin = document.getElementById('pin-verify-input').value.trim();
+  var msg = document.getElementById('pin-verify-msg');
+  if(!pin){ msg.textContent='PIN을 입력하세요'; return; }
   hashSHA256(pin).then(function(hash){
     db.ref('users/'+currentUser.uid+'/settings/securityPin').once('value').then(function(snap){
-      if(snap.val() === hash) callback();
-      else showToast('❌ PIN이 올바르지 않아요');
+      if(snap.val() === hash){
+        closeModal('pin-verify-modal');
+        if(_pinVerifyCallback){ var cb = _pinVerifyCallback; _pinVerifyCallback = null; cb(); }
+      } else {
+        msg.textContent='PIN이 올바르지 않아요';
+      }
     });
   });
 }

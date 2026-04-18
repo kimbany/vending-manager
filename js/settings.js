@@ -569,7 +569,6 @@ function openResetConfirm(type){
   document.getElementById('reset-modal-title').textContent='⚠️ '+info.title;
   document.getElementById('reset-modal-desc').textContent=info.desc;
   document.getElementById('reset-type').value=type;
-  document.getElementById('reset-pw').value='';
   document.getElementById('reset-msg').textContent='';
   openModal('reset-confirm-modal');
 }

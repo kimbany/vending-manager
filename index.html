@@ -138,10 +138,37 @@
     <div style="background:rgba(0,100,255,.06);border:1px solid rgba(0,100,255,.15);border-radius:10px;padding:12px;margin-bottom:14px;font-size:12px;color:var(--text2);line-height:1.6">
       🔒 보안 PIN은 정보 수정, 계정 설정, 초기화 시 사용됩니다.<br/>설정 후 변경할 수 있어요.
     </div>
-    <div class="fr"><label class="lbl">보안 PIN <span style="color:var(--red)">*</span> <span style="color:var(--text3);font-weight:400">(4자리 이상)</span></label><input type="password" id="ob-pin" placeholder="PIN 입력" maxlength="8" inputmode="numeric"/></div>
-    <div class="fr"><label class="lbl">보안 PIN 확인</label><input type="password" id="ob-pin2" placeholder="PIN 다시 입력" maxlength="8" inputmode="numeric"/></div>
+    <div class="fr"><label class="lbl">보안 PIN <span style="color:var(--red)">*</span> <span style="color:var(--text3);font-weight:400">(4자리 이상)</span></label>
+      <div style="position:relative">
+        <input type="password" id="ob-pin" placeholder="PIN 입력" maxlength="8" inputmode="numeric" style="padding-right:44px"/>
+        <button type="button" onclick="toggleObPinEye(1)" id="ob-pin-eye" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text3);font-size:18px;padding:4px">👁</button>
+      </div>
+    </div>
+    <div class="fr"><label class="lbl">보안 PIN 확인</label>
+      <div style="position:relative">
+        <input type="password" id="ob-pin2" placeholder="PIN 다시 입력" maxlength="8" inputmode="numeric" style="padding-right:44px"/>
+        <button type="button" onclick="toggleObPinEye(2)" id="ob-pin2-eye" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text3);font-size:18px;padding:4px">👁</button>
+      </div>
+    </div>
     <button onclick="completeOnboarding()" style="width:100%;background:var(--blue);border:none;border-radius:10px;padding:14px;font-size:15px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit;margin-bottom:8px">시작하기</button>
     <div id="ob-msg" style="margin-top:8px;text-align:center;font-size:13px"></div>
+  </div>
+</div>
+
+<!-- PIN 인증 모달 -->
+<div class="modal-bg" id="pin-verify-modal">
+  <div class="modal">
+    <div class="mh"><div class="mt">🔒 보안 PIN 입력</div><button class="mc" onclick="closeModal('pin-verify-modal')">✕</button></div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:14px">보안 PIN을 입력해주세요.</div>
+    <div class="fr">
+      <label class="lbl">보안 PIN</label>
+      <div style="position:relative">
+        <input type="password" id="pin-verify-input" placeholder="PIN 입력" maxlength="8" inputmode="numeric" onkeydown="if(event.key==='Enter')submitPinVerify()" style="padding-right:44px"/>
+        <button type="button" onclick="togglePinVerifyEye()" id="pin-verify-eye" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text3);font-size:18px;padding:4px">👁</button>
+      </div>
+    </div>
+    <button class="btn-p" style="margin-bottom:0" onclick="submitPinVerify()">확인</button>
+    <div id="pin-verify-msg" style="font-size:12px;color:var(--red);margin-top:8px;text-align:center"></div>
   </div>
 </div>
 
@@ -721,7 +748,7 @@
       모든 데이터가 삭제되며 복구할 수 없습니다.
     </div>
     <input type="hidden" id="reset-type" value=""/>
-    <button onclick="executeReset()" style="width:100%;background:var(--red);border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit">초기화 실행 (Google 인증)</button>
+    <button onclick="executeReset()" style="width:100%;background:var(--red);border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit">초기화 실행 (PIN 인증)</button>
     <div id="reset-msg" style="font-size:12px;margin-top:8px;text-align:center"></div>
   </div>
 </div>
