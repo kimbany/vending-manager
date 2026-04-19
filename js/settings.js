@@ -36,7 +36,7 @@ function renderProfileSummary(){
     var p = snap.val()||{};
     var nameEl = document.getElementById('set-prof-name');
     var emailEl = document.getElementById('set-prof-email');
-    if(nameEl) nameEl.textContent = p.username||p.name||'사용자';
+    if(nameEl) nameEl.textContent = p.name||currentUser.displayName||'사용자';
     if(emailEl) emailEl.textContent = p.email||currentUser.email||'';
   });
 }
@@ -65,8 +65,7 @@ function renderProfileFullInfo(){
     var el = document.getElementById('set-prof-full-info');
     if(!el) return;
     el.innerHTML = [
-      ['이름', p.name||'-'],
-      ['아이디', p.username||'-'],
+      ['이름', p.name||currentUser.displayName||'-'],
       ['이메일', p.email||currentUser.email||'-'],
       ['연락처', p.phone||'-'],
       ['가입일', p.createdAt ? p.createdAt.slice(0,10) : '-']
