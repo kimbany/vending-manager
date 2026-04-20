@@ -191,6 +191,7 @@
   <div id="content">
     <!-- 홈 -->
     <div class="tab active" id="tab-home">
+      <button onclick="openModal('guide-modal')" style="width:100%;background:linear-gradient(135deg,#4F8EF7,#7B61FF);color:#fff;border:none;border-radius:12px;padding:14px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:12px;box-shadow:0 2px 8px rgba(79,142,247,.3)">📖 Invendory 사용 가이드</button>
       <!-- 현재 자판기 재고 부족 -->
       <div class="card" style="margin-bottom:12px">
         <div class="ch"><div class="ca" style="background:var(--red)"></div><div><div class="ct">⚠️ 전체 자판기 재고 부족</div><div class="cs">설정 기준 이하 제품</div></div></div>
@@ -820,6 +821,170 @@
     <div style="display:flex;flex-direction:column;gap:8px">
       <button class="inv-type-btn" onclick="closeModal('prod-type-modal');openProductModal()" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:16px;font-size:16px;font-weight:600;color:var(--text);cursor:pointer;font-family:inherit;text-align:left;transition:background .15s">단품 등록<span style="font-size:12px;color:var(--text3);margin-left:8px">제품 하나씩 등록</span></button>
       <button class="inv-type-btn" onclick="closeModal('prod-type-modal');openModal('bulk-modal')" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:16px;font-size:16px;font-weight:600;color:var(--text);cursor:pointer;font-family:inherit;text-align:left;transition:background .15s">일괄 등록<span style="font-size:12px;color:var(--text3);margin-left:8px">CSV 파일로 한번에</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- 사용 가이드 모달 -->
+<div class="modal-bg" id="guide-modal">
+  <div class="modal" style="padding-bottom:24px;max-width:520px;max-height:90vh;overflow-y:auto">
+    <div class="mh"><div class="mt">📖 Invendory 사용 가이드</div><button class="mc" onclick="closeModal('guide-modal')">✕</button></div>
+    <div style="font-size:13px;line-height:1.7;color:var(--text)">
+
+      <div style="background:linear-gradient(135deg,rgba(79,142,247,.1),rgba(123,97,255,.1));border-radius:12px;padding:14px;margin-bottom:16px">
+        <div style="font-size:15px;font-weight:800;margin-bottom:6px">🎯 Invendory 란?</div>
+        <div style="font-size:13px;color:var(--text2);line-height:1.6">자판기 재고·매출·순이익을 한 곳에서 자동 관리하는 앱이에요. VMMS 판매 데이터와 쿠팡 구매 내역을 자동 수집해서 정확한 이익까지 계산해줘요.</div>
+      </div>
+
+      <div style="font-size:14px;font-weight:800;color:var(--blue);margin:18px 0 10px;padding-bottom:6px;border-bottom:2px solid var(--blue)">🚀 초기 설정 (처음 1회)</div>
+
+      <details style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px" open>
+        <summary style="font-weight:700;cursor:pointer;font-size:13px">1️⃣ 회원가입 & 로그인</summary>
+        <div style="margin-top:10px;padding-left:10px;color:var(--text2)">
+          • 구글 계정으로 간편 로그인<br>
+          • 로그인 후 설정 &gt; 개인/보안 에서 이름·연락처 등록
+        </div>
+      </details>
+
+      <details style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
+        <summary style="font-weight:700;cursor:pointer;font-size:13px">2️⃣ VMMS 계정 등록</summary>
+        <div style="margin-top:10px;padding-left:10px;color:var(--text2)">
+          판매 데이터 자동 수집을 위한 VMMS 로그인 정보 등록이에요.<br><br>
+          <b>1.</b> 설정 &gt; 개인/보안 &gt; 🔗 VMMS 계정 &gt; <b>VMMS 계정 등록</b><br>
+          <b>2.</b> VMMS 아이디·비밀번호 입력 후 저장<br>
+          <b>3.</b> 이후 매일 12시·19시 자동으로 판매 데이터 수집<br><br>
+          ⚠️ 계정 정보는 암호화돼서 저장돼요.
+        </div>
+      </details>
+
+      <details style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
+        <summary style="font-weight:700;cursor:pointer;font-size:13px">3️⃣ 자판기 등록</summary>
+        <div style="margin-top:10px;padding-left:10px;color:var(--text2)">
+          <b>1.</b> 설정 &gt; 🏪 자판기 &gt; 위치 추가 (예: "○○고등학교")<br>
+          <b>2.</b> 해당 위치에 자판기 추가 (단말기번호 입력)<br>
+          <b>3.</b> 여러 대 있으면 각각 추가 (멀티자판기 / 음료자판기 등)<br><br>
+          VMMS 연동돼 있으면 컬럼 배치와 제품 정보가 자동으로 채워져요.
+        </div>
+      </details>
+
+      <details style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
+        <summary style="font-weight:700;cursor:pointer;font-size:13px">4️⃣ 쿠팡 메일 연동 (구매 자동 수집)</summary>
+        <div style="margin-top:10px;padding-left:10px;color:var(--text2)">
+          쿠팡 주문 메일이 Gmail 로 오면 자동으로 앱에 반영되는 기능이에요. 1회 설정만 하면 돼요.<br><br>
+          <b>1.</b> 설정 &gt; 개인/보안 &gt; ✉️ 쿠팡 메일 연동 &gt; <b>메일 연동 설정</b><br>
+          <b>2.</b> 내 전용 전달 주소 <code>u-xxx@invendory.kr</code> 복사<br>
+          <b>3.</b> Gmail &gt; 설정 &gt; 전달 및 POP/IMAP &gt; <b>전달 주소 추가</b> &gt; 위 주소 붙여넣기<br>
+          <b>4.</b> 앱 모달에 뜬 <b>"👆 Gmail 전달 승인하기"</b> 버튼 클릭 &gt; Google 페이지에서 확인<br>
+          <b>5.</b> Gmail &gt; 필터 및 차단된 주소 &gt; <b>새 필터 만들기</b><br>
+          &nbsp;&nbsp;&nbsp;• 보낸사람: <code>@coupang.com</code><br>
+          &nbsp;&nbsp;&nbsp;• 동작: 다음 주소로 전달 → 위 전달 주소 선택<br><br>
+          ✅ 이후 쿠팡 주문 메일이 오면 자동으로 앱에 반영됩니다.
+        </div>
+      </details>
+
+      <div style="font-size:14px;font-weight:800;color:var(--green);margin:22px 0 10px;padding-bottom:6px;border-bottom:2px solid var(--green)">📦 재고 관리</div>
+
+      <details style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
+        <summary style="font-weight:700;cursor:pointer;font-size:13px">쿠팡 데이터 가져오기 (자동 입고)</summary>
+        <div style="margin-top:10px;padding-left:10px;color:var(--text2)">
+          <b>1.</b> 재고 탭 &gt; 📥 쿠팡 데이터 가져오기 &gt; 날짜 선택 (오늘/어제/1주일/1개월/직접)<br>
+          <b>2.</b> <b>가져오기</b> 클릭 → 미입고 구매 내역 표시<br>
+          <b>3.</b> 각 제품에서 <b>제품 매칭</b> → 앱 제품과 매핑 (박스당 낱개수 입력)<br>
+          <b>4.</b> <b>입고 처리</b> 클릭 → 재고 자동 추가 + 원가 자동 계산<br><br>
+          💡 박스당 낱개수: 예) 칸쵸 32개들이 2박스 구매 시 → 박스당 수량 32 입력 → 64개 입고
+        </div>
+      </details>
+
+      <details style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
+        <summary style="font-weight:700;cursor:pointer;font-size:13px">수기 재고 입력</summary>
+        <div style="margin-top:10px;padding-left:10px;color:var(--text2)">
+          쿠팡 말고 직접 구매한 재고는 수기로 입력해요.<br><br>
+          <b>1.</b> 재고 탭 &gt; ➕ 수기 재고 입력<br>
+          <b>2.</b> 제품 선택 &gt; 박스당 수량 &gt; 구매 수량(박스) &gt; 구매 총액 입력<br>
+          <b>3.</b> 자동으로 입고 수량 + 개당 원가 계산해서 표시<br>
+          <b>4.</b> <b>입고 확인</b> 클릭 → 재고 반영
+        </div>
+      </details>
+
+      <details style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
+        <summary style="font-weight:700;cursor:pointer;font-size:13px">제품 상세 보기 (입고/차감 이력)</summary>
+        <div style="margin-top:10px;padding-left:10px;color:var(--text2)">
+          재고 탭에서 제품을 클릭하면:<br>
+          • 현재 재고 수량<br>
+          • 전체 입고 내역 (날짜/수량/원가/판매중·소진/쿠팡·수기)<br>
+          • 차감 내역 (판매/수기)<br>
+          • 제품별 수기 입고/차감 가능
+        </div>
+      </details>
+
+      <div style="font-size:14px;font-weight:800;color:#F5A623;margin:22px 0 10px;padding-bottom:6px;border-bottom:2px solid #F5A623">📊 판매 & 이익 분석</div>
+
+      <details style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
+        <summary style="font-weight:700;cursor:pointer;font-size:13px">판매 데이터 확인</summary>
+        <div style="margin-top:10px;padding-left:10px;color:var(--text2)">
+          판매내역 탭에서:<br>
+          • 기간 선택 (오늘/어제/1주일/한달/직접 입력)<br>
+          • 총 판매량 · 총 매출<br>
+          • 제품 판매 순위<br>
+          • 시간대별/금액대별 분포<br>
+          • 건별 판매 내역 (삭제/복구 가능)<br><br>
+          VMMS 연동돼 있으면 매일 12시·19시 자동 수집돼요. 수동으로 <b>⚡ 선택 날짜 데이터 수집</b> 눌러도 돼요.
+        </div>
+      </details>
+
+      <details style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
+        <summary style="font-weight:700;cursor:pointer;font-size:13px">순이익 확인 방법 (중요!)</summary>
+        <div style="margin-top:10px;padding-left:10px;color:var(--text2)">
+          이익을 계산하려면 <b>입고 → 차감</b> 순서가 중요해요.<br><br>
+          <b>1.</b> 쿠팡/수기로 재고 <b>입고</b> (원가 등록됨)<br>
+          <b>2.</b> VMMS 판매 데이터 수집<br>
+          <b>3.</b> 판매내역 탭 &gt; <b>📦 이 기간 재고 차감</b> 클릭<br>
+          <b>4.</b> → 자동으로 FIFO 차감 + 원가 기록<br>
+          <b>5.</b> → <b>총 원가 / 순이익 / 이익률</b> + <b>제품별 이익</b> 표시<br><br>
+          💡 FIFO: 오래된 입고분부터 차감해서 정확한 원가 계산<br>
+          💡 이미 차감 후 입고를 나중에 했으면 <b>💰 원가 보정</b> 버튼으로 재계산
+        </div>
+      </details>
+
+      <div style="font-size:14px;font-weight:800;color:var(--red);margin:22px 0 10px;padding-bottom:6px;border-bottom:2px solid var(--red)">⚙️ 기타 기능</div>
+
+      <details style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
+        <summary style="font-weight:700;cursor:pointer;font-size:13px">재고 부족 알림</summary>
+        <div style="margin-top:10px;padding-left:10px;color:var(--text2)">
+          홈 화면 상단에 자판기별로 재고 부족 제품 자동 표시.<br>
+          설정 &gt; 개인/보안 &gt; <b>재고 부족 기준</b> 에서 수량 변경 가능 (기본 5개).
+        </div>
+      </details>
+
+      <details style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
+        <summary style="font-weight:700;cursor:pointer;font-size:13px">데이터 초기화</summary>
+        <div style="margin-top:10px;padding-left:10px;color:var(--text2)">
+          설정 &gt; ⚠️ 초기화:<br>
+          • 📦 재고 초기화<br>
+          • 🏷️ 제품 초기화<br>
+          • 📊 판매 내역 초기화<br>
+          • 🛒 쿠팡 입고 데이터 초기화 (메일 연동은 유지)<br>
+          • 🗑️ 전체 초기화<br><br>
+          ⚠️ 복구 불가. 비밀번호 재확인 필요.
+        </div>
+      </details>
+
+      <details style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
+        <summary style="font-weight:700;cursor:pointer;font-size:13px">과거 쿠팡 주문 가져오기</summary>
+        <div style="margin-top:10px;padding-left:10px;color:var(--text2)">
+          메일 연동 <b>이전</b> 주문은 Gmail 에서 수동 전달하면 돼요.<br><br>
+          <b>1.</b> Gmail &gt; 해당 쿠팡 메일 열기<br>
+          <b>2.</b> ⋮ &gt; 전달 &gt; <code>u-xxx@invendory.kr</code> 붙여넣기<br>
+          <b>3.</b> 1~2분 뒤 앱에서 📥 쿠팡 데이터 가져오기 (해당 날짜 선택)
+        </div>
+      </details>
+
+      <div style="background:rgba(122,218,154,.1);border-radius:12px;padding:14px;margin-top:20px;font-size:12px;color:var(--text2);line-height:1.7">
+        <b style="color:var(--green)">💬 문의</b><br>
+        가이드대로 안 될 때는 운영자에게 연락 주세요.<br>
+        버그/기능 제안도 환영이에요.
+      </div>
+
     </div>
   </div>
 </div>
