@@ -1,5 +1,6 @@
 // ─── Google Auth Provider ─────────────────────────────────────────────────────
 var googleProvider = new firebase.auth.GoogleAuthProvider();
+googleProvider.setCustomParameters({ prompt: 'select_account' });
 var _pendingGoogleCred = null;
 
 // ─── Auth 상태 감지 ──────────────────────────────────────────────────────────
