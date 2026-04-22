@@ -202,7 +202,7 @@ function renderVmmsProducts(){
         '<div class="in" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">'+
           sanitize(item.productName)+' '+statusBadge+
         '</div>'+
-        '<div class="is">상품코드: '+sanitize(item.productCode)+colInfo+'</div>'+
+        (colInfo ? '<div class="is">컬럼'+colInfo.replace(' · 컬럼: ',': ')+'</div>' : '')+
       '</div>'+
     '</div>';
   }).join('');
