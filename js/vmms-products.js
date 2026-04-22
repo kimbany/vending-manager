@@ -141,7 +141,7 @@ function renderVmmsProducts(){
     var rawCode = p.productCode || '';
     var name = rawName;
     var code = rawCode;
-    if(!rawName || /^\d+$/.test(rawName)){
+    if(!rawName || /^[\d,.\s]+$/.test(rawName)){
       name = rawCode;
       code = rawName;
     }
