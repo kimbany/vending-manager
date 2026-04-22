@@ -362,11 +362,11 @@
               <option value="active">판매중</option>
               <option value="inactive">판매중지</option>
             </select>
-            <input type="text" id="vprod-search" placeholder="제품명 또는 상품코드 검색" oninput="renderVmmsProducts()" style="flex:1;font-size:13px;padding:8px 10px"/>
+            <input type="text" id="vprod-search" placeholder="제품명 검색" oninput="renderVmmsProducts()" style="flex:1;font-size:13px;padding:8px 10px"/>
           </div>
           <div class="stabs" style="margin-bottom:10px">
             <button class="stab active" id="vpsort-name" onclick="setVmmsProdSort('name',this)">제품명</button>
-            <button class="stab" id="vpsort-code" onclick="setVmmsProdSort('code',this)">상품코드</button>
+            <button class="stab" id="vpsort-code" onclick="setVmmsProdSort('column',this)">컬럼</button>
             <button class="stab" id="vpsort-status" onclick="setVmmsProdSort('status',this)">판매상태</button>
           </div>
           <div class="card">

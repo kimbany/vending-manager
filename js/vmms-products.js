@@ -171,8 +171,12 @@ function renderVmmsProducts(){
   // 정렬
   if(_vmmsProdSort === 'name'){
     items.sort(function(a,b){ return (a.productName||'').localeCompare(b.productName||'','ko'); });
-  } else if(_vmmsProdSort === 'code'){
-    items.sort(function(a,b){ return (a.productCode||'').localeCompare(b.productCode||''); });
+  } else if(_vmmsProdSort === 'column'){
+    items.sort(function(a,b){
+      var ac = a.columns.length ? parseInt(a.columns[0].columnNo)||999 : 999;
+      var bc = b.columns.length ? parseInt(b.columns[0].columnNo)||999 : 999;
+      return ac - bc;
+    });
   } else if(_vmmsProdSort === 'status'){
     items.sort(function(a,b){ return (b.isActive?1:0) - (a.isActive?1:0); });
   }
