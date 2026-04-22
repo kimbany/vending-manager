@@ -135,12 +135,21 @@ function renderVmmsProducts(){
 
   // 전체 제품에 판매상태 추가
   var items = _vmmsProducts.map(function(p){
-    var code = p.productCode || '';
-    var columns = colMap[code] || [];
+    // productCode 와 productName 이 뒤바뀐 데이터 대응:
+    // productName 이 숫자/빈값이면 productCode 가 실제 이름
+    var rawName = p.productName || '';
+    var rawCode = p.productCode || '';
+    var name = rawName;
+    var code = rawCode;
+    if(!rawName || /^\d+$/.test(rawName)){
+      name = rawCode;
+      code = rawName;
+    }
+    var columns = colMap[name] || colMap[code] || colMap[rawCode] || [];
     var isActive = columns.length > 0;
     return {
       productCode: code,
-      productName: p.productName || '',
+      productName: name,
       barcode: p.barcode || '',
       isActive: isActive,
       columns: columns
