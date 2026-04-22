@@ -99,21 +99,20 @@ function setVmmsProdSort(s, btn){
 
 // ─── 컬럼매칭 여부 확인 (판매상태 판단) ──────────────────────────────────────
 function _getProductColumnMap(){
-  // 전체 자판기의 컬럼 데이터에서 상품코드 → 컬럼 매핑
-  var map = {}; // {productCode: [{columnNo, machineName, deviceNo}]}
+  // 전체 자판기의 컬럼 데이터에서 상품코드/상품명 → 컬럼 매핑
+  var map = {}; // {key: [{columnNo, machineName, deviceNo}]}
   Object.keys(_vmmsColumns).forEach(function(devno){
     var machData = _vmmsColumns[devno];
     var cols = machData.columns || [];
     if(!Array.isArray(cols)) cols = Object.values(cols);
     cols.forEach(function(c){
       var code = c.productCode||'';
-      if(!code) return;
-      if(!map[code]) map[code] = [];
-      map[code].push({
-        columnNo: c.columnNo||'',
-        machineName: machData.machineName||'',
-        deviceNo: devno
-      });
+      var name = (c.productName||'').trim();
+      var entry = { columnNo: c.columnNo||'', machineName: machData.machineName||'', deviceNo: devno };
+      // 코드로 매핑
+      if(code){ if(!map[code]) map[code] = []; map[code].push(entry); }
+      // 이름으로도 매핑 (제품 마스터의 productCode 가 이름인 경우 대응)
+      if(name){ if(!map[name]) map[name] = []; map[name].push(entry); }
     });
   });
   return map;
