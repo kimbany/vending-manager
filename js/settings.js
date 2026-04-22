@@ -247,8 +247,10 @@ function openAccountEditModal(type){
 
 function unlockAccountEdit(){
   verifyPin(function(){
-    document.getElementById('acct-lock').style.display = 'none';
-    document.getElementById('acct-form').style.display = 'block';
+    var lockEl = document.getElementById('acct-lock');
+    var formEl = document.getElementById('acct-form');
+    if(lockEl) lockEl.style.display = 'none';
+    if(formEl) formEl.style.display = 'block';
     _loadAccountData();
   });
 }
@@ -259,21 +261,13 @@ function _loadAccountData(){
       var v = snap.val()||{};
       if(v.id && v.pw){
         Promise.all([decryptAES(v.id, currentUser.uid), decryptAES(v.pw, currentUser.uid)]).then(function(r){
-          document.getElementById('acct-id').value = r[0]||'';
-          document.getElementById('acct-pw').value = r[1]||'';
-        });
+          var idEl = document.getElementById('acct-id');
+          var pwEl = document.getElementById('acct-pw');
+          if(idEl) idEl.value = r[0]||'';
+          if(pwEl) pwEl.value = r[1]||'';
+        }).catch(function(){});
       }
-    });
-  } else {
-    db.ref('users/'+currentUser.uid+'/coupangAccount').once('value').then(function(snap){
-      var v = snap.val()||{};
-      if(v.email && v.pw){
-        try {
-          document.getElementById('acct-id').value = atob(v.email);
-          document.getElementById('acct-pw').value = atob(v.pw);
-        } catch(e){}
-      }
-    });
+    }).catch(function(){});
   }
 }
 
