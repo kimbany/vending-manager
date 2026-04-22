@@ -215,15 +215,20 @@ var _acctEditType = '';
 
 function openAccountEditModal(type){
   _acctEditType = type;
-  document.getElementById('acct-lock').style.display = 'block';
-  document.getElementById('acct-form').style.display = 'none';
-  document.getElementById('acct-lock-pw').value = '';
-  document.getElementById('acct-lock-msg').textContent = '';
-  document.getElementById('acct-id').value = '';
-  document.getElementById('acct-pw').value = '';
-  document.getElementById('acct-pw').type = 'password';
-  document.getElementById('acct-pw-eye').textContent = '👁';
-  document.getElementById('acct-msg').textContent = '';
+  var lockEl = document.getElementById('acct-lock');
+  var formEl = document.getElementById('acct-form');
+  if(lockEl) lockEl.style.display = 'block';
+  if(formEl) formEl.style.display = 'none';
+  var lockMsgEl = document.getElementById('acct-lock-msg');
+  if(lockMsgEl) lockMsgEl.textContent = '';
+  var idEl = document.getElementById('acct-id');
+  var pwEl = document.getElementById('acct-pw');
+  if(idEl) idEl.value = '';
+  if(pwEl){ pwEl.value = ''; pwEl.type = 'password'; }
+  var eyeEl = document.getElementById('acct-pw-eye');
+  if(eyeEl) eyeEl.textContent = '👁';
+  var msgEl = document.getElementById('acct-msg');
+  if(msgEl) msgEl.textContent = '';
   if(type==='vmms'){
     document.getElementById('acct-modal-title').textContent = '🔗 VMMS 계정 설정';
     document.getElementById('acct-id-label').textContent = 'VMMS 아이디';
