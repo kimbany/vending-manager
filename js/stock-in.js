@@ -764,16 +764,33 @@ function loadCoupangOrders(){
     .once('value').then(function(snap){
     var data = snap.val();
     if(!data){
-      // 전체 coupangOrders 확인하여 진단 메시지 표시
-      db.ref('users/'+currentUser.uid+'/coupangOrders').once('value').then(function(allSnap){
-        var allData = allSnap.val();
+      // 전체 coupangOrders + mailForward 진단 정보 확인
+      Promise.all([
+        db.ref('users/'+currentUser.uid+'/coupangOrders').once('value'),
+        db.ref('users/'+currentUser.uid+'/mailForward').once('value')
+      ]).then(function(rs){
+        var allData = rs[0].val();
+        var mf = rs[1].val()||{};
+        var diag = '';
+        if(mf.last_received_at){
+          diag += '\n\n📬 마지막 메일 수신: '+mf.last_received_at;
+          if(mf.last_sender) diag += '\n   발신: '+mf.last_sender;
+        } else {
+          diag += '\n\n⚠️ 시스템이 받은 메일이 없습니다.\n→ Gmail 자동 전달이 작동하지 않거나 인증이 안 됐어요.';
+        }
+        if(mf.last_parse_failed){
+          diag += '\n\n❌ 마지막 파싱 실패:\n   '+(mf.last_parse_failed.subject||'').slice(0,80);
+          diag += '\n   (시간: '+mf.last_parse_failed.at+')';
+        }
+        if(mf.last_parse_debug && mf.last_parse_debug.products_found > 0){
+          diag += '\n\n✅ 마지막 파싱 성공: 제품 '+mf.last_parse_debug.products_found+'개';
+        }
+
         if(!allData){
-          alert('📭 쿠팡 주문 데이터가 전혀 없어요.\n\n원인:\n1. 메일 자동 전달이 설정되지 않았을 수 있어요\n2. 메일이 도착했지만 파싱에 실패했을 수 있어요\n\n해결:\n• 설정 > 메일 연동에서 전달 주소를 다시 확인해주세요\n• 쿠팡 주문 메일을 수동으로 invendory.kr 주소로 전달해보세요');
+          alert('📭 쿠팡 주문 데이터가 전혀 없어요.'+diag+'\n\n해결:\n• Gmail에서 본인 메일에 직접 쿠팡 메일 1개를 ⋮ > 전달 → invendory.kr 주소로 수동 전달\n• 1~2분 후 다시 시도');
         } else {
           var dates = Object.keys(allData).sort();
-          var earliest = dates[0];
-          var latest = dates[dates.length-1];
-          alert('📭 선택한 기간('+fromDate+' ~ '+toDate+')에 데이터가 없어요.\n\n수신된 데이터 기간: '+earliest+' ~ '+latest+'\n전체 '+dates.length+'건\n\n날짜 범위를 조정해서 다시 시도해주세요.');
+          alert('📭 선택한 기간('+fromDate+' ~ '+toDate+')에 데이터가 없어요.\n\n수신된 데이터 기간: '+dates[0]+' ~ '+dates[dates.length-1]+'\n전체 '+dates.length+'건'+diag+'\n\n날짜 범위를 조정해주세요.');
         }
       });
       return;
