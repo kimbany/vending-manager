@@ -843,6 +843,7 @@ function loadCoupangOrders(){
       purchases.forEach(function(p){ existingNames[p.coupangProductName+'_'+p.purchaseDate] = true; });
 
       var added = 0;
+      var duplicated = 0;
       Object.keys(data).forEach(function(dateKey){
         var dayData = data[dateKey];
         var orders = dayData.orders || [];
@@ -853,7 +854,7 @@ function loadCoupangOrders(){
           var orderDate = (order.order_date||'').replace(/\./g,'-').replace(/\s/g,'');
           products.forEach(function(prod){
             var key = prod.product_name+'_'+orderDate;
-            if(existingNames[key]) return; // 중복 방지
+            if(existingNames[key]){ duplicated++; return; } // 중복 방지
             purchases.push({
               id: Date.now().toString()+Math.random().toString(36).substr(2,4),
               coupangProductName: prod.product_name,
@@ -870,7 +871,9 @@ function loadCoupangOrders(){
       });
 
       db.ref('users/'+currentUser.uid+'/purchases').set(purchases).then(function(){
-        showToast('✅ 쿠팡 주문 '+added+'건 추가');
+        var msg = '✅ 쿠팡 주문 '+added+'건 추가';
+        if(duplicated > 0) msg += ' (중복 '+duplicated+'건 제외)';
+        showToast(msg);
         loadCoupangPending();
       });
     });
