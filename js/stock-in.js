@@ -1058,7 +1058,9 @@ function _renderMatchProductDropdown(machineKey){
     inner += '<input type="text" id="match-product-filter" placeholder="제품명 검색..." oninput="_filterMatchProducts()" '+
       'style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;background:var(--bg2);color:var(--text);margin-bottom:6px"/>';
   }
+  inner += '<div id="match-selected" style="display:none;padding:8px 12px;background:rgba(0,100,255,.08);border:1px solid rgba(0,100,255,.2);border-radius:8px;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--blue)"></div>';
   inner += '<select id="match-product-sel" size="'+Math.min(mm.products.length, 6)+'" '+
+    'onchange="_onMatchSelect()" '+
     'style="width:100%;padding:6px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;background:var(--bg2);color:var(--text)">' +
     mm.products.map(function(p){
       return '<option value="'+p.id+'" data-name="'+(p.name||'').toLowerCase()+'">'+p.name+'</option>';
@@ -1233,6 +1235,18 @@ function _collectMachinesWithProducts(){
     console.error('[_collectMachinesWithProducts] error:', e);
     return [];
   });
+}
+
+// 제품 선택 시 선택 표시 유지
+function _onMatchSelect(){
+  var sel = document.getElementById('match-product-sel');
+  var display = document.getElementById('match-selected');
+  if(!sel || !display) return;
+  var opt = sel.options[sel.selectedIndex];
+  if(opt && opt.value){
+    display.textContent = '✅ 선택: ' + opt.textContent;
+    display.style.display = 'block';
+  }
 }
 
 // 검색 필터 (제품 목록 내)
