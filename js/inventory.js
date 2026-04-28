@@ -75,7 +75,7 @@ function renderPurchase(){
 }
 
 function _renderPurchaseList(el, prods, inv, lt){
-  function getQ(pid){ var i=inv.find(function(x){return x.productId===pid;}); return i?i.qty:0; }
+  function getQ(pid){ return gq(pid); }
   var lowProds = prods.filter(function(p){ return getQ(p.id) <= lt; });
   if(!lowProds.length){
     el.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text3);font-size:14px">✅ 재고 부족 제품 없음</div>';
