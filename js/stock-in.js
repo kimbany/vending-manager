@@ -749,9 +749,16 @@ function loadCoupangOrders(){
   var fromDate = (fromEl && fromEl.value) || '';
   var toDate = (toEl && toEl.value) || '';
 
+  // 입력칸이 없으면 최근 90일 자동 사용 (Gmail 동기화 후 자동 호출 케이스)
   if(!fromDate || !toDate){
-    showToast('⚠️ 날짜를 선택해주세요');
-    return;
+    if(!fromEl && !toEl){
+      var today = new Date();
+      fromDate = _localDateStr(new Date(today.getTime() - 90*24*60*60*1000));
+      toDate = _localDateStr(today);
+    } else {
+      showToast('⚠️ 날짜를 선택해주세요');
+      return;
+    }
   }
 
   showToast('⏳ '+fromDate+' ~ '+toDate+' 데이터 확인 중...');
