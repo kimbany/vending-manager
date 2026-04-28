@@ -1697,18 +1697,40 @@ exports.receiveForwardedEmail = onRequest(
       // 5. 본문 텍스트 추출 + 쿠팡 파싱
       const bodyText = extractEmailBody(String(raw));
       const dateHint = receivedAt ? toKstDateStr(receivedAt) : "";
-      const order = parseCoupangEmail(bodyText, dateHint);
-
       const nowStr = new Date().toISOString().replace("T", " ").slice(0, 19);
 
       // last_received_at 는 항상 갱신
       await admin.database().ref(`users/${uid}/mailForward/last_received_at`).set(nowStr);
       await admin.database().ref(`users/${uid}/mailForward/last_sender`).set(fromLower.slice(0, 100));
 
+      // 5-1. 결제 확인/배송/취소 등 상품 정보가 없는 알림 메일은 파싱 시도 없이 스킵
+      //      예: "김*기님, 쿠팡(주)에서 [신용카드]결제하신 내역입니다."
+      //      → 이런 메일은 카드사 결제 영수증 형식이라 상품 line item이 없음.
+      //      실제 상품 정보는 별도 "구매 확정"/"구매 상세내역" 메일에 들어옴.
+      const subjectStr = String(subject || "");
+      const hasOrderDetails = /구매\s*하신|구매\s*상세|구매\s*내역|주문\s*상품|주문\s*확인|배송\s*완료/.test(subjectStr) ||
+                              /구매\s*상세\s*내역|구매하신\s*내역|주문\s*상품/.test(bodyText);
+      const isNotificationOnly =
+        (/결제하신\s*내역|결제\s*확인|결제\s*완료|\[신용카드\]|입금\s*확인|배송\s*시작|취소\s*완료|환불/.test(subjectStr)) &&
+        !hasOrderDetails;
+      if (isNotificationOnly) {
+        console.log(`[receiveForwardedEmail] notification-only mail skipped: subject="${subjectStr.slice(0, 80)}"`);
+        await admin.database().ref(`users/${uid}/mailForward/last_skipped`).set({
+          at: nowStr,
+          subject: subjectStr.slice(0, 200),
+          reason: "결제/배송 알림 메일 (상품 정보 없음)",
+        });
+        // 이전 파싱 실패 기록은 그대로 두되 — 실제 실패가 아니므로 새로 기록하지 않음
+        res.status(200).json({ ok: true, parsed: false, reason: "notification-only" });
+        return;
+      }
+
+      const order = parseCoupangEmail(bodyText, dateHint);
+
       // 파싱 디버그: 성공/실패 무관하게 본문 샘플 저장
       await admin.database().ref(`users/${uid}/mailForward/last_parse_debug`).set({
         at: nowStr,
-        subject: String(subject || "").slice(0, 200),
+        subject: subjectStr.slice(0, 200),
         body_sample: bodyText.slice(0, 1500),
         products_found: order ? (order.products || []).length : 0,
         has_prices: order ? (order.products || []).some(p => p.price > 0) : false,
@@ -1718,7 +1740,7 @@ exports.receiveForwardedEmail = onRequest(
         console.log(`[receiveForwardedEmail] parse failed: to=${to}, subject=${subject}`);
         await admin.database().ref(`users/${uid}/mailForward/last_parse_failed`).set({
           at: nowStr,
-          subject: String(subject || "").slice(0, 200),
+          subject: subjectStr.slice(0, 200),
           body_sample: bodyText.slice(0, 800),
         });
         res.status(200).json({ ok: true, parsed: false, reason: "no products" });

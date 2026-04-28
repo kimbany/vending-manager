@@ -778,7 +778,14 @@ function loadCoupangOrders(){
         } else {
           diag += '\n\n⚠️ 시스템이 받은 메일이 없습니다.\n→ Gmail 자동 전달이 작동하지 않거나 인증이 안 됐어요.';
         }
-        if(mf.last_parse_failed){
+        // 가장 최근 이벤트(skipped/failed/debug) 중 시간이 늦은 것을 우선 표시
+        var skipAt = (mf.last_skipped&&mf.last_skipped.at)||'';
+        var failAt = (mf.last_parse_failed&&mf.last_parse_failed.at)||'';
+        if(skipAt && skipAt >= failAt){
+          diag += '\n\n⏭️ 마지막 메일 건너뜀 (상품 정보 없음):\n   '+(mf.last_skipped.subject||'').slice(0,80);
+          diag += '\n   사유: '+(mf.last_skipped.reason||'알림 메일');
+          diag += '\n   (시간: '+mf.last_skipped.at+')';
+        } else if(mf.last_parse_failed){
           diag += '\n\n❌ 마지막 파싱 실패:\n   '+(mf.last_parse_failed.subject||'').slice(0,80);
           diag += '\n   (시간: '+mf.last_parse_failed.at+')';
         }
@@ -786,8 +793,16 @@ function loadCoupangOrders(){
           diag += '\n\n✅ 마지막 파싱 성공: 제품 '+mf.last_parse_debug.products_found+'개';
         }
 
+        // 안내 메시지: 건너뜀 상태면 카드 결제 알림 메일 관련 안내, 아니면 일반 안내
+        var hint = '';
+        if(skipAt && skipAt >= failAt){
+          hint = '\n\n💡 카드 결제 알림 메일은 상품 목록이 없어서 건너뛰었어요.\n• 쿠팡 "구매 상세내역" / "구매 확정" 메일이 도착해야 자동 등록돼요\n• Gmail 필터를 좁히려면: "구매 상세내역" OR "구매 확정" 키워드 추가';
+        } else {
+          hint = '\n\n해결:\n• Gmail에서 본인 메일에 직접 쿠팡 "구매 상세내역" 메일 1개를 ⋮ > 전달 → invendory.kr 주소로 수동 전달\n• 1~2분 후 다시 시도';
+        }
+
         if(!allData){
-          alert('📭 쿠팡 주문 데이터가 전혀 없어요.'+diag+'\n\n해결:\n• Gmail에서 본인 메일에 직접 쿠팡 메일 1개를 ⋮ > 전달 → invendory.kr 주소로 수동 전달\n• 1~2분 후 다시 시도');
+          alert('📭 쿠팡 주문 데이터가 전혀 없어요.'+diag+hint);
         } else {
           var dates = Object.keys(allData).sort();
           alert('📭 선택한 기간('+fromDate+' ~ '+toDate+')에 데이터가 없어요.\n\n수신된 데이터 기간: '+dates[0]+' ~ '+dates[dates.length-1]+'\n전체 '+dates.length+'건'+diag+'\n\n날짜 범위를 조정해주세요.');
