@@ -1145,6 +1145,21 @@ function parseCoupangEmail(text, dateHint) {
 }
 
 /**
+ * 최근 받은 메일 목록 갱신 (최대 10건 유지, 최신이 앞에 옴)
+ */
+async function appendRecentMail(ref, entry) {
+  try {
+    const snap = await ref.once("value");
+    const arr = snap.val() || [];
+    const list = Array.isArray(arr) ? arr.slice() : Object.values(arr);
+    list.unshift(entry);
+    await ref.set(list.slice(0, 10));
+  } catch (e) {
+    console.error("[appendRecentMail] error:", e);
+  }
+}
+
+/**
  * RFC 2822 날짜 문자열을 "YYYY.MM.DD" (KST)로
  */
 function toKstDateStr(rfcDate) {
@@ -1703,6 +1718,15 @@ exports.receiveForwardedEmail = onRequest(
       await admin.database().ref(`users/${uid}/mailForward/last_received_at`).set(nowStr);
       await admin.database().ref(`users/${uid}/mailForward/last_sender`).set(fromLower.slice(0, 100));
 
+      // 최근 받은 메일 목록 (최대 10건) — 어떤 제목이 실제로 도착했는지 진단용
+      const recentMailsRef = admin.database().ref(`users/${uid}/mailForward/recent_mails`);
+      const recentMailEntry = {
+        at: nowStr,
+        subject: String(subject || "").slice(0, 200),
+        from: fromLower.slice(0, 100),
+        outcome: "received",
+      };
+
       // 5-1. 결제 확인/배송/취소 등 상품 정보가 없는 알림 메일은 파싱 시도 없이 스킵
       //      예: "김*기님, 쿠팡(주)에서 [신용카드]결제하신 내역입니다."
       //      → 이런 메일은 카드사 결제 영수증 형식이라 상품 line item이 없음.
@@ -1720,6 +1744,8 @@ exports.receiveForwardedEmail = onRequest(
           subject: subjectStr.slice(0, 200),
           reason: "결제/배송 알림 메일 (상품 정보 없음)",
         });
+        recentMailEntry.outcome = "skipped";
+        await appendRecentMail(recentMailsRef, recentMailEntry);
         // 이전 파싱 실패 기록은 그대로 두되 — 실제 실패가 아니므로 새로 기록하지 않음
         res.status(200).json({ ok: true, parsed: false, reason: "notification-only" });
         return;
@@ -1743,9 +1769,14 @@ exports.receiveForwardedEmail = onRequest(
           subject: subjectStr.slice(0, 200),
           body_sample: bodyText.slice(0, 800),
         });
+        recentMailEntry.outcome = "parse_failed";
+        await appendRecentMail(recentMailsRef, recentMailEntry);
         res.status(200).json({ ok: true, parsed: false, reason: "no products" });
         return;
       }
+      recentMailEntry.outcome = "parsed";
+      recentMailEntry.products = order.products.length;
+      await appendRecentMail(recentMailsRef, recentMailEntry);
 
       // 6. Firebase 저장 (날짜별 그룹)
       const dateKey = (order.order_date || dateHint || "").replace(/\./g, "-");

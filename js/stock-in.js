@@ -792,6 +792,18 @@ function loadCoupangOrders(){
         if(mf.last_parse_debug && mf.last_parse_debug.products_found > 0){
           diag += '\n\n✅ 마지막 파싱 성공: 제품 '+mf.last_parse_debug.products_found+'개';
         }
+        // 최근 받은 메일 목록 — 어떤 제목이 실제로 도착했는지 확인용
+        var recent = mf.recent_mails;
+        if(recent){
+          var list = Array.isArray(recent) ? recent : Object.values(recent);
+          if(list.length){
+            diag += '\n\n📋 최근 받은 메일:';
+            list.slice(0,5).forEach(function(m){
+              var icon = m.outcome==='parsed'?'✅':(m.outcome==='skipped'?'⏭️':'❌');
+              diag += '\n   '+icon+' '+(m.subject||'(제목 없음)').slice(0,60);
+            });
+          }
+        }
 
         // 안내 메시지: 건너뜀 상태면 카드 결제 알림 메일 관련 안내, 아니면 일반 안내
         var hint = '';
