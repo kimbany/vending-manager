@@ -763,7 +763,21 @@ function loadCoupangOrders(){
     .endAt(toDate)
     .once('value').then(function(snap){
     var data = snap.val();
-    if(!data){showToast('📭 해당 기간 주문 데이터 없음');return;}
+    if(!data){
+      // 전체 coupangOrders 확인하여 진단 메시지 표시
+      db.ref('users/'+currentUser.uid+'/coupangOrders').once('value').then(function(allSnap){
+        var allData = allSnap.val();
+        if(!allData){
+          alert('📭 쿠팡 주문 데이터가 전혀 없어요.\n\n원인:\n1. 메일 자동 전달이 설정되지 않았을 수 있어요\n2. 메일이 도착했지만 파싱에 실패했을 수 있어요\n\n해결:\n• 설정 > 메일 연동에서 전달 주소를 다시 확인해주세요\n• 쿠팡 주문 메일을 수동으로 invendory.kr 주소로 전달해보세요');
+        } else {
+          var dates = Object.keys(allData).sort();
+          var earliest = dates[0];
+          var latest = dates[dates.length-1];
+          alert('📭 선택한 기간('+fromDate+' ~ '+toDate+')에 데이터가 없어요.\n\n수신된 데이터 기간: '+earliest+' ~ '+latest+'\n전체 '+dates.length+'건\n\n날짜 범위를 조정해서 다시 시도해주세요.');
+        }
+      });
+      return;
+    }
 
     // 기존 purchases 로드
     db.ref('users/'+currentUser.uid+'/purchases').once('value').then(function(pSnap){
