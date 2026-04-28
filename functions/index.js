@@ -1013,9 +1013,10 @@ function parseCoupangEmail(text, dateHint) {
   // 금액 패턴 (1,234원 또는 1234원)
   const priceRe = /([\d,]+)\s*원/;
 
-  // "구매 상세내역" ~ "결제 정보" 사이 섹션 추출
-  const startIdx = text.search(/구매\s*(상세)?\s*내역|구매\s*정보|주문\s*상품/);
-  const endIdx = text.search(/결제\s*정보|주문\s*정보|결제\s*금액/);
+  // "구매 상세내역" / "주문하신 내역" / "주문 상품" ~ "결제 정보" 사이 섹션 추출
+  // "[쿠팡] 주문하신 내역" 메일은 본문에 "주문하신 내역" 또는 "주문 상품 정보" 헤더 사용
+  const startIdx = text.search(/구매\s*(상세)?\s*내역|구매\s*정보|주문\s*상품|주문\s*하신\s*내역|주문\s*내역|상품\s*정보/);
+  const endIdx = text.search(/결제\s*정보|주문\s*정보|결제\s*금액|총\s*결제\s*금액/);
   let section = "";
   if (startIdx >= 0) {
     section = endIdx > startIdx ? text.slice(startIdx, endIdx) : text.slice(startIdx, startIdx + 4000);
@@ -1732,8 +1733,9 @@ exports.receiveForwardedEmail = onRequest(
       //      → 이런 메일은 카드사 결제 영수증 형식이라 상품 line item이 없음.
       //      실제 상품 정보는 별도 "구매 확정"/"구매 상세내역" 메일에 들어옴.
       const subjectStr = String(subject || "");
-      const hasOrderDetails = /구매\s*하신|구매\s*상세|구매\s*내역|주문\s*상품|주문\s*확인|배송\s*완료/.test(subjectStr) ||
-                              /구매\s*상세\s*내역|구매하신\s*내역|주문\s*상품/.test(bodyText);
+      // "주문하신 내역", "주문 내역", "구매 상세내역" 등 — 상품 정보가 들어있는 메일 패턴
+      const hasOrderDetails = /구매\s*하신|구매\s*상세|구매\s*내역|주문\s*상품|주문\s*확인|주문\s*하신\s*내역|주문\s*내역|배송\s*완료/.test(subjectStr) ||
+                              /구매\s*상세\s*내역|구매하신\s*내역|주문\s*상품|주문\s*하신\s*내역|주문\s*내역/.test(bodyText);
       const isNotificationOnly =
         (/결제하신\s*내역|결제\s*확인|결제\s*완료|\[신용카드\]|입금\s*확인|배송\s*시작|취소\s*완료|환불/.test(subjectStr)) &&
         !hasOrderDetails;

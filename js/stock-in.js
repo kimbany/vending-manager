@@ -788,6 +788,11 @@ function loadCoupangOrders(){
         } else if(mf.last_parse_failed){
           diag += '\n\n❌ 마지막 파싱 실패:\n   '+(mf.last_parse_failed.subject||'').slice(0,80);
           diag += '\n   (시간: '+mf.last_parse_failed.at+')';
+          // 본문 샘플 일부 — 파서가 어디서 실패했는지 확인용
+          if(mf.last_parse_failed.body_sample){
+            var sample = String(mf.last_parse_failed.body_sample).replace(/\s+/g,' ').slice(0,300);
+            diag += '\n   본문: '+sample+'...';
+          }
         }
         if(mf.last_parse_debug && mf.last_parse_debug.products_found > 0){
           diag += '\n\n✅ 마지막 파싱 성공: 제품 '+mf.last_parse_debug.products_found+'개';
