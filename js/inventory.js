@@ -460,9 +460,35 @@ function _renderInvMulti(machineDataList){
   sel.innerHTML='<option value="">제품 선택</option>'+D.products.map(function(p){return '<option value="'+p.id+'">'+p.name+'</option>';}).join('');
 }
 
-function getLowStockThreshold(){
-  // 설정에서 재고 부족 기준 불러오기 (기본: 5)
+function getLowStockThreshold(productId){
+  // 고정 수량 기준
   if(typeof _lowStockThreshold !== 'undefined' && _lowStockThreshold !== null) return _lowStockThreshold;
+  // 평균 판매량 기준: 하루 평균 판매량 × 일수
+  if(_lowStockAvgDays > 0 && D.salesData && D.salesData.length){
+    if(productId){
+      // 특정 제품의 평균 판매량 계산
+      var prod = typeof findProductById === 'function' ? findProductById(productId) : null;
+      var prodName = prod ? (prod.name||'').trim().toLowerCase() : '';
+      var now = new Date();
+      var daysAgo = new Date(now.getTime() - 30*24*60*60*1000); // 최근 30일
+      var daysAgoStr = daysAgo.getFullYear()+'-'+('0'+(daysAgo.getMonth()+1)).slice(-2)+'-'+('0'+daysAgo.getDate()).slice(-2);
+      var count = 0;
+      D.salesData.forEach(function(s){
+        if(s.cancelled || !s.date || s.date < daysAgoStr) return;
+        var matched = false;
+        if(prod && s.productId === prod.id) matched = true;
+        if(!matched && s.itemName && prodName && s.itemName.trim().toLowerCase() === prodName) matched = true;
+        if(matched) count += (s.qty||1);
+      });
+      var dailyAvg = count / 30;
+      return Math.max(1, Math.ceil(dailyAvg * _lowStockAvgDays));
+    }
+    // 제품 미지정이면 전체 평균
+    var totalSales = D.salesData.filter(function(s){return !s.cancelled;}).length;
+    var prodCount = D.products ? D.products.length : 1;
+    var dailyAvg = (totalSales / 30) / Math.max(prodCount, 1);
+    return Math.max(1, Math.ceil(dailyAvg * _lowStockAvgDays));
+  }
   return 5;
 }
 var _lowStockThreshold = null;
