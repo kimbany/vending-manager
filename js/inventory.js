@@ -49,8 +49,29 @@ function renderPurchase(){
         prods = prods.filter(function(p){ return p && p.name; });
         var inv = appData.inventory||[];
         if(!Array.isArray(inv)) inv = Object.values(inv);
+        var inv = appData.inventory||[];
+        if(!Array.isArray(inv)) inv = Object.values(inv);
+        var stockIn = appData.stockIn||[];
+        if(!Array.isArray(stockIn)) stockIn = Object.values(stockIn);
         prods.forEach(function(p){
-          var q = gq(p.name) || gq(p.id);
+          // 이 자판기의 stockIn/inventory에서 직접 재고 계산
+          var q = 0;
+          var pName = (p.name||'').trim().toLowerCase();
+          // stockIn에서 합산
+          stockIn.forEach(function(b){
+            if(!b || !b.remainingQty) return;
+            if(b.productId === p.id) { q += b.remainingQty; return; }
+            if(p.productCode && (b.productId === p.productCode)) { q += b.remainingQty; return; }
+            var bProd = prods.find(function(x){return x.id===b.productId;});
+            if(bProd && bProd.name && bProd.name.trim().toLowerCase() === pName) q += b.remainingQty;
+          });
+          // stockIn 없으면 inventory
+          if(q === 0){
+            inv.forEach(function(i){
+              if(i.productId === p.id) q += (i.qty||0);
+              else if(p.productCode && i.productId === p.productCode) q += (i.qty||0);
+            });
+          }
           if(q <= lt && !p.discontinued) allLow.push({p:p, q:q, machineName:m.name});
         });
       });
