@@ -50,8 +50,7 @@ function renderPurchase(){
         var inv = appData.inventory||[];
         if(!Array.isArray(inv)) inv = Object.values(inv);
         prods.forEach(function(p){
-          var qi = inv.find(function(x){return x.productId===p.id;});
-          var q = qi ? qi.qty : 0;
+          var q = gq(p.name) || gq(p.id);
           if(q <= lt && !p.discontinued) allLow.push({p:p, q:q, machineName:m.name});
         });
       });
