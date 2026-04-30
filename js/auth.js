@@ -45,31 +45,46 @@ auth.onAuthStateChanged(function(user){
       lastLogin: new Date().toISOString()
     }).catch(function(e){ console.warn('adminUsers profile update failed:', e); });
 
-    // 위치/자판기/VMMS컬럼 변경 시 자동 동기화 (실시간)
+    // 위치/자판기/VMMS 변경 시 자동 동기화 (실시간)
     detachAdminSync();
     var uid = user.uid;
-    var state = { locs: null, vmms: null, locsLoaded: false, vmmsLoaded: false };
+    var state = {
+      locs: null, vmms: null, vmmsProds: null, legacy: null,
+      locsLoaded: false, vmmsLoaded: false, vmmsProdsLoaded: false, legacyLoaded: false
+    };
     var pushAdminPayload = function(){
-      // 두 데이터 모두 최소 1회 로드된 후에만 푸시 (제품수 부정확 방지)
-      if(!state.locsLoaded || !state.vmmsLoaded) return;
-      var payload = buildAdminMachinesPayload(state.locs, state.vmms);
+      if(!state.locsLoaded || !state.vmmsLoaded || !state.vmmsProdsLoaded || !state.legacyLoaded) return;
+      var payload = buildAdminMachinesPayload(state.locs, state.vmms, state.vmmsProds, state.legacy);
       db.ref('adminUsers/' + uid).update(payload)
         .catch(function(e){ console.warn('adminUsers machines sync failed:', e); });
     };
     _adminSyncRefs.locs = db.ref('users/' + uid + '/locations');
-    _adminSyncHandlers.locs = function(s){
-      state.locs = s.val(); state.locsLoaded = true; pushAdminPayload();
-    };
+    _adminSyncHandlers.locs = function(s){ state.locs = s.val(); state.locsLoaded = true; pushAdminPayload(); };
     _adminSyncRefs.locs.on('value', _adminSyncHandlers.locs);
 
     _adminSyncRefs.vmms = db.ref('users/' + uid + '/vmmsColumns');
     _adminSyncHandlers.vmms = function(s){
       var v = s.val() || {};
       state.vmms = (v && v.machines) ? v.machines : {};
-      state.vmmsLoaded = true;
-      pushAdminPayload();
+      state.vmmsLoaded = true; pushAdminPayload();
     };
     _adminSyncRefs.vmms.on('value', _adminSyncHandlers.vmms);
+
+    _adminSyncRefs.vmmsProds = db.ref('users/' + uid + '/vmmsProducts/items');
+    _adminSyncHandlers.vmmsProds = function(s){
+      var v = s.val();
+      state.vmmsProds = Array.isArray(v) ? v : (v && typeof v === 'object' ? Object.values(v) : []);
+      state.vmmsProdsLoaded = true; pushAdminPayload();
+    };
+    _adminSyncRefs.vmmsProds.on('value', _adminSyncHandlers.vmmsProds);
+
+    _adminSyncRefs.legacy = db.ref('users/' + uid + '/appData/products');
+    _adminSyncHandlers.legacy = function(s){
+      var v = s.val();
+      state.legacy = Array.isArray(v) ? v : (v && typeof v === 'object' ? Object.values(v) : []);
+      state.legacyLoaded = true; pushAdminPayload();
+    };
+    _adminSyncRefs.legacy.on('value', _adminSyncHandlers.legacy);
 
     if(!pin){
       showOnboarding(profile);
@@ -79,13 +94,25 @@ auth.onAuthStateChanged(function(user){
   });
 });
 
-// 위치 데이터 + VMMS 컬럼 → adminUsers 자판기 페이로드 변환
-// 제품수는 appData.products + vmmsColumns의 컬럼 제품을 이름 기준 합집합으로 계산
-function buildAdminMachinesPayload(locs, vmmsCols){
+// 위치 데이터 + VMMS → adminUsers 자판기 페이로드 변환
+// 제품수: appData.products ∪ vmmsColumns 컬럼 (이름 기준 합집합).
+// 자판기에 매칭되는 vmmsColumns가 없고 자판기가 1대뿐이면 vmmsProducts 마스터 / legacy appData/products 까지 fallback.
+function buildAdminMachinesPayload(locs, vmmsCols, vmmsProds, legacyProds){
   locs = locs || {};
   vmmsCols = vmmsCols || {};
+  vmmsProds = Array.isArray(vmmsProds) ? vmmsProds : [];
+  legacyProds = Array.isArray(legacyProds) ? legacyProds : [];
+
   var machines = [];
-  Object.keys(locs).forEach(function(lid){
+  var locKeys = Object.keys(locs);
+  var totalMachineCount = 0;
+  locKeys.forEach(function(lid){
+    var loc = locs[lid];
+    if(!loc || typeof loc !== 'object') return;
+    totalMachineCount += Object.keys(loc.machines || {}).length;
+  });
+
+  locKeys.forEach(function(lid){
     var loc = locs[lid];
     if(!loc || typeof loc !== 'object') return;
     var locName = loc.name || lid;
@@ -93,21 +120,25 @@ function buildAdminMachinesPayload(locs, vmmsCols){
     Object.keys(ms).forEach(function(mid){
       var m = ms[mid] || {};
       var seen = {};
+      var sources = [];
 
       // (1) appData.products 수동 등록 제품
       var appData = m.appData || {};
       var prods = appData.products || [];
       if(!Array.isArray(prods) && prods && typeof prods === 'object') prods = Object.values(prods);
+      var addedFromApp = 0;
       if(Array.isArray(prods)){
         prods.forEach(function(p){
           if(!p) return;
           var key = (p.name || p.id || '').toString().trim().toLowerCase();
-          if(key) seen[key] = true;
+          if(key && !seen[key]){ seen[key] = true; addedFromApp++; }
         });
       }
+      if(addedFromApp) sources.push('app');
 
-      // (2) vmmsColumns에 있는 제품 (deviceNos로 매칭)
+      // (2) vmmsColumns 매칭 (deviceNos 기준)
       var devnos = Array.isArray(m.deviceNos) ? m.deviceNos : (m.deviceNo ? [m.deviceNo] : []);
+      var addedFromCols = 0;
       devnos.forEach(function(dn){
         var colData = vmmsCols[dn];
         if(!colData) return;
@@ -116,15 +147,37 @@ function buildAdminMachinesPayload(locs, vmmsCols){
         cols.forEach(function(c){
           if(!c || !c.productName) return;
           var key = String(c.productName).trim().toLowerCase();
-          if(key) seen[key] = true;
+          if(key && !seen[key]){ seen[key] = true; addedFromCols++; }
         });
       });
+      if(addedFromCols) sources.push('vmmsColumns');
+
+      // (3) Fallback: 위 두 소스로 0개이고 자판기가 1대뿐이면 사용자 전체 VMMS/legacy 제품 사용
+      if(Object.keys(seen).length === 0 && totalMachineCount === 1){
+        var addedFromMaster = 0;
+        vmmsProds.forEach(function(p){
+          if(!p) return;
+          var name = (p.productName || p.name || '').toString().trim().toLowerCase();
+          if(name && !seen[name]){ seen[name] = true; addedFromMaster++; }
+        });
+        if(addedFromMaster) sources.push('vmmsProducts');
+
+        var addedFromLegacy = 0;
+        legacyProds.forEach(function(p){
+          if(!p) return;
+          var name = (p.name || p.id || '').toString().trim().toLowerCase();
+          if(name && !seen[name]){ seen[name] = true; addedFromLegacy++; }
+        });
+        if(addedFromLegacy) sources.push('legacy');
+      }
 
       machines.push({
         locationName: locName,
         machineName: m.name || mid,
         model: m.model || '',
-        productCount: Object.keys(seen).length
+        productCount: Object.keys(seen).length,
+        deviceNos: devnos.join(','),
+        productSources: sources.join('+') || 'none'
       });
     });
   });

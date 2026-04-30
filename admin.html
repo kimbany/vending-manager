@@ -250,8 +250,13 @@ function loadUsers(){
           html += '<div style="margin-top:8px;padding:8px;background:#fff;border-radius:8px;border:1px solid #eee">'+
             '<div style="font-size:12px;font-weight:700;color:#4A7AFF;margin-bottom:6px">📍 '+locName+' <span style="color:#888;font-weight:400">('+byLoc[locName].length+'대)</span></div>';
           byLoc[locName].forEach(function(m){
+            var meta = [];
+            if(m.deviceNos) meta.push('단말기: '+m.deviceNos);
+            if(m.productSources && m.productSources !== 'none') meta.push('출처: '+m.productSources);
             html += '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px">'+
-              '<div><strong>'+m.machineName+'</strong>'+(m.model?' <span style="color:#888">· '+m.model+'</span>':'')+'</div>'+
+              '<div><strong>'+m.machineName+'</strong>'+(m.model?' <span style="color:#888">· '+m.model+'</span>':'')+
+                (meta.length?'<div style="font-size:10px;color:#aaa;margin-top:2px">'+meta.join(' · ')+'</div>':'')+
+              '</div>'+
               '<div style="color:#4A7AFF;font-weight:600">'+(m.productCount||0)+'개 제품</div>'+
             '</div>';
           });
