@@ -39,9 +39,14 @@ function renderPurchase(){
     }
     var locs = snap.val();
     var allLow = [];
-    Object.keys(locs).forEach(function(locId){
-      var loc = locs[locId];
-      Object.keys(loc.machines||{}).forEach(function(mid){
+    // 현재 선택된 위치의 자판기만 표시
+    var targetLocId = currentLocationId || Object.keys(locs)[0];
+    var loc = locs[targetLocId];
+    if(!loc || !loc.machines){
+      _renderPurchaseList(el, D.products, D.inventory, lt);
+      return;
+    }
+    Object.keys(loc.machines).forEach(function(mid){
         var m = loc.machines[mid];
         var appData = m.appData||{};
         var prods = appData.products||[];
@@ -62,19 +67,29 @@ function renderPurchase(){
             if(!b || !b.remainingQty) return;
             if(b.productId === p.id) { q += b.remainingQty; return; }
             if(p.productCode && (b.productId === p.productCode)) { q += b.remainingQty; return; }
-            var bProd = prods.find(function(x){return x.id===b.productId;});
+            // batch.productId로 제품 역조회 (id 또는 productCode로)
+            var bProd = prods.find(function(x){
+              return x.id===b.productId || (x.productCode && String(x.productCode)===String(b.productId));
+            });
             if(bProd && bProd.name && bProd.name.trim().toLowerCase() === pName) q += b.remainingQty;
           });
           // stockIn 없으면 inventory
           if(q === 0){
             inv.forEach(function(i){
+              if(!i) return;
               if(i.productId === p.id) q += (i.qty||0);
               else if(p.productCode && i.productId === p.productCode) q += (i.qty||0);
+              // 역조회
+              else {
+                var iProd = prods.find(function(x){
+                  return x.id===i.productId || (x.productCode && String(x.productCode)===String(i.productId));
+                });
+                if(iProd && iProd.name && iProd.name.trim().toLowerCase() === pName) q += (i.qty||0);
+              }
             });
           }
           if(q <= lt && !p.discontinued) allLow.push({p:p, q:q, machineName:m.name});
         });
-      });
     });
     if(!allLow.length){
       el.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text3);font-size:14px">✅ 재고 부족 제품 없음</div>';
