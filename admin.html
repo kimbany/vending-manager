@@ -232,6 +232,22 @@ function switchTab(tab){
 // ─── 사용자 관리 ─────────────────────────────────────────────────────────────
 var _userList = [];
 
+// UTC ISO → KST 한국시간 표시
+function toKstDateTime(iso){
+  if(!iso) return '-';
+  var d = new Date(iso);
+  if(isNaN(d.getTime())) return iso.slice(0,16).replace('T',' ');
+  var kst = new Date(d.getTime() + 9*3600000);
+  return kst.toISOString().slice(0,16).replace('T',' ');
+}
+function toKstDate(iso){
+  if(!iso) return '-';
+  var d = new Date(iso);
+  if(isNaN(d.getTime())) return iso.slice(0,10);
+  var kst = new Date(d.getTime() + 9*3600000);
+  return kst.toISOString().slice(0,10);
+}
+
 function loadUsers(){
   db.ref('adminUsers').once('value').then(function(snap){
     var users = snap.val() || {};
@@ -304,8 +320,8 @@ function renderUserTable(){
       '<td>'+(u.email||'-')+'</td>'+
       '<td>'+(u.phone||'-')+'</td>'+
       '<td>'+(u.machineCount||0)+'대</td>'+
-      '<td>'+((u.createdAt||'').slice(0,10)||'-')+'</td>'+
-      '<td>'+((u.lastLogin||'').slice(0,16).replace('T',' ')||'-')+'</td>'+
+      '<td>'+toKstDate(u.createdAt)+'</td>'+
+      '<td>'+toKstDateTime(u.lastLogin)+'</td>'+
     '</tr>';
     // 자판기 상세 (숨김)
     html += '<tr id="user-detail-'+idx+'" style="display:none"><td colspan="7" style="padding:12px;background:#f8f9ff">';
