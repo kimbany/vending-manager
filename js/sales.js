@@ -189,17 +189,20 @@ function _doRenderSalesStats(machineDataList, range, panel){
   html += '<div style="font-size:12px;color:var(--text3);margin-bottom:10px">'+periodLabel+'</div>';
   // 이익 계산 (FIFO 기반)
   var profit = (typeof calculateProfit === 'function') ? calculateProfit(range.from, range.to) : null;
-  var hasCost = profit && profit.cost > 0;
+  var hasStockIn = D.stockIn && D.stockIn.length > 0;
 
   html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px">';
   html += '<div style="text-align:center"><div style="font-size:12px;color:var(--text2);margin-bottom:3px">총 판매량</div><div style="font-size:22px;font-weight:800;color:var(--blue)">'+fmt(totalQty)+'<span style="font-size:12px;font-weight:400">개</span></div></div>';
   html += '<div style="text-align:center"><div style="font-size:12px;color:var(--text2);margin-bottom:3px">총 매출</div><div style="font-size:22px;font-weight:800;color:var(--green)">'+fmtK(totalAmt)+'</div></div>';
   html += '</div>';
-  if(hasCost){
+  if(profit && hasStockIn){
+    var costLabel = profit.cost > 0 ? fmt(profit.cost)+'원' : '미입력';
+    var profitLabel = profit.cost > 0 ? fmt(profit.profit)+'원' : fmt(totalAmt)+'원';
+    var marginLabel = profit.cost > 0 ? profit.margin+'%' : '-';
     html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">';
-    html += '<div style="background:var(--bg);border-radius:8px;padding:8px 6px;text-align:center"><div style="font-size:10px;color:var(--text3)">총 원가</div><div style="font-size:14px;font-weight:700;color:var(--text2)">'+fmt(profit.cost)+'원</div></div>';
-    html += '<div style="background:rgba(122,218,154,.08);border-radius:8px;padding:8px 6px;text-align:center"><div style="font-size:10px;color:var(--text3)">순이익</div><div style="font-size:14px;font-weight:700;color:var(--green)">'+fmt(profit.profit)+'원</div></div>';
-    html += '<div style="background:rgba(0,100,255,.06);border-radius:8px;padding:8px 6px;text-align:center"><div style="font-size:10px;color:var(--text3)">이익률</div><div style="font-size:14px;font-weight:700;color:var(--blue)">'+profit.margin+'%</div></div>';
+    html += '<div style="background:var(--bg);border-radius:8px;padding:8px 6px;text-align:center"><div style="font-size:10px;color:var(--text3)">총 원가</div><div style="font-size:14px;font-weight:700;color:var(--text2)">'+costLabel+'</div></div>';
+    html += '<div style="background:rgba(122,218,154,.08);border-radius:8px;padding:8px 6px;text-align:center"><div style="font-size:10px;color:var(--text3)">순이익</div><div style="font-size:14px;font-weight:700;color:var(--green)">'+profitLabel+'</div></div>';
+    html += '<div style="background:rgba(0,100,255,.06);border-radius:8px;padding:8px 6px;text-align:center"><div style="font-size:10px;color:var(--text3)">이익률</div><div style="font-size:14px;font-weight:700;color:var(--blue)">'+marginLabel+'</div></div>';
     html += '</div>';
   }
   html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
