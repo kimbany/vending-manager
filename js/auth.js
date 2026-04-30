@@ -5,7 +5,13 @@ var _pendingGoogleCred = null;
 
 // ─── Auth 상태 감지 ──────────────────────────────────────────────────────────
 var _lastUid = null;
-var _adminSyncRef = null, _adminSyncHandler = null;
+var _adminSyncRefs = {}, _adminSyncHandlers = {};
+function detachAdminSync(){
+  Object.keys(_adminSyncRefs).forEach(function(k){
+    try{ _adminSyncRefs[k].off('value', _adminSyncHandlers[k]); }catch(e){}
+  });
+  _adminSyncRefs = {}; _adminSyncHandlers = {};
+}
 auth.onAuthStateChanged(function(user){
   document.getElementById('loading').style.display='none';
   if(!user){
@@ -39,15 +45,31 @@ auth.onAuthStateChanged(function(user){
       lastLogin: new Date().toISOString()
     }).catch(function(e){ console.warn('adminUsers profile update failed:', e); });
 
-    // 위치/자판기 변경 시 자동 동기화 (실시간 리스너 — 첫 호출도 즉시 발생)
-    if(_adminSyncRef) try{ _adminSyncRef.off('value', _adminSyncHandler); }catch(e){}
-    _adminSyncRef = db.ref('users/' + user.uid + '/locations');
-    _adminSyncHandler = function(locSnap){
-      var payload = buildAdminMachinesPayload(locSnap.val());
-      db.ref('adminUsers/' + user.uid).update(payload)
+    // 위치/자판기/VMMS컬럼 변경 시 자동 동기화 (실시간)
+    detachAdminSync();
+    var uid = user.uid;
+    var state = { locs: null, vmms: null, locsLoaded: false, vmmsLoaded: false };
+    var pushAdminPayload = function(){
+      // 두 데이터 모두 최소 1회 로드된 후에만 푸시 (제품수 부정확 방지)
+      if(!state.locsLoaded || !state.vmmsLoaded) return;
+      var payload = buildAdminMachinesPayload(state.locs, state.vmms);
+      db.ref('adminUsers/' + uid).update(payload)
         .catch(function(e){ console.warn('adminUsers machines sync failed:', e); });
     };
-    _adminSyncRef.on('value', _adminSyncHandler);
+    _adminSyncRefs.locs = db.ref('users/' + uid + '/locations');
+    _adminSyncHandlers.locs = function(s){
+      state.locs = s.val(); state.locsLoaded = true; pushAdminPayload();
+    };
+    _adminSyncRefs.locs.on('value', _adminSyncHandlers.locs);
+
+    _adminSyncRefs.vmms = db.ref('users/' + uid + '/vmmsColumns');
+    _adminSyncHandlers.vmms = function(s){
+      var v = s.val() || {};
+      state.vmms = (v && v.machines) ? v.machines : {};
+      state.vmmsLoaded = true;
+      pushAdminPayload();
+    };
+    _adminSyncRefs.vmms.on('value', _adminSyncHandlers.vmms);
 
     if(!pin){
       showOnboarding(profile);
@@ -57,9 +79,11 @@ auth.onAuthStateChanged(function(user){
   });
 });
 
-// 위치 데이터 → adminUsers 자판기 페이로드 변환
-function buildAdminMachinesPayload(locs){
+// 위치 데이터 + VMMS 컬럼 → adminUsers 자판기 페이로드 변환
+// 제품수는 appData.products + vmmsColumns의 컬럼 제품을 이름 기준 합집합으로 계산
+function buildAdminMachinesPayload(locs, vmmsCols){
   locs = locs || {};
+  vmmsCols = vmmsCols || {};
   var machines = [];
   Object.keys(locs).forEach(function(lid){
     var loc = locs[lid];
@@ -68,15 +92,39 @@ function buildAdminMachinesPayload(locs){
     var ms = loc.machines || {};
     Object.keys(ms).forEach(function(mid){
       var m = ms[mid] || {};
+      var seen = {};
+
+      // (1) appData.products 수동 등록 제품
       var appData = m.appData || {};
       var prods = appData.products || [];
-      var prodCount = Array.isArray(prods) ? prods.length
-        : (prods && typeof prods === 'object' ? Object.keys(prods).length : 0);
+      if(!Array.isArray(prods) && prods && typeof prods === 'object') prods = Object.values(prods);
+      if(Array.isArray(prods)){
+        prods.forEach(function(p){
+          if(!p) return;
+          var key = (p.name || p.id || '').toString().trim().toLowerCase();
+          if(key) seen[key] = true;
+        });
+      }
+
+      // (2) vmmsColumns에 있는 제품 (deviceNos로 매칭)
+      var devnos = Array.isArray(m.deviceNos) ? m.deviceNos : (m.deviceNo ? [m.deviceNo] : []);
+      devnos.forEach(function(dn){
+        var colData = vmmsCols[dn];
+        if(!colData) return;
+        var cols = colData.columns || [];
+        if(!Array.isArray(cols) && cols && typeof cols === 'object') cols = Object.values(cols);
+        cols.forEach(function(c){
+          if(!c || !c.productName) return;
+          var key = String(c.productName).trim().toLowerCase();
+          if(key) seen[key] = true;
+        });
+      });
+
       machines.push({
         locationName: locName,
         machineName: m.name || mid,
         model: m.model || '',
-        productCount: prodCount
+        productCount: Object.keys(seen).length
       });
     });
   });
