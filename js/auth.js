@@ -41,12 +41,24 @@ auth.onAuthStateChanged(function(user){
     db.ref('adminUsers/' + user.uid).update({
       name: profile.name || user.displayName || '',
       email: profile.email || user.email || '',
+      phone: profile.phone || '',
       createdAt: profile.createdAt || new Date().toISOString(),
       lastLogin: new Date().toISOString()
     }).catch(function(e){ console.warn('adminUsers profile update failed:', e); });
 
-    // 위치/자판기/VMMS 변경 시 자동 동기화 (실시간)
+    // 위치/자판기/VMMS/프로필 변경 시 자동 동기화 (실시간)
     detachAdminSync();
+    _adminSyncRefs.profile = db.ref('users/' + user.uid + '/profile');
+    _adminSyncHandlers.profile = function(s){
+      var p = s.val() || {};
+      db.ref('adminUsers/' + user.uid).update({
+        name: p.name || user.displayName || '',
+        email: p.email || user.email || '',
+        phone: p.phone || ''
+      }).catch(function(e){ console.warn('adminUsers profile sync failed:', e); });
+    };
+    _adminSyncRefs.profile.on('value', _adminSyncHandlers.profile);
+
     var uid = user.uid;
     var state = {
       locs: null, vmms: null, vmmsProds: null, legacy: null,

@@ -59,6 +59,14 @@
   .notice-item .actions button { background: #f0f0f0; border: none; border-radius: 6px; padding: 4px 10px; font-size: 11px; cursor: pointer; font-family: inherit; }
   .notice-item .actions button.del { color: #e05858; }
 
+  .user-toolbar { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #f0f0f0; }
+  .user-toolbar .tb-group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .user-toolbar label { font-size: 11px; color: #888; font-weight: 600; }
+  .user-toolbar select, .user-toolbar input { padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; font-family: inherit; background: #fff; }
+  .user-toolbar input { min-width: 160px; }
+  .user-toolbar .tb-clear { background: #f0f0f0; border: none; border-radius: 6px; width: 26px; height: 26px; font-size: 14px; cursor: pointer; color: #888; font-family: inherit; }
+  .user-toolbar .tb-clear:hover { background: #e8e8e8; color: #333; }
+
   .pw-change { margin-top: 20px; padding-top: 16px; border-top: 1px solid #e8e8e8; }
   .pw-change input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px; margin-bottom: 8px; }
   .pw-change button { background: #555; color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-size: 12px; cursor: pointer; font-family: inherit; }
@@ -98,6 +106,31 @@
     <div class="stat-grid" id="user-stats"></div>
     <div class="card">
       <h3>전체 사용자 목록</h3>
+      <div class="user-toolbar">
+        <div class="tb-group">
+          <label>정렬</label>
+          <select id="sort-field" onchange="renderUserTable()">
+            <option value="lastLogin">마지막 접속</option>
+            <option value="name">이름</option>
+            <option value="email">이메일</option>
+            <option value="createdAt">가입일</option>
+          </select>
+          <select id="sort-dir" onchange="renderUserTable()">
+            <option value="desc">내림차순 ▼</option>
+            <option value="asc">오름차순 ▲</option>
+          </select>
+        </div>
+        <div class="tb-group">
+          <label>검색</label>
+          <select id="search-field" onchange="renderUserTable()">
+            <option value="name">이름</option>
+            <option value="email">이메일</option>
+            <option value="phone">연락처</option>
+          </select>
+          <input type="text" id="search-input" placeholder="검색어 입력" oninput="renderUserTable()">
+          <button class="tb-clear" onclick="clearUserSearch()">×</button>
+        </div>
+      </div>
       <div id="user-list" style="overflow-x:auto"></div>
     </div>
   </div>
@@ -197,86 +230,126 @@ function switchTab(tab){
 }
 
 // ─── 사용자 관리 ─────────────────────────────────────────────────────────────
+var _userList = [];
+
 function loadUsers(){
   db.ref('adminUsers').once('value').then(function(snap){
     var users = snap.val() || {};
-    var list = [];
+    _userList = [];
 
     Object.keys(users).forEach(function(uid){
       var u = users[uid];
       if(!u || typeof u !== 'object') return;
-      list.push({
+      _userList.push({
         uid: uid,
-        name: u.name || '-',
-        email: u.email || '-',
-        createdAt: u.createdAt || '-',
-        lastLogin: u.lastLogin || '-',
+        name: u.name || '',
+        email: u.email || '',
+        phone: u.phone || '',
+        createdAt: u.createdAt || '',
+        lastLogin: u.lastLogin || '',
         machines: Array.isArray(u.machines) ? u.machines : [],
         machineCount: typeof u.machineCount === 'number' ? u.machineCount : (Array.isArray(u.machines) ? u.machines.length : 0)
       });
     });
 
     // 통계
-    var totalMachines = list.reduce(function(s,u){ return s + (u.machineCount||0); }, 0);
+    var totalMachines = _userList.reduce(function(s,u){ return s + (u.machineCount||0); }, 0);
     document.getElementById('user-stats').innerHTML =
-      '<div class="stat-card"><div class="num">'+list.length+'</div><div class="label">전체 사용자</div></div>'+
+      '<div class="stat-card"><div class="num">'+_userList.length+'</div><div class="label">전체 사용자</div></div>'+
       '<div class="stat-card"><div class="num">'+totalMachines+'</div><div class="label">전체 자판기</div></div>';
 
-    // 테이블
-    var html = '<table><thead><tr><th></th><th>이름</th><th>이메일</th><th>자판기</th><th>가입일</th><th>마지막 접속</th></tr></thead><tbody>';
-    list.sort(function(a,b){ return (b.lastLogin||'').localeCompare(a.lastLogin||''); });
-    list.forEach(function(u, idx){
-      html += '<tr onclick="toggleUserDetail('+idx+')" style="cursor:pointer">'+
-        '<td style="width:20px;color:#888" id="user-arrow-'+idx+'">▶</td>'+
-        '<td style="font-weight:600;color:#4A7AFF">'+u.name+'</td>'+
-        '<td>'+u.email+'</td>'+
-        '<td>'+(u.machineCount||0)+'대</td>'+
-        '<td>'+((u.createdAt||'').slice(0,10)||'-')+'</td>'+
-        '<td>'+((u.lastLogin||'').slice(0,16).replace('T',' ')||'-')+'</td>'+
-      '</tr>';
-      // 자판기 상세 (숨김)
-      html += '<tr id="user-detail-'+idx+'" style="display:none"><td colspan="6" style="padding:12px;background:#f8f9ff">';
-      var machines = u.machines || [];
-      if(machines.length){
-        html += '<div style="font-size:12px;font-weight:700;margin-bottom:8px">🏪 자판기 현황 ('+machines.length+'대)</div>';
-        // 위치별로 그룹화
-        var byLoc = {};
-        machines.forEach(function(m){
-          var key = m.locationName || '-';
-          if(!byLoc[key]) byLoc[key] = [];
-          byLoc[key].push(m);
-        });
-        Object.keys(byLoc).forEach(function(locName){
-          html += '<div style="margin-top:8px;padding:8px;background:#fff;border-radius:8px;border:1px solid #eee">'+
-            '<div style="font-size:12px;font-weight:700;color:#4A7AFF;margin-bottom:6px">📍 '+locName+' <span style="color:#888;font-weight:400">('+byLoc[locName].length+'대)</span></div>';
-          byLoc[locName].forEach(function(m){
-            var meta = [];
-            if(m.deviceNos) meta.push('단말기: '+m.deviceNos);
-            if(m.productSources && m.productSources !== 'none') meta.push('출처: '+m.productSources);
-            html += '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px">'+
-              '<div><strong>'+m.machineName+'</strong>'+(m.model?' <span style="color:#888">· '+m.model+'</span>':'')+
-                (meta.length?'<div style="font-size:10px;color:#aaa;margin-top:2px">'+meta.join(' · ')+'</div>':'')+
-              '</div>'+
-              '<div style="color:#4A7AFF;font-weight:600">'+(m.productCount||0)+'개 제품</div>'+
-            '</div>';
-          });
-          html += '</div>';
-        });
-      } else {
-        html += '<div style="font-size:12px;color:#888">등록된 자판기가 없거나, 사용자가 아직 최신 앱으로 로그인하지 않았어요.<br>'+
-                '사용자가 앱에 접속하면 자동으로 갱신됩니다.</div>';
-      }
-      html += '</td></tr>';
-    });
-    html += '</tbody></table>';
-    if(!list.length) html = '<div style="text-align:center;padding:20px;color:#888;font-size:13px">사용자가 앱에 로그인하면 여기에 표시됩니다</div>';
-    document.getElementById('user-list').innerHTML = html;
-    _userList = list;
+    renderUserTable();
   });
 }
 
-// ─── 공지사항 관리 ───────────────────────────────────────────────────────────
-var _userList = [];
+function clearUserSearch(){
+  document.getElementById('search-input').value = '';
+  renderUserTable();
+}
+
+function renderUserTable(){
+  var list = _userList.slice();
+
+  // 검색 필터
+  var sf = document.getElementById('search-field');
+  var si = document.getElementById('search-input');
+  var searchField = sf ? sf.value : 'name';
+  var searchTerm = (si ? si.value : '').trim().toLowerCase();
+  if(searchTerm){
+    list = list.filter(function(u){
+      var v = (u[searchField] || '').toString().toLowerCase();
+      return v.indexOf(searchTerm) >= 0;
+    });
+  }
+
+  // 정렬
+  var sortField = (document.getElementById('sort-field')||{}).value || 'lastLogin';
+  var sortDir = (document.getElementById('sort-dir')||{}).value || 'desc';
+  var dirMul = sortDir === 'asc' ? 1 : -1;
+  list.sort(function(a,b){
+    var av = (a[sortField] || '').toString();
+    var bv = (b[sortField] || '').toString();
+    if(sortField === 'name' || sortField === 'email'){
+      return av.localeCompare(bv, 'ko') * dirMul;
+    }
+    return av.localeCompare(bv) * dirMul;
+  });
+
+  // 테이블
+  var html = '<table><thead><tr><th></th><th>이름</th><th>이메일</th><th>연락처</th><th>자판기</th><th>가입일</th><th>마지막 접속</th></tr></thead><tbody>';
+  list.forEach(function(u, idx){
+    html += '<tr onclick="toggleUserDetail('+idx+')" style="cursor:pointer">'+
+      '<td style="width:20px;color:#888" id="user-arrow-'+idx+'">▶</td>'+
+      '<td style="font-weight:600;color:#4A7AFF">'+(u.name||'-')+'</td>'+
+      '<td>'+(u.email||'-')+'</td>'+
+      '<td>'+(u.phone||'-')+'</td>'+
+      '<td>'+(u.machineCount||0)+'대</td>'+
+      '<td>'+((u.createdAt||'').slice(0,10)||'-')+'</td>'+
+      '<td>'+((u.lastLogin||'').slice(0,16).replace('T',' ')||'-')+'</td>'+
+    '</tr>';
+    // 자판기 상세 (숨김)
+    html += '<tr id="user-detail-'+idx+'" style="display:none"><td colspan="7" style="padding:12px;background:#f8f9ff">';
+    var machines = u.machines || [];
+    if(machines.length){
+      html += '<div style="font-size:12px;font-weight:700;margin-bottom:8px">🏪 자판기 현황 ('+machines.length+'대)</div>';
+      var byLoc = {};
+      machines.forEach(function(m){
+        var key = m.locationName || '-';
+        if(!byLoc[key]) byLoc[key] = [];
+        byLoc[key].push(m);
+      });
+      Object.keys(byLoc).forEach(function(locName){
+        html += '<div style="margin-top:8px;padding:8px;background:#fff;border-radius:8px;border:1px solid #eee">'+
+          '<div style="font-size:12px;font-weight:700;color:#4A7AFF;margin-bottom:6px">📍 '+locName+' <span style="color:#888;font-weight:400">('+byLoc[locName].length+'대)</span></div>';
+        byLoc[locName].forEach(function(m){
+          var meta = [];
+          if(m.deviceNos) meta.push('단말기: '+m.deviceNos);
+          if(m.productSources && m.productSources !== 'none') meta.push('출처: '+m.productSources);
+          html += '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px">'+
+            '<div><strong>'+m.machineName+'</strong>'+(m.model?' <span style="color:#888">· '+m.model+'</span>':'')+
+              (meta.length?'<div style="font-size:10px;color:#aaa;margin-top:2px">'+meta.join(' · ')+'</div>':'')+
+            '</div>'+
+            '<div style="color:#4A7AFF;font-weight:600">'+(m.productCount||0)+'개 제품</div>'+
+          '</div>';
+        });
+        html += '</div>';
+      });
+    } else {
+      html += '<div style="font-size:12px;color:#888">등록된 자판기가 없거나, 사용자가 아직 최신 앱으로 로그인하지 않았어요.<br>'+
+              '사용자가 앱에 접속하면 자동으로 갱신됩니다.</div>';
+    }
+    html += '</td></tr>';
+  });
+  html += '</tbody></table>';
+
+  if(!list.length){
+    html = !_userList.length
+      ? '<div style="text-align:center;padding:20px;color:#888;font-size:13px">사용자가 앱에 로그인하면 여기에 표시됩니다</div>'
+      : '<div style="text-align:center;padding:20px;color:#888;font-size:13px">검색 결과가 없습니다</div>';
+  }
+  document.getElementById('user-list').innerHTML = html;
+}
+
 function toggleUserDetail(idx){
   var row = document.getElementById('user-detail-'+idx);
   var arrow = document.getElementById('user-arrow-'+idx);
@@ -285,6 +358,8 @@ function toggleUserDetail(idx){
   row.style.display = open ? '' : 'none';
   if(arrow) arrow.textContent = open ? '▼' : '▶';
 }
+
+// ─── 공지사항 관리 ───────────────────────────────────────────────────────────
 
 function loadNotices(){
   db.ref('notices').orderByChild('createdAt').once('value').then(function(snap){
