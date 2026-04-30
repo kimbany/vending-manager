@@ -33,6 +33,34 @@ function startApp(){
 }
 
 // ─── 공지사항 (사용자용) ────────────────────────────────────────────────────
+var _allActiveNotices = [];
+var _noticePage = 1;
+var _noticePageSize = 10;
+var _noticeSearchTerm = '';
+
+function _escapeHtml(s){
+  return (s||'').toString().replace(/[<>&]/g, function(c){ return {'<':'&lt;','>':'&gt;','&':'&amp;'}[c]; });
+}
+function _formatNoticeKst(iso){
+  if(!iso) return '';
+  var d = new Date(iso);
+  if(isNaN(d.getTime())) return iso;
+  var kst = new Date(d.getTime() + 9*3600000);
+  var s = kst.toISOString().slice(0,16).replace('T',' ');
+  return s;
+}
+function _isNoticeActive(n, nowMs){
+  if(n.startAt){
+    var s = new Date(n.startAt).getTime();
+    if(!isNaN(s) && nowMs < s) return false;
+  }
+  if(n.endAt){
+    var e = new Date(n.endAt).getTime();
+    if(!isNaN(e) && nowMs > e) return false;
+  }
+  return true;
+}
+
 function loadNoticesForUser(){
   db.ref('notices').orderByChild('createdAt').once('value').then(function(snap){
     var notices = [];
@@ -43,31 +71,30 @@ function loadNoticesForUser(){
     });
     notices.reverse();
 
-    // 배지 표시
-    var badge = document.getElementById('notice-badge');
-    if(badge && notices.length > 0){
-      badge.textContent = notices.length;
-      badge.style.display = 'inline';
-    }
+    // 스케줄 적용 — 현재 시점에 활성인 공지만
+    var nowMs = Date.now();
+    _allActiveNotices = notices.filter(function(n){ return _isNoticeActive(n, nowMs); });
 
-    // 모달 내용
-    var el = document.getElementById('notice-modal-list');
-    if(el){
-      if(!notices.length){
-        el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">공지사항이 없습니다</div>';
+    // 배지: 활성 공지 수
+    var badge = document.getElementById('notice-badge');
+    if(badge){
+      if(_allActiveNotices.length > 0){
+        badge.textContent = _allActiveNotices.length;
+        badge.style.display = 'inline';
       } else {
-        el.innerHTML = notices.map(function(n){
-          return '<div style="padding:12px 0;border-bottom:1px solid var(--border)">'+
-            '<div style="font-size:15px;font-weight:700;margin-bottom:4px">'+n.title+'</div>'+
-            '<div style="font-size:11px;color:var(--text3);margin-bottom:6px">'+n.createdAt+'</div>'+
-            '<div style="font-size:13px;color:var(--text2);line-height:1.6;white-space:pre-wrap">'+n.content+'</div>'+
-          '</div>';
-        }).join('');
+        badge.style.display = 'none';
       }
     }
 
-    // 팝업 공지 (읽지 않은 것만)
-    var popupNotices = notices.filter(function(n){ return n.popup; });
+    // 검색/페이지 초기화
+    _noticeSearchTerm = '';
+    _noticePage = 1;
+    var searchEl = document.getElementById('notice-search');
+    if(searchEl) searchEl.value = '';
+    renderNoticeModal();
+
+    // 팝업 공지 (활성 + popup 플래그 + 미열람만)
+    var popupNotices = _allActiveNotices.filter(function(n){ return n.popup; });
     if(popupNotices.length > 0){
       var lastSeen = localStorage.getItem('lastNoticeId') || '';
       var newest = popupNotices[0];
@@ -75,8 +102,9 @@ function loadNoticesForUser(){
         var body = document.getElementById('notice-popup-body');
         if(body){
           body.innerHTML = '<div style="padding:8px 0">'+
-            '<div style="font-size:16px;font-weight:700;margin-bottom:6px">'+newest.title+'</div>'+
-            '<div style="font-size:13px;color:var(--text2);line-height:1.6;white-space:pre-wrap">'+newest.content+'</div>'+
+            '<div style="font-size:16px;font-weight:700;margin-bottom:4px">'+_escapeHtml(newest.title)+'</div>'+
+            '<div style="font-size:11px;color:var(--text3);margin-bottom:8px">🕒 '+_formatNoticeKst(newest.createdAt)+'</div>'+
+            '<div style="font-size:13px;color:var(--text2);line-height:1.6;white-space:pre-wrap">'+_escapeHtml(newest.content)+'</div>'+
           '</div>';
           openModal('notice-popup-modal');
         }
@@ -85,13 +113,97 @@ function loadNoticesForUser(){
   });
 }
 
+function onNoticeSearch(){
+  var el = document.getElementById('notice-search');
+  _noticeSearchTerm = (el ? el.value : '').trim().toLowerCase();
+  _noticePage = 1;
+  renderNoticeModal();
+}
+
+function changeNoticePage(p){
+  _noticePage = p;
+  renderNoticeModal();
+  var listEl = document.getElementById('notice-modal-list');
+  if(listEl) listEl.scrollTop = 0;
+}
+
+function renderNoticeModal(){
+  var listEl = document.getElementById('notice-modal-list');
+  var pagerEl = document.getElementById('notice-modal-pager');
+  if(!listEl) return;
+
+  var filtered = _noticeSearchTerm
+    ? _allActiveNotices.filter(function(n){
+        return (n.title||'').toLowerCase().indexOf(_noticeSearchTerm) >= 0;
+      })
+    : _allActiveNotices.slice();
+
+  if(!filtered.length){
+    listEl.innerHTML = '<div style="text-align:center;padding:30px 16px;color:var(--text3);font-size:13px">'+
+      (_noticeSearchTerm ? '🔍 검색 결과가 없습니다' : '📭 공지사항이 없습니다')+'</div>';
+    if(pagerEl) pagerEl.innerHTML = '';
+    return;
+  }
+
+  var totalPages = Math.max(1, Math.ceil(filtered.length / _noticePageSize));
+  if(_noticePage > totalPages) _noticePage = totalPages;
+  var start = (_noticePage - 1) * _noticePageSize;
+  var pageItems = filtered.slice(start, start + _noticePageSize);
+
+  listEl.innerHTML = pageItems.map(function(n){
+    var schedNote = '';
+    if(n.endAt){
+      var endStr = _formatNoticeKst(n.endAt);
+      schedNote = '<span style="color:var(--text3)"> · ⏳ '+endStr+'까지</span>';
+    }
+    return '<div style="padding:12px 0;border-bottom:1px solid var(--border)">'+
+      '<div style="font-size:15px;font-weight:700;margin-bottom:4px">'+_escapeHtml(n.title)+
+        (n.popup?' <span style="display:inline-block;background:rgba(224,88,88,.15);color:#c0392b;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600;vertical-align:middle">📢 팝업</span>':'')+
+      '</div>'+
+      '<div style="font-size:11px;color:var(--text3);margin-bottom:6px">🕒 '+_formatNoticeKst(n.createdAt)+schedNote+'</div>'+
+      '<div style="font-size:13px;color:var(--text2);line-height:1.6;white-space:pre-wrap">'+_escapeHtml(n.content)+'</div>'+
+    '</div>';
+  }).join('');
+
+  // 페이지네이션
+  if(pagerEl){
+    if(totalPages <= 1){
+      pagerEl.innerHTML = '';
+    } else {
+      var html = '';
+      var btnStyle = 'min-width:32px;height:32px;padding:0 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text2);font-size:12px;cursor:pointer;font-family:inherit';
+      var activeStyle = btnStyle + ';background:var(--blue);color:#fff;border-color:var(--blue);font-weight:700';
+      var disabledStyle = btnStyle + ';opacity:0.4;cursor:not-allowed';
+
+      html += '<button style="'+(_noticePage===1?disabledStyle:btnStyle)+'" '+
+        (_noticePage===1?'disabled':'onclick="changeNoticePage('+(_noticePage-1)+')"')+'>‹</button>';
+
+      // 페이지 번호 (현재 ±2 표시)
+      var pages = [];
+      for(var p=1; p<=totalPages; p++){
+        if(p===1 || p===totalPages || (p>=_noticePage-2 && p<=_noticePage+2)) pages.push(p);
+      }
+      var lastP = 0;
+      pages.forEach(function(p){
+        if(lastP && p > lastP + 1) html += '<span style="padding:0 4px;color:var(--text3)">…</span>';
+        html += '<button style="'+(p===_noticePage?activeStyle:btnStyle)+'" onclick="changeNoticePage('+p+')">'+p+'</button>';
+        lastP = p;
+      });
+
+      html += '<button style="'+(_noticePage===totalPages?disabledStyle:btnStyle)+'" '+
+        (_noticePage===totalPages?'disabled':'onclick="changeNoticePage('+(_noticePage+1)+')"')+'>›</button>';
+
+      pagerEl.innerHTML = html;
+    }
+  }
+}
+
 function closeNoticePopup(){
-  // 팝업 공지 읽음 처리
-  db.ref('notices').orderByChild('createdAt').limitToLast(1).once('value').then(function(snap){
-    snap.forEach(function(child){
-      localStorage.setItem('lastNoticeId', child.key);
-    });
-  });
+  // 팝업으로 띄운 가장 최신 공지를 읽음 처리
+  if(_allActiveNotices && _allActiveNotices.length){
+    var newest = _allActiveNotices.filter(function(n){ return n.popup; })[0];
+    if(newest && newest._id) localStorage.setItem('lastNoticeId', newest._id);
+  }
   closeModal('notice-popup-modal');
 }
 

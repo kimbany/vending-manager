@@ -1203,11 +1203,17 @@
 
 <!-- 공지사항 모달 -->
 <div class="modal-bg" id="notice-modal">
-  <div class="modal" style="max-height:80vh;overflow-y:auto">
+  <div class="modal" style="max-height:85vh;display:flex;flex-direction:column">
     <div class="mh"><div class="mt">📢 공지사항</div><button class="mc" onclick="closeModal('notice-modal')">✕</button></div>
-    <div id="notice-modal-list" style="padding:4px 0">
+    <div style="padding:0 0 8px 0">
+      <input type="text" id="notice-search" placeholder="🔍 제목으로 검색"
+        oninput="onNoticeSearch()"
+        style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;background:var(--bg2);color:var(--text)">
+    </div>
+    <div id="notice-modal-list" style="padding:4px 0;overflow-y:auto;flex:1;min-height:0">
       <div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">불러오는 중...</div>
     </div>
+    <div id="notice-modal-pager" style="padding:8px 0 4px;display:flex;justify-content:center;gap:4px;flex-wrap:wrap"></div>
   </div>
 </div>
 

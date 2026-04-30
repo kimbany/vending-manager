@@ -47,6 +47,8 @@
   .count-badge { background: #f0f4ff; color: #4A7AFF; border-radius: 999px; padding: 2px 10px; font-size: 11px; font-weight: 700; }
 
   .notice-card.editing { background: #fff9f0; border-color: #ffd699; }
+  .schedule-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .schedule-row input[type="datetime-local"] { width: 100%; padding: 8px 10px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 13px; font-family: inherit; }
   .notice-form { display: flex; flex-direction: column; gap: 4px; }
   .form-label { font-size: 11px; color: #888; font-weight: 600; margin-top: 4px; }
   .notice-form input[type="text"], .notice-form textarea { width: 100%; padding: 10px 12px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 13px; font-family: inherit; transition: border-color .15s; }
@@ -168,6 +170,19 @@
         <input type="text" id="notice-title" placeholder="공지 제목을 입력하세요" maxlength="60">
         <label class="form-label">내용</label>
         <textarea id="notice-content" placeholder="공지 내용을 입력하세요"></textarea>
+        <div class="schedule-row">
+          <div>
+            <label class="form-label">시작 일시 <span style="color:#aaa;font-weight:400">(선택)</span></label>
+            <input type="datetime-local" id="notice-start">
+          </div>
+          <div>
+            <label class="form-label">종료 일시 <span style="color:#aaa;font-weight:400">(선택)</span></label>
+            <input type="datetime-local" id="notice-end">
+          </div>
+        </div>
+        <div style="font-size:11px;color:#888;margin:-4px 0 4px 2px">
+          비워두면 등록 즉시부터 무기한 표시됩니다. 종료 일시가 지나면 사용자에게 자동으로 안 보이게 돼요.
+        </div>
         <label class="popup-toggle">
           <input type="checkbox" id="notice-popup">
           <span>📢 팝업 공지로 설정 <span style="color:#888;font-weight:400;font-size:11px">(앱 첫 화면에 띄워요)</span></span>
@@ -445,16 +460,38 @@ function loadNotices(){
       return;
     }
 
+    var nowMs = Date.now();
     listEl.innerHTML = notices.map(function(n){
       var editing = _editingNoticeId === n._id;
       var title = (n.title||'').replace(/[<>&]/g, function(c){ return {'<':'&lt;','>':'&gt;','&':'&amp;'}[c]; });
       var content = (n.content||'').replace(/[<>&]/g, function(c){ return {'<':'&lt;','>':'&gt;','&':'&amp;'}[c]; });
+      var statusBadge = '';
+      var schedMeta = '';
+      var startMs = n.startAt ? new Date(n.startAt).getTime() : null;
+      var endMs = n.endAt ? new Date(n.endAt).getTime() : null;
+      if(startMs && nowMs < startMs){
+        statusBadge = '<span class="badge" style="background:#fff4e0;color:#a06200">예약</span>';
+      } else if(endMs && nowMs > endMs){
+        statusBadge = '<span class="badge" style="background:#f0f0f0;color:#888">종료</span>';
+      } else {
+        statusBadge = '<span class="badge badge-green">노출 중</span>';
+      }
+      if(n.startAt || n.endAt){
+        schedMeta = '<div class="meta">📅 '+
+          (n.startAt ? toKstDateTime(n.startAt) : '즉시')+
+          ' ~ '+(n.endAt ? toKstDateTime(n.endAt) : '무기한')+
+        '</div>';
+      }
       return '<div class="notice-item'+(editing?' is-editing':'')+'">'+
         '<div class="title">'+title+
           (n.popup?' <span class="badge badge-red">📢 팝업</span>':'')+
+          ' '+statusBadge+
           (editing?' <span class="badge badge-blue">수정 중</span>':'')+
         '</div>'+
-        '<div class="meta">🕒 '+toKstDateTime(n.createdAt)+'</div>'+
+        '<div class="meta">🕒 등록: '+toKstDateTime(n.createdAt)+
+          (n.updatedAt ? ' · 수정: '+toKstDateTime(n.updatedAt) : '')+
+        '</div>'+
+        schedMeta+
         '<div class="content">'+content+'</div>'+
         '<div class="actions">'+
           '<button class="edit" onclick="editNotice(\''+n._id+'\')">✏️ 수정</button>'+
@@ -475,29 +512,53 @@ function showNoticeMsg(text, color){
   if(text){ setTimeout(function(){ if(el.textContent === text) el.textContent = ''; }, 2500); }
 }
 
+// datetime-local 입력값(브라우저 로컬=KST 가정) → UTC ISO로 저장
+function localToIso(localStr){
+  if(!localStr) return '';
+  var d = new Date(localStr);
+  return isNaN(d.getTime()) ? '' : d.toISOString();
+}
+// 저장된 ISO → datetime-local 표시값(YYYY-MM-DDTHH:mm)
+function isoToLocalInput(iso){
+  if(!iso) return '';
+  var d = new Date(iso);
+  if(isNaN(d.getTime())) return '';
+  // 로컬 타임존 보정
+  var tz = d.getTimezoneOffset();
+  return new Date(d.getTime() - tz*60000).toISOString().slice(0,16);
+}
+
 function saveNotice(){
   var title = document.getElementById('notice-title').value.trim();
   var content = document.getElementById('notice-content').value.trim();
   var popup = document.getElementById('notice-popup').checked;
+  var startLocal = document.getElementById('notice-start').value;
+  var endLocal = document.getElementById('notice-end').value;
   if(!title || !content){ showNoticeMsg('제목과 내용을 모두 입력하세요', '#e05858'); return; }
+
+  var startIso = localToIso(startLocal);
+  var endIso = localToIso(endLocal);
+  if(startIso && endIso && new Date(endIso).getTime() <= new Date(startIso).getTime()){
+    showNoticeMsg('종료 일시는 시작 일시 이후여야 해요', '#e05858'); return;
+  }
 
   var nowIso = new Date().toISOString();
   var editId = _editingNoticeId;
+  var data = {
+    title: title, content: content, popup: popup,
+    startAt: startIso || null, endAt: endIso || null
+  };
 
   if(editId){
-    db.ref('notices/'+editId).update({ title:title, content:content, popup:popup, updatedAt: nowIso })
-      .then(function(){
-        showNoticeMsg('✅ 수정 완료');
-        clearNoticeForm();
-        loadNotices();
-      }).catch(function(e){ showNoticeMsg('수정 실패: '+(e.message||e.code), '#e05858'); });
+    data.updatedAt = nowIso;
+    db.ref('notices/'+editId).update(data)
+      .then(function(){ showNoticeMsg('✅ 수정 완료'); clearNoticeForm(); loadNotices(); })
+      .catch(function(e){ showNoticeMsg('수정 실패: '+(e.message||e.code), '#e05858'); });
   } else {
-    db.ref('notices').push({ title:title, content:content, popup:popup, createdAt: nowIso })
-      .then(function(){
-        showNoticeMsg('✅ 등록 완료');
-        clearNoticeForm();
-        loadNotices();
-      }).catch(function(e){ showNoticeMsg('등록 실패: '+(e.message||e.code), '#e05858'); });
+    data.createdAt = nowIso;
+    db.ref('notices').push(data)
+      .then(function(){ showNoticeMsg('✅ 등록 완료'); clearNoticeForm(); loadNotices(); })
+      .catch(function(e){ showNoticeMsg('등록 실패: '+(e.message||e.code), '#e05858'); });
   }
 }
 
@@ -509,6 +570,8 @@ function editNotice(id){
     document.getElementById('notice-title').value = n.title || '';
     document.getElementById('notice-content').value = n.content || '';
     document.getElementById('notice-popup').checked = !!n.popup;
+    document.getElementById('notice-start').value = isoToLocalInput(n.startAt);
+    document.getElementById('notice-end').value = isoToLocalInput(n.endAt);
     document.getElementById('notice-form-title').textContent = '✏️ 공지사항 수정';
     document.getElementById('notice-cancel-btn').style.display = '';
     var btn = document.getElementById('notice-save-btn');
@@ -516,7 +579,7 @@ function editNotice(id){
     btn.classList.add('editing');
     document.querySelector('.notice-card').classList.add('editing');
     document.querySelector('.notice-card').scrollIntoView({behavior:'smooth', block:'start'});
-    loadNotices(); // 수정 중 표시 갱신
+    loadNotices();
   });
 }
 
@@ -539,6 +602,8 @@ function clearNoticeForm(){
   document.getElementById('notice-title').value = '';
   document.getElementById('notice-content').value = '';
   document.getElementById('notice-popup').checked = false;
+  document.getElementById('notice-start').value = '';
+  document.getElementById('notice-end').value = '';
   document.getElementById('notice-form-title').textContent = '📝 새 공지사항 작성';
   document.getElementById('notice-cancel-btn').style.display = 'none';
   var btn = document.getElementById('notice-save-btn');
