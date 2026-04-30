@@ -5,7 +5,7 @@ var COUPANG_SUB_ID = 'AF1423505';
 
 // 쿠팡 파트너스 검색 딥링크 생성
 function getCoupangAffiliateUrl(keyword){
-  return 'https://link.coupang.com/re/AFFSRP?lptag=AF' + COUPANG_SUB_ID + '&pageKey=' + encodeURIComponent(keyword);
+  return 'https://link.coupang.com/re/AFFSRP?lptag=' + COUPANG_SUB_ID + '&subid=invendory&pageKey=' + encodeURIComponent(keyword);
 }
 
 // ─── 쿠팡 검색 (파트너스 링크로 바로 이동) ──────────────────────────────────
