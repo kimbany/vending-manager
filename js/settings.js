@@ -21,14 +21,12 @@ function renderProfileSummary(){
   var manageBtn = document.getElementById('set-prof-manage-btn');
   var editArea = document.getElementById('set-prof-edit-area');
   var editBtn = document.getElementById('set-prof-edit-btn');
-  var editLock = document.getElementById('set-prof-edit-lock');
   var editForm = document.getElementById('set-prof-edit-form');
   if(detailEl) detailEl.style.display = 'none';
   if(fullEl) fullEl.innerHTML = '';
   if(manageBtn) manageBtn.textContent = '관리';
   if(editArea) editArea.style.display = 'none';
   if(editBtn) editBtn.textContent = '정보 수정';
-  if(editLock) editLock.style.display = 'block';
   if(editForm) editForm.style.display = 'none';
 
   db.ref('users/'+currentUser.uid+'/profile').once('value').then(function(snap){
@@ -81,21 +79,16 @@ function toggleProfileEdit(){
   var area = document.getElementById('set-prof-edit-area');
   var btn = document.getElementById('set-prof-edit-btn');
   var isOpen = area.style.display !== 'none';
-  area.style.display = isOpen ? 'none' : 'block';
-  btn.textContent = isOpen ? '정보 수정' : '취소';
-  if(!isOpen){
-    // 초기화
-    document.getElementById('set-prof-edit-lock').style.display='block';
-    document.getElementById('set-prof-edit-form').style.display='none';
-    document.getElementById('set-prof-lock-pw').value='';
-    document.getElementById('set-prof-lock-msg').textContent='';
+  if(isOpen){
+    area.style.display = 'none';
+    btn.textContent = '정보 수정';
+    return;
   }
-}
-
-function unlockProfileEdit(){
+  // 열기: PIN 인증만 받고 바로 수정 폼 표시
   verifyPin(function(){
-    document.getElementById('set-prof-edit-lock').style.display='none';
-    document.getElementById('set-prof-edit-form').style.display='block';
+    area.style.display = 'block';
+    btn.textContent = '취소';
+    document.getElementById('set-prof-edit-form').style.display = 'block';
     db.ref('users/'+currentUser.uid+'/profile').once('value').then(function(snap){
       var p = snap.val()||{};
       document.getElementById('set-prof-email-input').value = p.email||currentUser.email||'';
@@ -109,6 +102,9 @@ function unlockProfileEdit(){
     el=document.getElementById('set-prof-save-msg'); if(el) el.textContent='';
   });
 }
+
+// 하위호환 (이전 lock UI에서 호출되던 함수 — 이제 사용 안 함)
+function unlockProfileEdit(){ toggleProfileEdit(); }
 
 function checkSetNewPw(){
   var pw = document.getElementById('set-prof-new-pw').value;
