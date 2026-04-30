@@ -40,24 +40,45 @@
   .stat-card .num { font-size: 24px; font-weight: 800; color: #4A7AFF; }
   .stat-card .label { font-size: 11px; color: #888; margin-top: 4px; }
 
-  .notice-form { margin-bottom: 16px; }
-  .notice-form input, .notice-form textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px; margin-bottom: 8px; font-family: inherit; }
-  .notice-form textarea { min-height: 80px; resize: vertical; }
-  .notice-form button { background: #4A7AFF; color: #fff; border: none; border-radius: 8px; padding: 10px 20px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .card-head h3 { margin: 0; }
+  .ghost-btn { background: transparent; border: 1px solid #ddd; border-radius: 6px; padding: 4px 10px; font-size: 11px; cursor: pointer; color: #666; font-family: inherit; }
+  .ghost-btn:hover { background: #f5f5f5; }
+  .count-badge { background: #f0f4ff; color: #4A7AFF; border-radius: 999px; padding: 2px 10px; font-size: 11px; font-weight: 700; }
+
+  .notice-card.editing { background: #fff9f0; border-color: #ffd699; }
+  .notice-form { display: flex; flex-direction: column; gap: 4px; }
+  .form-label { font-size: 11px; color: #888; font-weight: 600; margin-top: 4px; }
+  .notice-form input[type="text"], .notice-form textarea { width: 100%; padding: 10px 12px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 13px; font-family: inherit; transition: border-color .15s; }
+  .notice-form input[type="text"]:focus, .notice-form textarea:focus { outline: none; border-color: #4A7AFF; }
+  .notice-form textarea { min-height: 100px; resize: vertical; }
+  .popup-toggle { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 10px; background: #f8f9ff; border-radius: 8px; cursor: pointer; margin-top: 4px; }
+  .popup-toggle input[type="checkbox"] { cursor: pointer; }
+  .primary-btn { background: #4A7AFF; color: #fff; border: none; border-radius: 8px; padding: 12px 20px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; margin-top: 8px; transition: background .15s; }
+  .primary-btn:hover { background: #3a6aef; }
+  .primary-btn.editing { background: #f59e0b; }
+  .primary-btn.editing:hover { background: #d68708; }
+  .form-msg { font-size: 12px; min-height: 18px; text-align: center; margin-top: 4px; }
 
   .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; }
   .badge-green { background: rgba(122,218,154,.15); color: #2d8a4e; }
   .badge-red { background: rgba(224,88,88,.15); color: #c0392b; }
   .badge-blue { background: rgba(0,100,255,.1); color: #4A7AFF; }
 
-  .notice-item { padding: 12px 0; border-bottom: 1px solid #f0f0f0; }
-  .notice-item:last-child { border: none; }
-  .notice-item .title { font-weight: 600; font-size: 14px; }
-  .notice-item .meta { font-size: 11px; color: #888; margin-top: 4px; }
-  .notice-item .content { font-size: 13px; color: #555; margin-top: 6px; line-height: 1.5; white-space: pre-wrap; }
-  .notice-item .actions { margin-top: 8px; display: flex; gap: 6px; }
-  .notice-item .actions button { background: #f0f0f0; border: none; border-radius: 6px; padding: 4px 10px; font-size: 11px; cursor: pointer; font-family: inherit; }
+  .notice-item { padding: 14px; border: 1px solid #eee; border-radius: 10px; margin-bottom: 10px; background: #fff; transition: box-shadow .15s, border-color .15s; }
+  .notice-item:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.04); border-color: #ddd; }
+  .notice-item.is-editing { border-color: #f59e0b; background: #fff9f0; }
+  .notice-item .title { font-weight: 700; font-size: 15px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .notice-item .meta { font-size: 11px; color: #999; margin-top: 4px; }
+  .notice-item .content { font-size: 13px; color: #444; margin-top: 8px; line-height: 1.55; white-space: pre-wrap; padding: 8px 10px; background: #fafafa; border-radius: 6px; }
+  .notice-item .actions { margin-top: 10px; display: flex; gap: 6px; justify-content: flex-end; }
+  .notice-item .actions button { background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 5px 12px; font-size: 12px; cursor: pointer; font-family: inherit; color: #555; transition: background .15s, color .15s, border-color .15s; }
+  .notice-item .actions button:hover { background: #f5f5f5; }
+  .notice-item .actions button.edit:hover { color: #4A7AFF; border-color: #4A7AFF; }
   .notice-item .actions button.del { color: #e05858; }
+  .notice-item .actions button.del:hover { background: #fee; border-color: #e05858; }
+  .notice-empty { text-align: center; padding: 40px 16px; color: #aaa; font-size: 13px; }
+  .notice-empty .icon { font-size: 32px; margin-bottom: 8px; opacity: 0.6; }
 
   .user-toolbar { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #f0f0f0; }
   .user-toolbar .tb-group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
@@ -137,19 +158,29 @@
 
   <!-- 공지사항 관리 -->
   <div class="panel" id="panel-notices">
-    <div class="card">
-      <h3>📝 공지사항 작성</h3>
+    <div class="card notice-card">
+      <div class="card-head">
+        <h3 id="notice-form-title">📝 새 공지사항 작성</h3>
+        <button id="notice-cancel-btn" class="ghost-btn" style="display:none" onclick="cancelEditNotice()">✕ 취소</button>
+      </div>
       <div class="notice-form">
-        <input type="text" id="notice-title" placeholder="제목">
-        <textarea id="notice-content" placeholder="내용"></textarea>
-        <label style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:13px">
-          <input type="checkbox" id="notice-popup"> 팝업 공지로 설정
+        <label class="form-label">제목</label>
+        <input type="text" id="notice-title" placeholder="공지 제목을 입력하세요" maxlength="60">
+        <label class="form-label">내용</label>
+        <textarea id="notice-content" placeholder="공지 내용을 입력하세요"></textarea>
+        <label class="popup-toggle">
+          <input type="checkbox" id="notice-popup">
+          <span>📢 팝업 공지로 설정 <span style="color:#888;font-weight:400;font-size:11px">(앱 첫 화면에 띄워요)</span></span>
         </label>
-        <button onclick="saveNotice()">공지 등록</button>
+        <button id="notice-save-btn" class="primary-btn" onclick="saveNotice()">공지 등록</button>
+        <div id="notice-form-msg" class="form-msg"></div>
       </div>
     </div>
     <div class="card">
-      <h3>📋 등록된 공지사항</h3>
+      <div class="card-head">
+        <h3>📋 등록된 공지사항</h3>
+        <span id="notice-count" class="count-badge"></span>
+      </div>
       <div id="notice-list"></div>
     </div>
   </div>
@@ -172,6 +203,7 @@
 <!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script>
 firebase.initializeApp({
   apiKey: "AIzaSyDUx_Kf-jxjjmaBGkhwkPE_cpmBSPNjNdE",
@@ -181,6 +213,22 @@ firebase.initializeApp({
 });
 var db = firebase.database();
 var ADMIN_REF = db.ref('adminConfig');
+
+// notices 등 auth 필요한 경로를 읽기 위해 익명 로그인 (실패해도 진행)
+var _firebaseAuthReady = false;
+firebase.auth().onAuthStateChanged(function(u){
+  if(u){
+    _firebaseAuthReady = true;
+    // 관리자가 이미 로그인 상태라면 공지를 다시 로드 (rule이 풀리는 시점)
+    if(sessionStorage.getItem('adminAuth') &&
+       document.getElementById('admin-app').style.display !== 'none'){
+      loadNotices();
+    }
+  }
+});
+firebase.auth().signInAnonymously().catch(function(e){
+  console.warn('익명 로그인 실패 (notices 읽기에 필요할 수 있음):', e.code, e.message);
+});
 
 // ─── 로그인 ──────────────────────────────────────────────────────────────────
 function adminLogin(){
@@ -376,57 +424,80 @@ function toggleUserDetail(idx){
 }
 
 // ─── 공지사항 관리 ───────────────────────────────────────────────────────────
+var _editingNoticeId = null;
 
 function loadNotices(){
+  var listEl = document.getElementById('notice-list');
+  var countEl = document.getElementById('notice-count');
   db.ref('notices').orderByChild('createdAt').once('value').then(function(snap){
     var notices = [];
     snap.forEach(function(child){
-      var n = child.val();
+      var n = child.val() || {};
       n._id = child.key;
       notices.push(n);
     });
-    notices.reverse(); // 최신순
+    notices.reverse();
+
+    if(countEl) countEl.textContent = notices.length ? notices.length+'건' : '';
 
     if(!notices.length){
-      document.getElementById('notice-list').innerHTML = '<div style="text-align:center;padding:16px;color:#888;font-size:13px">등록된 공지사항이 없습니다</div>';
+      listEl.innerHTML = '<div class="notice-empty"><div class="icon">📭</div>등록된 공지사항이 없습니다<br><span style="font-size:11px">위에서 첫 공지를 작성해보세요</span></div>';
       return;
     }
 
-    document.getElementById('notice-list').innerHTML = notices.map(function(n){
-      return '<div class="notice-item">'+
-        '<div class="title">'+n.title+(n.popup?' <span class="badge badge-red">팝업</span>':'')+'</div>'+
-        '<div class="meta">'+n.createdAt+'</div>'+
-        '<div class="content">'+n.content+'</div>'+
+    listEl.innerHTML = notices.map(function(n){
+      var editing = _editingNoticeId === n._id;
+      var title = (n.title||'').replace(/[<>&]/g, function(c){ return {'<':'&lt;','>':'&gt;','&':'&amp;'}[c]; });
+      var content = (n.content||'').replace(/[<>&]/g, function(c){ return {'<':'&lt;','>':'&gt;','&':'&amp;'}[c]; });
+      return '<div class="notice-item'+(editing?' is-editing':'')+'">'+
+        '<div class="title">'+title+
+          (n.popup?' <span class="badge badge-red">📢 팝업</span>':'')+
+          (editing?' <span class="badge badge-blue">수정 중</span>':'')+
+        '</div>'+
+        '<div class="meta">🕒 '+toKstDateTime(n.createdAt)+'</div>'+
+        '<div class="content">'+content+'</div>'+
         '<div class="actions">'+
-          '<button onclick="editNotice(\''+n._id+'\')">수정</button>'+
-          '<button class="del" onclick="deleteNotice(\''+n._id+'\')">삭제</button>'+
+          '<button class="edit" onclick="editNotice(\''+n._id+'\')">✏️ 수정</button>'+
+          '<button class="del" onclick="deleteNotice(\''+n._id+'\',\''+title.replace(/'/g,"\\'")+'\')">🗑 삭제</button>'+
         '</div>'+
       '</div>';
     }).join('');
+  }).catch(function(e){
+    listEl.innerHTML = '<div class="notice-empty"><div class="icon">⚠️</div>공지 목록을 읽지 못했어요<br><span style="font-size:11px">'+(e.message||e.code||'')+'</span></div>';
   });
 }
 
-function saveNotice(editId){
+function showNoticeMsg(text, color){
+  var el = document.getElementById('notice-form-msg');
+  if(!el) return;
+  el.style.color = color || '#2d8a4e';
+  el.textContent = text;
+  if(text){ setTimeout(function(){ if(el.textContent === text) el.textContent = ''; }, 2500); }
+}
+
+function saveNotice(){
   var title = document.getElementById('notice-title').value.trim();
   var content = document.getElementById('notice-content').value.trim();
   var popup = document.getElementById('notice-popup').checked;
-  if(!title || !content){ alert('제목과 내용을 입력하세요'); return; }
+  if(!title || !content){ showNoticeMsg('제목과 내용을 모두 입력하세요', '#e05858'); return; }
 
-  var now = new Date().toISOString().slice(0,19).replace('T',' ');
-  var data = { title: title, content: content, popup: popup, createdAt: now };
+  var nowIso = new Date().toISOString();
+  var editId = _editingNoticeId;
 
   if(editId){
-    db.ref('notices/'+editId).update(data).then(function(){
-      alert('수정 완료');
-      clearNoticeForm();
-      loadNotices();
-    });
+    db.ref('notices/'+editId).update({ title:title, content:content, popup:popup, updatedAt: nowIso })
+      .then(function(){
+        showNoticeMsg('✅ 수정 완료');
+        clearNoticeForm();
+        loadNotices();
+      }).catch(function(e){ showNoticeMsg('수정 실패: '+(e.message||e.code), '#e05858'); });
   } else {
-    db.ref('notices').push(data).then(function(){
-      alert('공지 등록 완료');
-      clearNoticeForm();
-      loadNotices();
-    });
+    db.ref('notices').push({ title:title, content:content, popup:popup, createdAt: nowIso })
+      .then(function(){
+        showNoticeMsg('✅ 등록 완료');
+        clearNoticeForm();
+        loadNotices();
+      }).catch(function(e){ showNoticeMsg('등록 실패: '+(e.message||e.code), '#e05858'); });
   }
 }
 
@@ -434,31 +505,47 @@ function editNotice(id){
   db.ref('notices/'+id).once('value').then(function(snap){
     var n = snap.val();
     if(!n) return;
-    document.getElementById('notice-title').value = n.title;
-    document.getElementById('notice-content').value = n.content;
+    _editingNoticeId = id;
+    document.getElementById('notice-title').value = n.title || '';
+    document.getElementById('notice-content').value = n.content || '';
     document.getElementById('notice-popup').checked = !!n.popup;
-    // 등록 버튼을 수정 버튼으로 변경
-    var btn = document.querySelector('.notice-form button');
+    document.getElementById('notice-form-title').textContent = '✏️ 공지사항 수정';
+    document.getElementById('notice-cancel-btn').style.display = '';
+    var btn = document.getElementById('notice-save-btn');
     btn.textContent = '수정 완료';
-    btn.onclick = function(){ saveNotice(id); };
+    btn.classList.add('editing');
+    document.querySelector('.notice-card').classList.add('editing');
+    document.querySelector('.notice-card').scrollIntoView({behavior:'smooth', block:'start'});
+    loadNotices(); // 수정 중 표시 갱신
   });
 }
 
-function deleteNotice(id){
-  if(!confirm('이 공지를 삭제할까요?')) return;
+function cancelEditNotice(){
+  clearNoticeForm();
+  loadNotices();
+}
+
+function deleteNotice(id, title){
+  if(!confirm('"'+title+'" 공지를 삭제할까요?')) return;
   db.ref('notices/'+id).remove().then(function(){
-    alert('삭제 완료');
+    if(_editingNoticeId === id) clearNoticeForm();
+    showNoticeMsg('🗑 삭제 완료');
     loadNotices();
-  });
+  }).catch(function(e){ showNoticeMsg('삭제 실패: '+(e.message||e.code), '#e05858'); });
 }
 
 function clearNoticeForm(){
+  _editingNoticeId = null;
   document.getElementById('notice-title').value = '';
   document.getElementById('notice-content').value = '';
   document.getElementById('notice-popup').checked = false;
-  var btn = document.querySelector('.notice-form button');
+  document.getElementById('notice-form-title').textContent = '📝 새 공지사항 작성';
+  document.getElementById('notice-cancel-btn').style.display = 'none';
+  var btn = document.getElementById('notice-save-btn');
   btn.textContent = '공지 등록';
-  btn.onclick = function(){ saveNotice(); };
+  btn.classList.remove('editing');
+  var card = document.querySelector('.notice-card');
+  if(card) card.classList.remove('editing');
 }
 
 // ─── 비밀번호 변경 ───────────────────────────────────────────────────────────
