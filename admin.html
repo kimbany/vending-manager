@@ -219,23 +219,46 @@ function loadUsers(){
       '<div class="stat-card"><div class="num">'+list.length+'</div><div class="label">전체 사용자</div></div>';
 
     // 테이블
-    var html = '<table><thead><tr><th>이름</th><th>이메일</th><th>가입일</th><th>마지막 접속</th></tr></thead><tbody>';
+    var html = '<table><thead><tr><th>이름</th><th>이메일</th><th>자판기</th><th>가입일</th><th>마지막 접속</th></tr></thead><tbody>';
     list.sort(function(a,b){ return (b.lastLogin||'').localeCompare(a.lastLogin||''); });
-    list.forEach(function(u){
-      html += '<tr>'+
-        '<td style="font-weight:600">'+u.name+'</td>'+
+    list.forEach(function(u, idx){
+      html += '<tr onclick="toggleUserDetail('+idx+')" style="cursor:pointer">'+
+        '<td style="font-weight:600;color:#4A7AFF">'+u.name+'</td>'+
         '<td>'+u.email+'</td>'+
+        '<td>'+(u.machineCount||0)+'대</td>'+
         '<td>'+((u.createdAt||'').slice(0,10)||'-')+'</td>'+
         '<td>'+((u.lastLogin||'').slice(0,16).replace('T',' ')||'-')+'</td>'+
       '</tr>';
+      // 자판기 상세 (숨김)
+      html += '<tr id="user-detail-'+idx+'" style="display:none"><td colspan="5" style="padding:12px;background:#f8f9ff">';
+      var machines = u.machines || [];
+      if(machines.length){
+        html += '<div style="font-size:12px;font-weight:700;margin-bottom:8px">🏪 자판기 현황 ('+machines.length+'대)</div>';
+        machines.forEach(function(m){
+          html += '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #eee;font-size:12px">'+
+            '<div><span style="color:#888">📍 '+m.locationName+'</span> · <strong>'+m.machineName+'</strong>'+(m.model?' · '+m.model:'')+'</div>'+
+            '<div style="color:#4A7AFF;font-weight:600">'+m.productCount+'개 제품</div>'+
+          '</div>';
+        });
+      } else {
+        html += '<div style="font-size:12px;color:#888">등록된 자판기가 없습니다</div>';
+      }
+      html += '</td></tr>';
     });
     html += '</tbody></table>';
     if(!list.length) html = '<div style="text-align:center;padding:20px;color:#888;font-size:13px">사용자가 앱에 로그인하면 여기에 표시됩니다</div>';
     document.getElementById('user-list').innerHTML = html;
+    _userList = list;
   });
 }
 
 // ─── 공지사항 관리 ───────────────────────────────────────────────────────────
+var _userList = [];
+function toggleUserDetail(idx){
+  var row = document.getElementById('user-detail-'+idx);
+  if(row) row.style.display = row.style.display === 'none' ? '' : 'none';
+}
+
 function loadNotices(){
   db.ref('notices').orderByChild('createdAt').once('value').then(function(snap){
     var notices = [];

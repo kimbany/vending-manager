@@ -31,11 +31,36 @@ auth.onAuthStateChanged(function(user){
       });
     }
     // 관리자 페이지용: 사용자 요약 정보 저장
-    db.ref('adminUsers/' + user.uid).update({
+    var adminUpdate = {
       name: profile.name || user.displayName || '',
       email: profile.email || user.email || '',
       createdAt: profile.createdAt || new Date().toISOString(),
       lastLogin: new Date().toISOString()
+    };
+    // 자판기 현황도 저장
+    db.ref('users/' + user.uid + '/locations').once('value').then(function(locSnap){
+      var locs = locSnap.val() || {};
+      var machines = [];
+      Object.keys(locs).forEach(function(lid){
+        var loc = locs[lid];
+        var locName = loc.name || lid;
+        Object.keys(loc.machines || {}).forEach(function(mid){
+          var m = loc.machines[mid];
+          var prodCount = 0;
+          var appData = m.appData || {};
+          var prods = appData.products || [];
+          if(Array.isArray(prods)) prodCount = prods.length;
+          machines.push({
+            locationName: locName,
+            machineName: m.name || mid,
+            model: m.model || '',
+            productCount: prodCount
+          });
+        });
+      });
+      adminUpdate.machines = machines;
+      adminUpdate.machineCount = machines.length;
+      db.ref('adminUsers/' + user.uid).update(adminUpdate);
     });
     if(!pin){
       showOnboarding(profile);
