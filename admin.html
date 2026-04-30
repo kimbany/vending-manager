@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Invendory 관리자</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f7fa; color: #1a1a2e; min-height: 100vh; }
+  .login-wrap { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+  .login-box { background: #fff; border-radius: 16px; padding: 40px 30px; max-width: 360px; width: 100%; box-shadow: 0 4px 20px rgba(0,0,0,.08); text-align: center; }
+  .login-box h2 { font-size: 20px; margin-bottom: 8px; }
+  .login-box p { font-size: 13px; color: #888; margin-bottom: 24px; }
+  .login-box input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 10px; font-size: 14px; margin-bottom: 12px; text-align: center; }
+  .login-box button { width: 100%; padding: 12px; background: #4A7AFF; color: #fff; border: none; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; }
+  .login-box .msg { font-size: 12px; margin-top: 10px; min-height: 18px; }
+
+  #admin-app { display: none; }
+  .header { background: #fff; padding: 16px 20px; border-bottom: 1px solid #e8e8e8; display: flex; align-items: center; justify-content: space-between; }
+  .header h1 { font-size: 18px; display: flex; align-items: center; gap: 8px; }
+  .header .actions { display: flex; gap: 8px; }
+  .header .actions button { background: #f0f0f0; border: none; border-radius: 8px; padding: 8px 14px; font-size: 12px; cursor: pointer; font-family: inherit; }
+
+  .tabs { display: flex; background: #fff; border-bottom: 1px solid #e8e8e8; }
+  .tabs button { flex: 1; padding: 12px; border: none; background: none; font-size: 14px; font-weight: 600; cursor: pointer; color: #888; border-bottom: 2px solid transparent; font-family: inherit; }
+  .tabs button.active { color: #4A7AFF; border-bottom-color: #4A7AFF; }
+
+  .panel { display: none; padding: 20px; max-width: 900px; margin: 0 auto; }
+  .panel.active { display: block; }
+
+  .card { background: #fff; border-radius: 12px; padding: 16px; margin-bottom: 12px; border: 1px solid #e8e8e8; }
+  .card h3 { font-size: 14px; margin-bottom: 10px; color: #333; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 10px 8px; text-align: left; border-bottom: 1px solid #f0f0f0; }
+  th { font-weight: 600; color: #888; font-size: 11px; }
+
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 16px; }
+  .stat-card { background: #f8f9ff; border-radius: 10px; padding: 14px; text-align: center; }
+  .stat-card .num { font-size: 24px; font-weight: 800; color: #4A7AFF; }
+  .stat-card .label { font-size: 11px; color: #888; margin-top: 4px; }
+
+  .notice-form { margin-bottom: 16px; }
+  .notice-form input, .notice-form textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px; margin-bottom: 8px; font-family: inherit; }
+  .notice-form textarea { min-height: 80px; resize: vertical; }
+  .notice-form button { background: #4A7AFF; color: #fff; border: none; border-radius: 8px; padding: 10px 20px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; }
+
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; }
+  .badge-green { background: rgba(122,218,154,.15); color: #2d8a4e; }
+  .badge-red { background: rgba(224,88,88,.15); color: #c0392b; }
+  .badge-blue { background: rgba(0,100,255,.1); color: #4A7AFF; }
+
+  .notice-item { padding: 12px 0; border-bottom: 1px solid #f0f0f0; }
+  .notice-item:last-child { border: none; }
+  .notice-item .title { font-weight: 600; font-size: 14px; }
+  .notice-item .meta { font-size: 11px; color: #888; margin-top: 4px; }
+  .notice-item .content { font-size: 13px; color: #555; margin-top: 6px; line-height: 1.5; white-space: pre-wrap; }
+  .notice-item .actions { margin-top: 8px; display: flex; gap: 6px; }
+  .notice-item .actions button { background: #f0f0f0; border: none; border-radius: 6px; padding: 4px 10px; font-size: 11px; cursor: pointer; font-family: inherit; }
+  .notice-item .actions button.del { color: #e05858; }
+
+  .pw-change { margin-top: 20px; padding-top: 16px; border-top: 1px solid #e8e8e8; }
+  .pw-change input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px; margin-bottom: 8px; }
+  .pw-change button { background: #555; color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-size: 12px; cursor: pointer; font-family: inherit; }
+</style>
+</head>
+<body>
+
+<!-- 로그인 화면 -->
+<div class="login-wrap" id="login-screen">
+  <div class="login-box">
+    <h2>🔒 관리자 로그인</h2>
+    <p>Invendory 관리자 전용 페이지</p>
+    <input type="password" id="admin-pw" placeholder="비밀번호 입력" onkeydown="if(event.key==='Enter')adminLogin()">
+    <button onclick="adminLogin()">로그인</button>
+    <div class="msg" id="login-msg"></div>
+  </div>
+</div>
+
+<!-- 관리자 앱 -->
+<div id="admin-app">
+  <div class="header">
+    <h1>⚙️ Invendory 관리자</h1>
+    <div class="actions">
+      <button onclick="switchTab('settings')">⚙️ 설정</button>
+      <button onclick="adminLogout()">로그아웃</button>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="active" id="tab-btn-users" onclick="switchTab('users')">👥 사용자</button>
+    <button id="tab-btn-notices" onclick="switchTab('notices')">📢 공지사항</button>
+    <button id="tab-btn-settings" onclick="switchTab('settings')">⚙️ 설정</button>
+  </div>
+
+  <!-- 사용자 관리 -->
+  <div class="panel active" id="panel-users">
+    <div class="stat-grid" id="user-stats"></div>
+    <div class="card">
+      <h3>전체 사용자 목록</h3>
+      <div id="user-list" style="overflow-x:auto"></div>
+    </div>
+  </div>
+
+  <!-- 공지사항 관리 -->
+  <div class="panel" id="panel-notices">
+    <div class="card">
+      <h3>📝 공지사항 작성</h3>
+      <div class="notice-form">
+        <input type="text" id="notice-title" placeholder="제목">
+        <textarea id="notice-content" placeholder="내용"></textarea>
+        <label style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:13px">
+          <input type="checkbox" id="notice-popup"> 팝업 공지로 설정
+        </label>
+        <button onclick="saveNotice()">공지 등록</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>📋 등록된 공지사항</h3>
+      <div id="notice-list"></div>
+    </div>
+  </div>
+
+  <!-- 설정 -->
+  <div class="panel" id="panel-settings">
+    <div class="card">
+      <h3>🔑 비밀번호 변경</h3>
+      <div class="pw-change">
+        <input type="password" id="pw-current" placeholder="현재 비밀번호">
+        <input type="password" id="pw-new" placeholder="새 비밀번호">
+        <input type="password" id="pw-new2" placeholder="새 비밀번호 확인">
+        <button onclick="changePassword()">비밀번호 변경</button>
+        <div class="msg" id="pw-msg" style="margin-top:8px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script>
+firebase.initializeApp({
+  apiKey: "AIzaSyDUx_Kf-jxjjmaBGkhwkPE_cpmBSPNjNdE",
+  authDomain: "vending-manager-2d64e.firebaseapp.com",
+  databaseURL: "https://vending-manager-2d64e-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "vending-manager-2d64e"
+});
+var db = firebase.database();
+var ADMIN_REF = db.ref('adminConfig');
+
+// ─── 로그인 ──────────────────────────────────────────────────────────────────
+function adminLogin(){
+  var pw = document.getElementById('admin-pw').value;
+  var msg = document.getElementById('login-msg');
+  if(!pw){ msg.style.color='#e05858'; msg.textContent='비밀번호를 입력하세요'; return; }
+
+  ADMIN_REF.child('password').once('value').then(function(snap){
+    var savedPw = snap.val();
+    // 초기 비밀번호 설정 (최초 접속)
+    if(!savedPw){
+      ADMIN_REF.child('password').set('1234');
+      savedPw = '1234';
+    }
+    if(pw === savedPw){
+      sessionStorage.setItem('adminAuth', 'true');
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('admin-app').style.display = 'block';
+      loadUsers();
+      loadNotices();
+    } else {
+      msg.style.color='#e05858'; msg.textContent='비밀번호가 틀립니다';
+    }
+  });
+}
+
+function adminLogout(){
+  sessionStorage.removeItem('adminAuth');
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('admin-app').style.display = 'none';
+}
+
+// 세션 유지
+if(sessionStorage.getItem('adminAuth')){
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('admin-app').style.display = 'block';
+  setTimeout(function(){ loadUsers(); loadNotices(); }, 500);
+}
+
+// ─── 탭 전환 ─────────────────────────────────────────────────────────────────
+function switchTab(tab){
+  document.querySelectorAll('.panel').forEach(function(p){ p.classList.remove('active'); });
+  document.querySelectorAll('.tabs button').forEach(function(b){ b.classList.remove('active'); });
+  document.getElementById('panel-'+tab).classList.add('active');
+  var btn = document.getElementById('tab-btn-'+tab);
+  if(btn) btn.classList.add('active');
+}
+
+// ─── 사용자 관리 ─────────────────────────────────────────────────────────────
+function loadUsers(){
+  db.ref('users').once('value').then(function(snap){
+    var users = snap.val() || {};
+    var list = [];
+    var totalMachines = 0, totalProducts = 0;
+
+    Object.keys(users).forEach(function(uid){
+      var u = users[uid];
+      if(!u || typeof u !== 'object') return;
+      var profile = u.profile || {};
+      var locs = u.locations || {};
+      var machineCount = 0, productCount = 0;
+      Object.keys(locs).forEach(function(lid){
+        var loc = locs[lid];
+        Object.keys(loc.machines || {}).forEach(function(mid){
+          machineCount++;
+          var appData = (loc.machines[mid].appData || {});
+          var prods = appData.products || [];
+          if(Array.isArray(prods)) productCount += prods.length;
+        });
+      });
+      totalMachines += machineCount;
+      totalProducts += productCount;
+
+      list.push({
+        uid: uid,
+        name: profile.name || u.displayName || '-',
+        email: profile.email || '-',
+        createdAt: profile.createdAt || '-',
+        machineCount: machineCount,
+        productCount: productCount,
+        lastLogin: profile.lastLogin || '-'
+      });
+    });
+
+    // 통계
+    document.getElementById('user-stats').innerHTML =
+      '<div class="stat-card"><div class="num">'+list.length+'</div><div class="label">전체 사용자</div></div>'+
+      '<div class="stat-card"><div class="num">'+totalMachines+'</div><div class="label">전체 자판기</div></div>'+
+      '<div class="stat-card"><div class="num">'+totalProducts+'</div><div class="label">전체 제품</div></div>';
+
+    // 테이블
+    var html = '<table><thead><tr><th>이름</th><th>이메일</th><th>가입일</th><th>자판기</th><th>제품</th><th>마지막 접속</th></tr></thead><tbody>';
+    list.forEach(function(u){
+      html += '<tr>'+
+        '<td style="font-weight:600">'+u.name+'</td>'+
+        '<td>'+u.email+'</td>'+
+        '<td>'+((u.createdAt||'').slice(0,10)||'-')+'</td>'+
+        '<td>'+u.machineCount+'대</td>'+
+        '<td>'+u.productCount+'개</td>'+
+        '<td>'+((u.lastLogin||'').slice(0,10)||'-')+'</td>'+
+      '</tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('user-list').innerHTML = html;
+  });
+}
+
+// ─── 공지사항 관리 ───────────────────────────────────────────────────────────
+function loadNotices(){
+  db.ref('notices').orderByChild('createdAt').once('value').then(function(snap){
+    var notices = [];
+    snap.forEach(function(child){
+      var n = child.val();
+      n._id = child.key;
+      notices.push(n);
+    });
+    notices.reverse(); // 최신순
+
+    if(!notices.length){
+      document.getElementById('notice-list').innerHTML = '<div style="text-align:center;padding:16px;color:#888;font-size:13px">등록된 공지사항이 없습니다</div>';
+      return;
+    }
+
+    document.getElementById('notice-list').innerHTML = notices.map(function(n){
+      return '<div class="notice-item">'+
+        '<div class="title">'+n.title+(n.popup?' <span class="badge badge-red">팝업</span>':'')+'</div>'+
+        '<div class="meta">'+n.createdAt+'</div>'+
+        '<div class="content">'+n.content+'</div>'+
+        '<div class="actions">'+
+          '<button onclick="editNotice(\''+n._id+'\')">수정</button>'+
+          '<button class="del" onclick="deleteNotice(\''+n._id+'\')">삭제</button>'+
+        '</div>'+
+      '</div>';
+    }).join('');
+  });
+}
+
+function saveNotice(editId){
+  var title = document.getElementById('notice-title').value.trim();
+  var content = document.getElementById('notice-content').value.trim();
+  var popup = document.getElementById('notice-popup').checked;
+  if(!title || !content){ alert('제목과 내용을 입력하세요'); return; }
+
+  var now = new Date().toISOString().slice(0,19).replace('T',' ');
+  var data = { title: title, content: content, popup: popup, createdAt: now };
+
+  if(editId){
+    db.ref('notices/'+editId).update(data).then(function(){
+      alert('수정 완료');
+      clearNoticeForm();
+      loadNotices();
+    });
+  } else {
+    db.ref('notices').push(data).then(function(){
+      alert('공지 등록 완료');
+      clearNoticeForm();
+      loadNotices();
+    });
+  }
+}
+
+function editNotice(id){
+  db.ref('notices/'+id).once('value').then(function(snap){
+    var n = snap.val();
+    if(!n) return;
+    document.getElementById('notice-title').value = n.title;
+    document.getElementById('notice-content').value = n.content;
+    document.getElementById('notice-popup').checked = !!n.popup;
+    // 등록 버튼을 수정 버튼으로 변경
+    var btn = document.querySelector('.notice-form button');
+    btn.textContent = '수정 완료';
+    btn.onclick = function(){ saveNotice(id); };
+  });
+}
+
+function deleteNotice(id){
+  if(!confirm('이 공지를 삭제할까요?')) return;
+  db.ref('notices/'+id).remove().then(function(){
+    alert('삭제 완료');
+    loadNotices();
+  });
+}
+
+function clearNoticeForm(){
+  document.getElementById('notice-title').value = '';
+  document.getElementById('notice-content').value = '';
+  document.getElementById('notice-popup').checked = false;
+  var btn = document.querySelector('.notice-form button');
+  btn.textContent = '공지 등록';
+  btn.onclick = function(){ saveNotice(); };
+}
+
+// ─── 비밀번호 변경 ───────────────────────────────────────────────────────────
+function changePassword(){
+  var current = document.getElementById('pw-current').value;
+  var newPw = document.getElementById('pw-new').value;
+  var newPw2 = document.getElementById('pw-new2').value;
+  var msg = document.getElementById('pw-msg');
+
+  if(!current || !newPw){ msg.style.color='#e05858'; msg.textContent='모든 필드를 입력하세요'; return; }
+  if(newPw !== newPw2){ msg.style.color='#e05858'; msg.textContent='새 비밀번호가 일치하지 않습니다'; return; }
+  if(newPw.length < 4){ msg.style.color='#e05858'; msg.textContent='비밀번호는 4자 이상이어야 합니다'; return; }
+
+  ADMIN_REF.child('password').once('value').then(function(snap){
+    if(snap.val() !== current){
+      msg.style.color='#e05858'; msg.textContent='현재 비밀번호가 틀립니다';
+      return;
+    }
+    ADMIN_REF.child('password').set(newPw).then(function(){
+      msg.style.color='#2d8a4e'; msg.textContent='✅ 비밀번호 변경 완료';
+      document.getElementById('pw-current').value = '';
+      document.getElementById('pw-new').value = '';
+      document.getElementById('pw-new2').value = '';
+    });
+  });
+}
+</script>
+</body>
+</html>

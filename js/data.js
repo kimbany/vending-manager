@@ -26,8 +26,73 @@ function startApp(){
   if(typeof loadCoupangPending === 'function'){
     setTimeout(function(){ loadCoupangPending(); }, 300);
   }
+  // 공지사항 로드
+  if(typeof loadNoticesForUser === 'function') setTimeout(loadNoticesForUser, 500);
   // URL 해시에서 이전 탭 복원
   setTimeout(restoreTab, 100);
+}
+
+// ─── 공지사항 (사용자용) ────────────────────────────────────────────────────
+function loadNoticesForUser(){
+  db.ref('notices').orderByChild('createdAt').once('value').then(function(snap){
+    var notices = [];
+    snap.forEach(function(child){
+      var n = child.val();
+      n._id = child.key;
+      notices.push(n);
+    });
+    notices.reverse();
+
+    // 배지 표시
+    var badge = document.getElementById('notice-badge');
+    if(badge && notices.length > 0){
+      badge.textContent = notices.length;
+      badge.style.display = 'inline';
+    }
+
+    // 모달 내용
+    var el = document.getElementById('notice-modal-list');
+    if(el){
+      if(!notices.length){
+        el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">공지사항이 없습니다</div>';
+      } else {
+        el.innerHTML = notices.map(function(n){
+          return '<div style="padding:12px 0;border-bottom:1px solid var(--border)">'+
+            '<div style="font-size:15px;font-weight:700;margin-bottom:4px">'+n.title+'</div>'+
+            '<div style="font-size:11px;color:var(--text3);margin-bottom:6px">'+n.createdAt+'</div>'+
+            '<div style="font-size:13px;color:var(--text2);line-height:1.6;white-space:pre-wrap">'+n.content+'</div>'+
+          '</div>';
+        }).join('');
+      }
+    }
+
+    // 팝업 공지 (읽지 않은 것만)
+    var popupNotices = notices.filter(function(n){ return n.popup; });
+    if(popupNotices.length > 0){
+      var lastSeen = localStorage.getItem('lastNoticeId') || '';
+      var newest = popupNotices[0];
+      if(newest._id !== lastSeen){
+        var body = document.getElementById('notice-popup-body');
+        if(body){
+          body.innerHTML = '<div style="padding:8px 0">'+
+            '<div style="font-size:16px;font-weight:700;margin-bottom:6px">'+newest.title+'</div>'+
+            '<div style="font-size:13px;color:var(--text2);line-height:1.6;white-space:pre-wrap">'+newest.content+'</div>'+
+          '</div>';
+          openModal('notice-popup-modal');
+        }
+      }
+    }
+  });
+}
+
+function closeNoticePopup(){
+  // 팝업 공지 읽음 처리
+  db.ref('notices').orderByChild('createdAt').limitToLast(1).once('value').then(function(snap){
+    snap.forEach(function(child){
+      localStorage.setItem('lastNoticeId', child.key);
+    });
+  });
+  closeModal('notice-popup-modal');
 }
 
 function loadUserData(){
