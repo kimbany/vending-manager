@@ -93,24 +93,47 @@ function loadNoticesForUser(){
     if(searchEl) searchEl.value = '';
     renderNoticeModal();
 
-    // 팝업 공지 (활성 + popup 플래그 + 미열람만)
+    // 팝업 공지: 활성 + popup 플래그 + 사용자가 닫지 않은 것
     var popupNotices = _allActiveNotices.filter(function(n){ return n.popup; });
-    if(popupNotices.length > 0){
-      var lastSeen = localStorage.getItem('lastNoticeId') || '';
-      var newest = popupNotices[0];
-      if(newest._id !== lastSeen){
-        var body = document.getElementById('notice-popup-body');
-        if(body){
-          body.innerHTML = '<div style="padding:8px 0">'+
-            '<div style="font-size:16px;font-weight:700;margin-bottom:4px">'+_escapeHtml(newest.title)+'</div>'+
-            '<div style="font-size:11px;color:var(--text3);margin-bottom:8px">🕒 '+_formatNoticeKst(newest.createdAt)+'</div>'+
-            '<div style="font-size:13px;color:var(--text2);line-height:1.6;white-space:pre-wrap">'+_escapeHtml(newest.content)+'</div>'+
-          '</div>';
-          openModal('notice-popup-modal');
-        }
-      }
-    }
+    _popupQueue = popupNotices.filter(_shouldShowPopup);
+    _popupCurrentId = null;
+    if(_popupQueue.length > 0) _showNextPopupNotice();
   });
+}
+
+// 팝업 큐 + 노출 제어
+var _popupQueue = [];
+var _popupCurrentId = null;
+
+function _todayKey(){
+  var d = new Date(Date.now() + 9*3600000); // KST 기준 날짜
+  return d.toISOString().slice(0,10);
+}
+function _getDismissed(){
+  try { return JSON.parse(localStorage.getItem('noticeDismissed') || '{}'); } catch(e){ return {}; }
+}
+function _setDismissed(map){
+  try { localStorage.setItem('noticeDismissed', JSON.stringify(map)); } catch(e){}
+}
+function _shouldShowPopup(n){
+  if(!n || !n._id) return false;
+  var d = _getDismissed()[n._id];
+  if(!d) return true;
+  if(d === 'forever') return false;
+  if(d === _todayKey()) return false; // 오늘 하루 보지 않기
+  return true;
+}
+function _showNextPopupNotice(){
+  if(!_popupQueue.length){ _popupCurrentId = null; return; }
+  var n = _popupQueue.shift();
+  _popupCurrentId = n._id;
+  var titleEl = document.getElementById('notice-popup-title');
+  var timeEl  = document.getElementById('notice-popup-time');
+  var bodyEl  = document.getElementById('notice-popup-body');
+  if(titleEl) titleEl.textContent = n.title || '';
+  if(timeEl)  timeEl.textContent = '🕒 '+_formatNoticeKst(n.createdAt);
+  if(bodyEl)  bodyEl.textContent = n.content || '';
+  openModal('notice-popup-modal');
 }
 
 function onNoticeSearch(){
@@ -199,12 +222,26 @@ function renderNoticeModal(){
 }
 
 function closeNoticePopup(){
-  // 팝업으로 띄운 가장 최신 공지를 읽음 처리
-  if(_allActiveNotices && _allActiveNotices.length){
-    var newest = _allActiveNotices.filter(function(n){ return n.popup; })[0];
-    if(newest && newest._id) localStorage.setItem('lastNoticeId', newest._id);
+  // "닫기": 이 공지는 다시 안 띄움
+  if(_popupCurrentId){
+    var map = _getDismissed();
+    map[_popupCurrentId] = 'forever';
+    _setDismissed(map);
   }
   closeModal('notice-popup-modal');
+  // 큐에 더 있으면 살짝 뒤에 다음 팝업
+  setTimeout(_showNextPopupNotice, 250);
+}
+
+function snoozeNoticeToday(){
+  // "오늘은 그만 보기": 오늘만 안 띄움 (내일은 다시)
+  if(_popupCurrentId){
+    var map = _getDismissed();
+    map[_popupCurrentId] = _todayKey();
+    _setDismissed(map);
+  }
+  closeModal('notice-popup-modal');
+  setTimeout(_showNextPopupNotice, 250);
 }
 
 function loadUserData(){
