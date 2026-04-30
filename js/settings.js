@@ -109,76 +109,87 @@ function unlockProfileEdit(){ toggleProfileEdit(); }
 function checkSetNewPw(){
   var pw = document.getElementById('set-prof-new-pw').value;
   var el = document.getElementById('set-prof-pw-strength');
-  var ok = /[a-zA-Z]/.test(pw) && /[0-9]/.test(pw) && pw.length>=8;
+  var ok = /^\d{4,}$/.test(pw);
   el.style.color = ok ? 'var(--green)' : 'var(--red)';
-  el.textContent = pw ? (ok ? '✅ 사용 가능' : '❌ 영문+숫자 8자 이상') : '';
+  el.textContent = pw ? (ok ? '✅ 사용 가능' : '❌ 숫자 4자리 이상') : '';
 }
 
 function saveProfileAll(){
   var email = document.getElementById('set-prof-email-input').value.trim();
   var phone = document.getElementById('set-prof-phone-input').value.trim();
-  var curPw = document.getElementById('set-prof-cur-pw').value;
-  var newPw = document.getElementById('set-prof-new-pw').value;
-  var newPw2 = document.getElementById('set-prof-new-pw2').value;
+  var curPin = document.getElementById('set-prof-cur-pw').value;
+  var newPin = document.getElementById('set-prof-new-pw').value;
+  var newPin2 = document.getElementById('set-prof-new-pw2').value;
   var msg = document.getElementById('set-prof-save-msg');
 
   if(!email){ msg.style.color='var(--red)'; msg.textContent='이메일을 입력하세요'; return; }
 
-  // 비밀번호 변경 체크 (입력된 경우만)
-  var changePw = !!(newPw || newPw2);
-  if(changePw){
-    if(!curPw){ msg.style.color='var(--red)'; msg.textContent='현재 비밀번호를 입력하세요'; return; }
-    if(newPw !== newPw2){ msg.style.color='var(--red)'; msg.textContent='새 비밀번호가 일치하지 않아요'; return; }
-    if(!/[a-zA-Z]/.test(newPw)||!/[0-9]/.test(newPw)||newPw.length<8){
-      msg.style.color='var(--red)'; msg.textContent='새 비밀번호: 영문+숫자 8자 이상'; return;
+  // PIN 변경 체크 (입력된 경우만)
+  var changePin = !!(newPin || newPin2);
+  if(changePin){
+    if(!curPin){ msg.style.color='var(--red)'; msg.textContent='현재 PIN을 입력하세요'; return; }
+    if(newPin !== newPin2){ msg.style.color='var(--red)'; msg.textContent='새 PIN이 일치하지 않아요'; return; }
+    if(!/^\d{4,}$/.test(newPin)){
+      msg.style.color='var(--red)'; msg.textContent='새 PIN: 숫자 4자리 이상'; return;
     }
   }
 
   msg.style.color='var(--text2)'; msg.textContent='저장 중...';
 
-  var doSave = function(){
+  var doProfileSave = function(){
     var updates = {email:email, phone:phone};
     var promises = [db.ref('users/'+currentUser.uid+'/profile').update(updates)];
-    // 이메일 변경 시 인증 메일 발송
-    if(email !== currentUser.email){
+    // 이메일 변경 시 인증 메일 발송 (구글 로그인 사용자는 이메일 변경 거의 불필요)
+    if(email !== currentUser.email && currentUser.verifyBeforeUpdateEmail){
       promises.push(currentUser.verifyBeforeUpdateEmail(email));
     }
-    // 비밀번호 변경
-    if(changePw){
-      promises.push(currentUser.updatePassword(newPw));
-    }
-    Promise.all(promises).then(function(){
-      var notice = '';
-      if(email !== currentUser.email) notice = ' 새 이메일로 인증 메일을 보냈어요.';
-      if(changePw) notice += ' 비밀번호가 변경되었어요.';
-      msg.style.color='var(--green)'; msg.textContent='✅ 저장 완료.' + notice;
-      renderProfileSummary();
-      renderProfileFullInfo();
-      // 비밀번호 필드 초기화
-      document.getElementById('set-prof-cur-pw').value='';
-      document.getElementById('set-prof-new-pw').value='';
-      document.getElementById('set-prof-new-pw2').value='';
-      document.getElementById('set-prof-pw-strength').textContent='';
-    }).catch(function(e){
-      msg.style.color='var(--red)';
-      if(e.code==='auth/requires-recent-login') msg.textContent='보안을 위해 다시 로그인 후 시도해주세요';
-      else if(e.code==='auth/invalid-email') msg.textContent='이메일 형식이 올바르지 않아요';
-      else if(e.code==='auth/email-already-in-use') msg.textContent='이미 사용 중인 이메일이에요';
-      else if(e.code==='auth/wrong-password') msg.textContent='현재 비밀번호가 올바르지 않아요';
-      else if(e.code==='auth/weak-password') msg.textContent='비밀번호가 너무 약해요';
-      else msg.textContent='저장 실패: '+e.message;
-    });
+    return Promise.all(promises);
   };
 
-  // 비밀번호 변경 시 재인증 필요
-  if(changePw){
-    var cred = firebase.auth.EmailAuthProvider.credential(currentUser.email, curPw);
-    currentUser.reauthenticateWithCredential(cred).then(doSave).catch(function(){
-      msg.style.color='var(--red)'; msg.textContent='현재 비밀번호가 올바르지 않아요';
-    });
-  } else {
-    doSave();
+  var afterSave = function(extraNotice){
+    msg.style.color='var(--green)';
+    msg.textContent='✅ 저장 완료.' + (extraNotice||'');
+    renderProfileSummary();
+    renderProfileFullInfo();
+    document.getElementById('set-prof-cur-pw').value='';
+    document.getElementById('set-prof-new-pw').value='';
+    document.getElementById('set-prof-new-pw2').value='';
+    document.getElementById('set-prof-pw-strength').textContent='';
+  };
+
+  var handleErr = function(e){
+    msg.style.color='var(--red)';
+    if(e && e.code==='auth/invalid-email') msg.textContent='이메일 형식이 올바르지 않아요';
+    else if(e && e.code==='auth/email-already-in-use') msg.textContent='이미 사용 중인 이메일이에요';
+    else msg.textContent='저장 실패: '+(e && e.message || e || '');
+  };
+
+  if(!changePin){
+    doProfileSave().then(function(){
+      var notice = (email !== currentUser.email) ? ' 새 이메일로 인증 메일을 보냈어요.' : '';
+      afterSave(notice);
+    }).catch(handleErr);
+    return;
   }
+
+  // PIN 변경: 현재 PIN 검증 → 새 PIN 해시 저장 → 프로필 저장
+  hashSHA256(curPin).then(function(curHash){
+    return db.ref('users/'+currentUser.uid+'/settings/securityPin').once('value').then(function(snap){
+      if(snap.val() !== curHash){
+        var err = new Error('현재 PIN이 올바르지 않아요'); err._pinMismatch = true; throw err;
+      }
+      return hashSHA256(newPin);
+    });
+  }).then(function(newHash){
+    return db.ref('users/'+currentUser.uid+'/settings/securityPin').set(newHash);
+  }).then(doProfileSave).then(function(){
+    var notice = ' PIN이 변경되었어요.';
+    if(email !== currentUser.email) notice += ' 새 이메일로 인증 메일을 보냈어요.';
+    afterSave(notice);
+  }).catch(function(e){
+    if(e && e._pinMismatch){ msg.style.color='var(--red)'; msg.textContent=e.message; return; }
+    handleErr(e);
+  });
 }
 
 // ─── 2. 메뉴 토글 ──────────────────────────────────────────────────────────────
