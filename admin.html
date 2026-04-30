@@ -198,59 +198,39 @@ function switchTab(tab){
 
 // ─── 사용자 관리 ─────────────────────────────────────────────────────────────
 function loadUsers(){
-  db.ref('users').once('value').then(function(snap){
+  db.ref('adminUsers').once('value').then(function(snap){
     var users = snap.val() || {};
     var list = [];
-    var totalMachines = 0, totalProducts = 0;
 
     Object.keys(users).forEach(function(uid){
       var u = users[uid];
       if(!u || typeof u !== 'object') return;
-      var profile = u.profile || {};
-      var locs = u.locations || {};
-      var machineCount = 0, productCount = 0;
-      Object.keys(locs).forEach(function(lid){
-        var loc = locs[lid];
-        Object.keys(loc.machines || {}).forEach(function(mid){
-          machineCount++;
-          var appData = (loc.machines[mid].appData || {});
-          var prods = appData.products || [];
-          if(Array.isArray(prods)) productCount += prods.length;
-        });
-      });
-      totalMachines += machineCount;
-      totalProducts += productCount;
-
       list.push({
         uid: uid,
-        name: profile.name || u.displayName || '-',
-        email: profile.email || '-',
-        createdAt: profile.createdAt || '-',
-        machineCount: machineCount,
-        productCount: productCount,
-        lastLogin: profile.lastLogin || '-'
+        name: u.name || '-',
+        email: u.email || '-',
+        createdAt: u.createdAt || '-',
+        lastLogin: u.lastLogin || '-'
       });
     });
 
     // 통계
     document.getElementById('user-stats').innerHTML =
-      '<div class="stat-card"><div class="num">'+list.length+'</div><div class="label">전체 사용자</div></div>'+
-      '<div class="stat-card"><div class="num">'+totalMachines+'</div><div class="label">전체 자판기</div></div>'+
-      '<div class="stat-card"><div class="num">'+totalProducts+'</div><div class="label">전체 제품</div></div>';
+      '<div class="stat-card"><div class="num">'+list.length+'</div><div class="label">전체 사용자</div></div>';
 
     // 테이블
-    var html = '<table><thead><tr><th>이름</th><th>이메일</th><th>가입일</th><th>자판기</th><th>제품</th><th>마지막 접속</th></tr></thead><tbody>';
+    var html = '<table><thead><tr><th>이름</th><th>이메일</th><th>가입일</th><th>마지막 접속</th></tr></thead><tbody>';
+    list.sort(function(a,b){ return (b.lastLogin||'').localeCompare(a.lastLogin||''); });
     list.forEach(function(u){
       html += '<tr>'+
         '<td style="font-weight:600">'+u.name+'</td>'+
         '<td>'+u.email+'</td>'+
         '<td>'+((u.createdAt||'').slice(0,10)||'-')+'</td>'+
-        '<td>'+u.machineCount+'대</td>'+
-        '<td>'+u.productCount+'개</td>'+
-        '<td>'+((u.lastLogin||'').slice(0,10)||'-')+'</td>'+
+        '<td>'+((u.lastLogin||'').slice(0,16).replace('T',' ')||'-')+'</td>'+
       '</tr>';
     });
     html += '</tbody></table>';
+    if(!list.length) html = '<div style="text-align:center;padding:20px;color:#888;font-size:13px">사용자가 앱에 로그인하면 여기에 표시됩니다</div>';
     document.getElementById('user-list').innerHTML = html;
   });
 }

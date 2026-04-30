@@ -30,6 +30,13 @@ auth.onAuthStateChanged(function(user){
         createdAt: new Date().toISOString()
       });
     }
+    // 관리자 페이지용: 사용자 요약 정보 저장
+    db.ref('adminUsers/' + user.uid).update({
+      name: profile.name || user.displayName || '',
+      email: profile.email || user.email || '',
+      createdAt: profile.createdAt || new Date().toISOString(),
+      lastLogin: new Date().toISOString()
+    });
     if(!pin){
       showOnboarding(profile);
       return;
