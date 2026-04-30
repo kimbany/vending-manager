@@ -5,6 +5,7 @@ var _pendingGoogleCred = null;
 
 // ─── Auth 상태 감지 ──────────────────────────────────────────────────────────
 var _lastUid = null;
+var _adminSyncRef = null, _adminSyncHandler = null;
 auth.onAuthStateChanged(function(user){
   document.getElementById('loading').style.display='none';
   if(!user){
@@ -30,38 +31,24 @@ auth.onAuthStateChanged(function(user){
         createdAt: new Date().toISOString()
       });
     }
-    // 관리자 페이지용: 사용자 요약 정보 저장
-    var adminUpdate = {
+    // 관리자 페이지용: 사용자 요약 정보 저장 (로그인 시 1회)
+    db.ref('adminUsers/' + user.uid).update({
       name: profile.name || user.displayName || '',
       email: profile.email || user.email || '',
       createdAt: profile.createdAt || new Date().toISOString(),
       lastLogin: new Date().toISOString()
+    }).catch(function(e){ console.warn('adminUsers profile update failed:', e); });
+
+    // 위치/자판기 변경 시 자동 동기화 (실시간 리스너 — 첫 호출도 즉시 발생)
+    if(_adminSyncRef) try{ _adminSyncRef.off('value', _adminSyncHandler); }catch(e){}
+    _adminSyncRef = db.ref('users/' + user.uid + '/locations');
+    _adminSyncHandler = function(locSnap){
+      var payload = buildAdminMachinesPayload(locSnap.val());
+      db.ref('adminUsers/' + user.uid).update(payload)
+        .catch(function(e){ console.warn('adminUsers machines sync failed:', e); });
     };
-    // 자판기 현황도 저장
-    db.ref('users/' + user.uid + '/locations').once('value').then(function(locSnap){
-      var locs = locSnap.val() || {};
-      var machines = [];
-      Object.keys(locs).forEach(function(lid){
-        var loc = locs[lid];
-        var locName = loc.name || lid;
-        Object.keys(loc.machines || {}).forEach(function(mid){
-          var m = loc.machines[mid];
-          var prodCount = 0;
-          var appData = m.appData || {};
-          var prods = appData.products || [];
-          if(Array.isArray(prods)) prodCount = prods.length;
-          machines.push({
-            locationName: locName,
-            machineName: m.name || mid,
-            model: m.model || '',
-            productCount: prodCount
-          });
-        });
-      });
-      adminUpdate.machines = machines;
-      adminUpdate.machineCount = machines.length;
-      db.ref('adminUsers/' + user.uid).update(adminUpdate);
-    });
+    _adminSyncRef.on('value', _adminSyncHandler);
+
     if(!pin){
       showOnboarding(profile);
       return;
@@ -69,6 +56,32 @@ auth.onAuthStateChanged(function(user){
     loadUserData();
   });
 });
+
+// 위치 데이터 → adminUsers 자판기 페이로드 변환
+function buildAdminMachinesPayload(locs){
+  locs = locs || {};
+  var machines = [];
+  Object.keys(locs).forEach(function(lid){
+    var loc = locs[lid];
+    if(!loc || typeof loc !== 'object') return;
+    var locName = loc.name || lid;
+    var ms = loc.machines || {};
+    Object.keys(ms).forEach(function(mid){
+      var m = ms[mid] || {};
+      var appData = m.appData || {};
+      var prods = appData.products || [];
+      var prodCount = Array.isArray(prods) ? prods.length
+        : (prods && typeof prods === 'object' ? Object.keys(prods).length : 0);
+      machines.push({
+        locationName: locName,
+        machineName: m.name || mid,
+        model: m.model || '',
+        productCount: prodCount
+      });
+    });
+  });
+  return { machines: machines, machineCount: machines.length };
+}
 
 // ─── Auth 화면 제어 ───────────────────────────────────────────────────────────
 function showAuthScreen(){

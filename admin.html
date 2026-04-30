@@ -258,7 +258,8 @@ function loadUsers(){
           html += '</div>';
         });
       } else {
-        html += '<div style="font-size:12px;color:#888">등록된 자판기가 없습니다</div>';
+        html += '<div style="font-size:12px;color:#888">등록된 자판기가 없거나, 사용자가 아직 최신 앱으로 로그인하지 않았어요.<br>'+
+                '사용자가 앱에 접속하면 자동으로 갱신됩니다.</div>';
       }
       html += '</td></tr>';
     });
