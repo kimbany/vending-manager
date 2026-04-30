@@ -39,15 +39,18 @@ function renderPurchase(){
     }
     var locs = snap.val();
     var allLow = [];
-    // 현재 선택된 위치의 자판기만 표시
+    // 현재 선택된 자판기만 표시
     var targetLocId = currentLocationId || Object.keys(locs)[0];
+    var targetMachineId = currentMachineId || '';
     var loc = locs[targetLocId];
     if(!loc || !loc.machines){
       _renderPurchaseList(el, D.products, D.inventory, lt);
       return;
     }
-    Object.keys(loc.machines).forEach(function(mid){
+    var machineIds = targetMachineId ? [targetMachineId] : Object.keys(loc.machines);
+    machineIds.forEach(function(mid){
         var m = loc.machines[mid];
+        if(!m) return;
         var appData = m.appData||{};
         var prods = appData.products||[];
         if(!Array.isArray(prods)) prods = Object.values(prods);
