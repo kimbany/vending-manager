@@ -541,6 +541,16 @@
           <button onclick="openModal('guide-modal')" style="width:100%;background:linear-gradient(135deg,#4F8EF7,#7B61FF);color:#fff;border:none;border-radius:12px;padding:14px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 2px 8px rgba(79,142,247,.3)">📖 Invendory 사용 가이드</button>
         </div>
 
+        <div style="height:1px;background:var(--border);margin:0 16px"></div>
+
+        <!-- 5. 회원 탈퇴 -->
+        <div style="padding:14px 16px">
+          <button onclick="openWithdrawModal()" style="width:100%;background:transparent;border:1px solid rgba(224,88,88,.3);border-radius:10px;padding:12px;font-size:13px;font-weight:600;color:var(--red);cursor:pointer;font-family:inherit">
+            ⚠️ 회원 탈퇴
+          </button>
+          <div style="font-size:11px;color:var(--text3);margin-top:6px;text-align:center">탈퇴하면 모든 데이터가 영구 삭제되며 복구할 수 없어요</div>
+        </div>
+
       </div>
     </div>
   </div>
@@ -1214,6 +1224,32 @@
       <div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">불러오는 중...</div>
     </div>
     <div id="notice-modal-pager" style="padding:8px 0 4px;display:flex;justify-content:center;gap:4px;flex-wrap:wrap"></div>
+  </div>
+</div>
+
+<!-- 회원 탈퇴 확인 모달 -->
+<div class="modal-bg" id="withdraw-modal">
+  <div class="modal" style="max-width:420px">
+    <div class="mh"><div class="mt" style="color:var(--red)">⚠️ 회원 탈퇴</div><button class="mc" onclick="closeModal('withdraw-modal')">✕</button></div>
+    <div style="background:rgba(224,88,88,.08);border:1px solid rgba(224,88,88,.25);border-radius:10px;padding:14px;margin-bottom:14px">
+      <div style="font-size:13px;font-weight:700;color:var(--red);margin-bottom:8px">탈퇴하면 다음 데이터가 모두 영구 삭제됩니다</div>
+      <ul style="font-size:12px;color:var(--text2);line-height:1.7;padding-left:18px;margin:0">
+        <li>등록된 위치 / 자판기 / 단말기</li>
+        <li>제품·재고·판매 내역</li>
+        <li>VMMS·쿠팡 연동 정보</li>
+        <li>프로필 (이름·연락처·PIN)</li>
+        <li>구글 계정 연결 해제</li>
+      </ul>
+      <div style="font-size:12px;color:var(--red);margin-top:10px;font-weight:700">복구할 수 없습니다.</div>
+    </div>
+    <div style="font-size:13px;margin-bottom:6px">정말 탈퇴하시려면 아래에 <strong style="color:var(--red)">회원탈퇴</strong> 라고 입력하세요.</div>
+    <input type="text" id="withdraw-confirm-input" placeholder="회원탈퇴" autocomplete="off"
+      style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;margin-bottom:8px">
+    <div id="withdraw-msg" style="font-size:12px;color:var(--red);min-height:18px;text-align:center;margin-bottom:8px"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <button onclick="closeModal('withdraw-modal')" style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;font-size:14px;font-weight:600;color:var(--text2);cursor:pointer;font-family:inherit">취소</button>
+      <button onclick="confirmWithdraw()" style="background:var(--red);border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;color:#fff;cursor:pointer;font-family:inherit">탈퇴 진행</button>
+    </div>
   </div>
 </div>
 

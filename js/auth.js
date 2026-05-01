@@ -360,6 +360,72 @@ function submitPinVerify(){
 
 function reauthWithGoogle(){ return Promise.resolve(); }
 
+// ─── 회원 탈퇴 ─────────────────────────────────────────────────────────────
+function openWithdrawModal(){
+  if(!currentUser) return;
+  var inp = document.getElementById('withdraw-confirm-input');
+  var msg = document.getElementById('withdraw-msg');
+  if(inp) inp.value = '';
+  if(msg) msg.textContent = '';
+  openModal('withdraw-modal');
+}
+
+function confirmWithdraw(){
+  var inp = document.getElementById('withdraw-confirm-input');
+  var msg = document.getElementById('withdraw-msg');
+  var typed = (inp ? inp.value : '').trim();
+  if(typed !== '회원탈퇴'){
+    if(msg) msg.textContent = '"회원탈퇴" 를 정확히 입력해주세요';
+    return;
+  }
+  // PIN 인증 통과해야 진행
+  closeModal('withdraw-modal');
+  verifyPin(function(){
+    _doWithdraw();
+  });
+}
+
+function _doWithdraw(){
+  if(!currentUser) return;
+  var uid = currentUser.uid;
+  // 중요: 탈퇴 직후 리스너가 다시 데이터를 쓰지 않도록 분리
+  if(typeof detachAdminSync === 'function') detachAdminSync();
+
+  showToast('🔄 데이터 삭제 중...');
+
+  // 1) 데이터 삭제 (deviceNumbers 인덱스 + users + adminUsers)
+  db.ref('deviceNumbers').once('value').then(function(snap){
+    var devs = snap.val() || {};
+    var deletes = {};
+    Object.keys(devs).forEach(function(d){
+      if(devs[d] === uid) deletes['deviceNumbers/'+d] = null;
+    });
+    deletes['users/'+uid] = null;
+    deletes['adminUsers/'+uid] = null;
+    return db.ref().update(deletes);
+  }).then(function(){
+    // 2) Firebase Auth 계정 삭제 (재인증 필요 시 구글 재로그인)
+    return currentUser.delete().catch(function(e){
+      if(e && e.code === 'auth/requires-recent-login'){
+        return currentUser.reauthenticateWithPopup(googleProvider).then(function(){
+          return currentUser.delete();
+        });
+      }
+      throw e;
+    });
+  }).then(function(){
+    alert('회원 탈퇴가 완료되었습니다.');
+    location.reload();
+  }).catch(function(e){
+    if(e && (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request')){
+      alert('재인증이 취소되어 탈퇴를 완료하지 못했습니다.\n다시 로그인 후 시도해주세요.');
+      location.reload();
+      return;
+    }
+    alert('탈퇴 실패: '+((e && (e.message||e.code)) || '알 수 없는 오류'));
+  });
+}
+
 // ─── 로그아웃 ─────────────────────────────────────────────────────────────────
 function doLogout(){
   if(!confirm('로그아웃 할까요?')) return;

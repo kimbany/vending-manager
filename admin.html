@@ -232,14 +232,21 @@ firebase.initializeApp({
 var db = firebase.database();
 var ADMIN_REF = db.ref('adminConfig');
 
+// 자동 로그인: 마지막 활동 시각 + 1시간 슬라이딩 윈도우
+var ADMIN_AUTH_TTL = 60 * 60 * 1000; // 1시간
+function isAdminAuthed(){
+  var ts = parseInt(localStorage.getItem('adminAuthAt') || '0', 10);
+  return !!ts && (Date.now() - ts) < ADMIN_AUTH_TTL;
+}
+function refreshAdminAuth(){ localStorage.setItem('adminAuthAt', String(Date.now())); }
+function clearAdminAuth(){ localStorage.removeItem('adminAuthAt'); }
+
 // notices 등 auth 필요한 경로를 읽기 위해 익명 로그인 (실패해도 진행)
 var _firebaseAuthReady = false;
 firebase.auth().onAuthStateChanged(function(u){
   if(u){
     _firebaseAuthReady = true;
-    // 관리자가 이미 로그인 상태라면 공지를 다시 로드 (rule이 풀리는 시점)
-    if(sessionStorage.getItem('adminAuth') &&
-       document.getElementById('admin-app').style.display !== 'none'){
+    if(isAdminAuthed() && document.getElementById('admin-app').style.display !== 'none'){
       loadNotices();
     }
   }
@@ -256,15 +263,15 @@ function adminLogin(){
 
   ADMIN_REF.child('password').once('value').then(function(snap){
     var savedPw = snap.val();
-    // 초기 비밀번호 설정 (최초 접속)
     if(!savedPw){
       ADMIN_REF.child('password').set('1234');
       savedPw = '1234';
     }
     if(pw === savedPw){
-      sessionStorage.setItem('adminAuth', 'true');
+      refreshAdminAuth();
       document.getElementById('login-screen').style.display = 'none';
       document.getElementById('admin-app').style.display = 'block';
+      restoreLastTab();
       loadUsers();
       loadNotices();
     } else {
@@ -274,25 +281,49 @@ function adminLogin(){
 }
 
 function adminLogout(){
-  sessionStorage.removeItem('adminAuth');
+  clearAdminAuth();
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('admin-app').style.display = 'none';
 }
 
-// 세션 유지
-if(sessionStorage.getItem('adminAuth')){
+// 자동 로그인 (1시간 안에 마지막 활동이 있었다면 유지)
+if(isAdminAuthed()){
+  refreshAdminAuth();
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('admin-app').style.display = 'block';
-  setTimeout(function(){ loadUsers(); loadNotices(); }, 500);
+  setTimeout(function(){ restoreLastTab(); loadUsers(); loadNotices(); }, 500);
 }
+
+// 활동 발생 시 타이머 연장 (슬라이딩 윈도우)
+document.addEventListener('click', function(){ if(isAdminAuthed()) refreshAdminAuth(); }, true);
+document.addEventListener('keydown', function(){ if(isAdminAuthed()) refreshAdminAuth(); }, true);
+// 1분마다 만료 체크
+setInterval(function(){
+  if(localStorage.getItem('adminAuthAt') &&
+     !isAdminAuthed() &&
+     document.getElementById('admin-app').style.display !== 'none'){
+    adminLogout();
+    alert('1시간 동안 활동이 없어 자동 로그아웃되었습니다.');
+  }
+}, 60000);
 
 // ─── 탭 전환 ─────────────────────────────────────────────────────────────────
 function switchTab(tab){
   document.querySelectorAll('.panel').forEach(function(p){ p.classList.remove('active'); });
   document.querySelectorAll('.tabs button').forEach(function(b){ b.classList.remove('active'); });
-  document.getElementById('panel-'+tab).classList.add('active');
+  var panel = document.getElementById('panel-'+tab);
+  if(panel) panel.classList.add('active');
   var btn = document.getElementById('tab-btn-'+tab);
   if(btn) btn.classList.add('active');
+  try { localStorage.setItem('adminLastTab', tab); } catch(e){}
+}
+
+function restoreLastTab(){
+  var tab = 'users';
+  try { tab = localStorage.getItem('adminLastTab') || 'users'; } catch(e){}
+  // 유효한 패널인지 확인
+  if(!document.getElementById('panel-'+tab)) tab = 'users';
+  switchTab(tab);
 }
 
 // ─── 사용자 관리 ─────────────────────────────────────────────────────────────
