@@ -877,17 +877,15 @@
       </details>
 
       <details style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
-        <summary style="font-weight:700;cursor:pointer;font-size:13px">4️⃣ 쿠팡 메일 연동 (구매 자동 수집, 선택)</summary>
+        <summary style="font-weight:700;cursor:pointer;font-size:13px">4️⃣ 쿠팡 구매 자동 수집 (Gmail 직접 가져오기)</summary>
         <div style="margin-top:10px;padding-left:10px;color:var(--text2)">
-          쿠팡 주문 메일이 도착하면 앱이 자동으로 입고 후보 목록에 띄워줘요.<br><br>
-          <b>1.</b> 설정 &gt; 🔒 개인/보안 &gt; ✉️ 쿠팡 메일 연동 &gt; <b>메일 연동 설정</b><br>
-          <b>2.</b> 내 전용 전달 주소 <code>u-xxx@invendory.kr</code> 복사<br>
-          <b>3.</b> Gmail &gt; 설정 &gt; 전달 및 POP/IMAP &gt; <b>전달 주소 추가</b><br>
-          <b>4.</b> 앱 모달의 <b>"👆 Gmail 전달 승인하기"</b> 클릭 → Google 페이지에서 확인<br>
-          <b>5.</b> Gmail &gt; 필터 및 차단된 주소 &gt; <b>새 필터 만들기</b><br>
-          &nbsp;&nbsp;&nbsp;• 보낸사람: <code>@coupang.com</code><br>
-          &nbsp;&nbsp;&nbsp;• 동작: 다음 주소로 전달 → 위 전달 주소<br><br>
-          💡 연동 안 해도 <b>Gmail에서 직접 가져오기</b> 버튼으로 최근 90일 주문을 한 번에 가져올 수 있어요.
+          쿠팡 주문 메일이 본인 Gmail로 와있으면 앱이 직접 검색해서 입고 후보로 띄워줘요. <b>별도 설정 없이 바로 사용 가능</b>합니다.<br><br>
+          <b>1.</b> 재고 탭 &gt; 재고현황 &gt; <b>📥 쿠팡 데이터 가져오기</b><br>
+          <b>2.</b> <b>📧 Gmail에서 직접 가져오기</b> 클릭<br>
+          <b>3.</b> 첫 사용 시 Google 계정 권한 승인 (Gmail 읽기 전용)<br>
+          <b>4.</b> 최근 <b>90일</b>의 쿠팡 주문 메일을 자동으로 검색·표시<br>
+          <b>5.</b> 미입고 항목에서 제품 매칭 후 입고 처리<br><br>
+          🔒 권한은 쿠팡 주문 메일 검색에만 사용되고, 메일 본문은 서버에 저장되지 않아요.
         </div>
       </details>
 
@@ -1056,10 +1054,9 @@
       <details style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
         <summary style="font-weight:700;cursor:pointer;font-size:13px">과거 쿠팡 주문 가져오기</summary>
         <div style="margin-top:10px;padding-left:10px;color:var(--text2)">
-          90일보다 오래된 / 메일 연동 이전 주문은 Gmail에서 수동 전달:<br><br>
-          <b>1.</b> Gmail &gt; 해당 쿠팡 메일 열기<br>
-          <b>2.</b> ⋮ &gt; 전달 &gt; <code>u-xxx@invendory.kr</code> 붙여넣기<br>
-          <b>3.</b> 1~2분 뒤 앱 &gt; 📥 쿠팡 데이터 가져오기로 확인
+          쿠팡 데이터 가져오기는 Gmail 기준 <b>최근 90일</b>까지 자동 검색돼요.<br><br>
+          90일보다 오래된 주문은 <b>수기 재고 입력</b> 으로 직접 등록해주세요.<br>
+          (재고 탭 &gt; ➕ 수기 재고 입력)
         </div>
       </details>
 
