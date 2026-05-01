@@ -1,4 +1,4 @@
-var CACHE_VERSION = 70;
+var CACHE_VERSION = 71;
 var CACHE_NAME = 'invedory-v' + CACHE_VERSION;
 var STATIC_FILES = [
   './',

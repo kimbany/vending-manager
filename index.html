@@ -838,153 +838,235 @@
         <div style="font-size:13px;color:var(--text2);line-height:1.6">자판기 재고·매출·순이익을 한 곳에서 자동 관리하는 앱이에요. VMMS 판매 데이터와 쿠팡 구매 내역을 자동 수집해서 정확한 이익까지 계산해줘요.</div>
       </div>
 
-      <div style="font-size:14px;font-weight:800;color:var(--blue);margin:18px 0 10px;padding-bottom:6px;border-bottom:2px solid var(--blue)">🚀 초기 설정 (처음 1회)</div>
+      <!-- ━━━━ 처음 시작하기 ━━━━ -->
+      <div style="font-size:14px;font-weight:800;color:var(--blue);margin:18px 0 10px;padding-bottom:6px;border-bottom:2px solid var(--blue)">🚀 처음 시작하기</div>
 
       <details style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px" open>
-        <summary style="font-weight:700;cursor:pointer;font-size:13px">1️⃣ 회원가입 & 로그인</summary>
+        <summary style="font-weight:700;cursor:pointer;font-size:13px">1️⃣ 구글 로그인 + 첫 설정</summary>
         <div style="margin-top:10px;padding-left:10px;color:var(--text2)">
-          • 구글 계정으로 간편 로그인<br>
-          • 로그인 후 설정 &gt; 개인/보안 에서 이름·연락처 등록
+          <b>1.</b> 구글 계정으로 로그인<br>
+          <b>2.</b> 첫 접속 시 온보딩 화면에서 입력:<br>
+          &nbsp;&nbsp;&nbsp;• 이름 (필수)<br>
+          &nbsp;&nbsp;&nbsp;• 연락처 (선택)<br>
+          &nbsp;&nbsp;&nbsp;• <b>보안 PIN 4자리 이상</b> (정보 수정 / 회원 탈퇴 시 사용)<br>
+          <b>3.</b> 완료 → 메인 화면 진입
         </div>
       </details>
 
       <details style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
-        <summary style="font-weight:700;cursor:pointer;font-size:13px">2️⃣ VMMS 계정 등록</summary>
+        <summary style="font-weight:700;cursor:pointer;font-size:13px">2️⃣ 위치·자판기 등록</summary>
         <div style="margin-top:10px;padding-left:10px;color:var(--text2)">
-          판매 데이터 자동 수집을 위한 VMMS 로그인 정보 등록이에요.<br><br>
-          <b>1.</b> 설정 &gt; 개인/보안 &gt; 🔗 VMMS 계정 &gt; <b>VMMS 계정 등록</b><br>
+          <b>1.</b> 설정 &gt; 🏪 자판기 &gt; 📋 자판기 관리 &gt; <b>➕ 위치(구역) 추가</b><br>
+          <b>2.</b> 위치명 입력 (예: "○○고등학교")<br>
+          <b>3.</b> 단말기 번호 + 자판기 종류 + 모델 + 계약 기간 입력<br>
+          <b>4.</b> 같은 위치에 여러 대 있으면 <b>+ 자판기</b> 로 추가<br><br>
+          💡 헤더 위치 드롭다운으로 자판기 위치를 빠르게 전환할 수 있어요.<br>
+          💡 단말기 번호는 VMMS와 동일해야 자동 매칭됩니다.
+        </div>
+      </details>
+
+      <details style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
+        <summary style="font-weight:700;cursor:pointer;font-size:13px">3️⃣ VMMS 계정 등록 (판매 자동 수집)</summary>
+        <div style="margin-top:10px;padding-left:10px;color:var(--text2)">
+          <b>1.</b> 설정 &gt; 🔒 개인/보안 &gt; 🔗 VMMS 계정 &gt; <b>VMMS 계정 등록</b><br>
           <b>2.</b> VMMS 아이디·비밀번호 입력 후 저장<br>
-          <b>3.</b> 이후 매일 12시·19시 자동으로 판매 데이터 수집<br><br>
+          <b>3.</b> 자판기 탭 &gt; 자판기 현황 &gt; <b>📦 VMMS 실시간 수집</b> 1회 실행 → 컬럼·제품 자동 매칭<br>
+          <b>4.</b> 이후 매일 <b>12시·19시</b>에 자동으로 판매 데이터 수집<br><br>
           ⚠️ 계정 정보는 암호화돼서 저장돼요.
         </div>
       </details>
 
       <details style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
-        <summary style="font-weight:700;cursor:pointer;font-size:13px">3️⃣ 자판기 등록</summary>
+        <summary style="font-weight:700;cursor:pointer;font-size:13px">4️⃣ 쿠팡 메일 연동 (구매 자동 수집, 선택)</summary>
         <div style="margin-top:10px;padding-left:10px;color:var(--text2)">
-          <b>1.</b> 설정 &gt; 🏪 자판기 &gt; 위치 추가 (예: "○○고등학교")<br>
-          <b>2.</b> 해당 위치에 자판기 추가 (단말기번호 입력)<br>
-          <b>3.</b> 여러 대 있으면 각각 추가 (멀티자판기 / 음료자판기 등)<br><br>
-          VMMS 연동돼 있으면 컬럼 배치와 제품 정보가 자동으로 채워져요.
+          쿠팡 주문 메일이 도착하면 앱이 자동으로 입고 후보 목록에 띄워줘요.<br><br>
+          <b>1.</b> 설정 &gt; 🔒 개인/보안 &gt; ✉️ 쿠팡 메일 연동 &gt; <b>메일 연동 설정</b><br>
+          <b>2.</b> 내 전용 전달 주소 <code>u-xxx@invendory.kr</code> 복사<br>
+          <b>3.</b> Gmail &gt; 설정 &gt; 전달 및 POP/IMAP &gt; <b>전달 주소 추가</b><br>
+          <b>4.</b> 앱 모달의 <b>"👆 Gmail 전달 승인하기"</b> 클릭 → Google 페이지에서 확인<br>
+          <b>5.</b> Gmail &gt; 필터 및 차단된 주소 &gt; <b>새 필터 만들기</b><br>
+          &nbsp;&nbsp;&nbsp;• 보낸사람: <code>@coupang.com</code><br>
+          &nbsp;&nbsp;&nbsp;• 동작: 다음 주소로 전달 → 위 전달 주소<br><br>
+          💡 연동 안 해도 <b>Gmail에서 직접 가져오기</b> 버튼으로 최근 90일 주문을 한 번에 가져올 수 있어요.
+        </div>
+      </details>
+
+      <!-- ━━━━ 자판기 / 제품 ━━━━ -->
+      <div style="font-size:14px;font-weight:800;color:#7B61FF;margin:22px 0 10px;padding-bottom:6px;border-bottom:2px solid #7B61FF">🏪 자판기 · 제품 관리</div>
+
+      <details style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
+        <summary style="font-weight:700;cursor:pointer;font-size:13px">자판기 현황 (컬럼 배치 보기)</summary>
+        <div style="margin-top:10px;padding-left:10px;color:var(--text2)">
+          자판기 탭 &gt; <b>자판기 현황</b>:<br>
+          • 자판기 컬럼별 제품 그리드 표시<br>
+          • 자판기가 여러 대면 ‹ › 로 전환<br>
+          • 컬럼 카드 클릭 → 제품 상세 (재고 / 판매가 / 입고·차감 이력)<br>
+          • <b>📐 2칸 제품 설정</b> → 한 제품이 두 컬럼을 차지하는 경우 묶음 처리
         </div>
       </details>
 
       <details style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
-        <summary style="font-weight:700;cursor:pointer;font-size:13px">4️⃣ 쿠팡 메일 연동 (구매 자동 수집)</summary>
+        <summary style="font-weight:700;cursor:pointer;font-size:13px">제품 관리 (판매가 등록·수정)</summary>
         <div style="margin-top:10px;padding-left:10px;color:var(--text2)">
-          쿠팡 주문 메일이 Gmail 로 오면 자동으로 앱에 반영되는 기능이에요. 1회 설정만 하면 돼요.<br><br>
-          <b>1.</b> 설정 &gt; 개인/보안 &gt; ✉️ 쿠팡 메일 연동 &gt; <b>메일 연동 설정</b><br>
-          <b>2.</b> 내 전용 전달 주소 <code>u-xxx@invendory.kr</code> 복사<br>
-          <b>3.</b> Gmail &gt; 설정 &gt; 전달 및 POP/IMAP &gt; <b>전달 주소 추가</b> &gt; 위 주소 붙여넣기<br>
-          <b>4.</b> 앱 모달에 뜬 <b>"👆 Gmail 전달 승인하기"</b> 버튼 클릭 &gt; Google 페이지에서 확인<br>
-          <b>5.</b> Gmail &gt; 필터 및 차단된 주소 &gt; <b>새 필터 만들기</b><br>
-          &nbsp;&nbsp;&nbsp;• 보낸사람: <code>@coupang.com</code><br>
-          &nbsp;&nbsp;&nbsp;• 동작: 다음 주소로 전달 → 위 전달 주소 선택<br><br>
-          ✅ 이후 쿠팡 주문 메일이 오면 자동으로 앱에 반영됩니다.
+          자판기 탭 &gt; <b>제품 관리</b>:<br>
+          • VMMS에서 수집된 제품 자동 표시<br>
+          • 제품 클릭 → 판매가 수정<br>
+          • 정렬: 제품명 / 컬럼번호<br>
+          • <b>편집</b> 버튼 → 다중 선택 후 일괄 삭제 / 판매중단
         </div>
       </details>
 
+      <!-- ━━━━ 재고 ━━━━ -->
       <div style="font-size:14px;font-weight:800;color:var(--green);margin:22px 0 10px;padding-bottom:6px;border-bottom:2px solid var(--green)">📦 재고 관리</div>
 
       <details style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
         <summary style="font-weight:700;cursor:pointer;font-size:13px">쿠팡 데이터 가져오기 (자동 입고)</summary>
         <div style="margin-top:10px;padding-left:10px;color:var(--text2)">
-          <b>1.</b> 재고 탭 &gt; 📥 쿠팡 데이터 가져오기 &gt; 날짜 선택 (오늘/어제/1주일/1개월/직접)<br>
-          <b>2.</b> <b>가져오기</b> 클릭 → 미입고 구매 내역 표시<br>
-          <b>3.</b> 각 제품에서 <b>제품 매칭</b> → 앱 제품과 매핑 (박스당 낱개수 입력)<br>
-          <b>4.</b> <b>입고 처리</b> 클릭 → 재고 자동 추가 + 원가 자동 계산<br><br>
-          💡 박스당 낱개수: 예) 칸쵸 32개들이 2박스 구매 시 → 박스당 수량 32 입력 → 64개 입고
+          <b>1.</b> 재고 탭 &gt; 재고현황 &gt; <b>📥 쿠팡 데이터 가져오기</b><br>
+          <b>2.</b> <b>📧 Gmail에서 직접 가져오기</b> → 최근 90일 쿠팡 주문 자동 검색<br>
+          <b>3.</b> 미입고 구매 내역이 화면에 표시됨<br>
+          <b>4.</b> 각 제품 옆 <b>제품 매칭</b> → 앱 제품과 매핑 (박스당 낱개수 입력)<br>
+          <b>5.</b> <b>입고 처리</b> → 재고 자동 추가 + 원가 자동 계산<br><br>
+          💡 박스당 낱개수: 칸쵸 32개들이 2박스 → 박스당 32 입력 → 64개 입고
         </div>
       </details>
 
       <details style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
         <summary style="font-weight:700;cursor:pointer;font-size:13px">수기 재고 입력</summary>
         <div style="margin-top:10px;padding-left:10px;color:var(--text2)">
-          쿠팡 말고 직접 구매한 재고는 수기로 입력해요.<br><br>
-          <b>1.</b> 재고 탭 &gt; ➕ 수기 재고 입력<br>
-          <b>2.</b> 제품 선택 &gt; 박스당 수량 &gt; 구매 수량(박스) &gt; 구매 총액 입력<br>
-          <b>3.</b> 자동으로 입고 수량 + 개당 원가 계산해서 표시<br>
-          <b>4.</b> <b>입고 확인</b> 클릭 → 재고 반영
+          쿠팡 외에 직접 구매한 재고는 수기로 입력해요.<br><br>
+          <b>1.</b> 재고 탭 &gt; <b>➕ 수기 재고 입력</b><br>
+          <b>2.</b> 단품 입력 / CSV 일괄 입력 선택<br>
+          <b>3.</b> 제품 선택 &gt; 박스당 수량 &gt; 구매 수량(박스) &gt; 구매 총액 입력<br>
+          <b>4.</b> 자동으로 입고 수량 + 개당 원가 계산해서 표시<br>
+          <b>5.</b> <b>입고 확인</b> → 재고 반영
         </div>
       </details>
 
       <details style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
         <summary style="font-weight:700;cursor:pointer;font-size:13px">제품 상세 보기 (입고/차감 이력)</summary>
         <div style="margin-top:10px;padding-left:10px;color:var(--text2)">
-          재고 탭에서 제품을 클릭하면:<br>
+          재고 탭 / 자판기 탭에서 제품 클릭하면:<br>
           • 현재 재고 수량<br>
-          • 전체 입고 내역 (날짜/수량/원가/판매중·소진/쿠팡·수기)<br>
-          • 차감 내역 (판매/수기)<br>
-          • 제품별 수기 입고/차감 가능
+          • 전체 입고 내역 (날짜 / 수량 / 개당 원가 / 판매중·소진 / 쿠팡·수기)<br>
+          • 차감 내역 (판매 / 수기)<br>
+          • 제품별 수기 입고 / 차감 가능
         </div>
       </details>
 
+      <details style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
+        <summary style="font-weight:700;cursor:pointer;font-size:13px">재고 부족 기준 (자동 알림)</summary>
+        <div style="margin-top:10px;padding-left:10px;color:var(--text2)">
+          설정 &gt; 🏪 자판기 &gt; <b>⚙️ 자판기 설정</b>:<br>
+          • <b>고정 수량 기준</b>: 지정한 수량(예: 5개) 이하면 부족 표시 — 기본값<br>
+          • <b>평균 판매량 기준</b>: 하루 평균 판매량 × 설정 일수 이하면 부족 표시 (예: 3일분)<br><br>
+          ⚠️ 홈 화면 상단 + 재고 탭에 부족 제품이 자동 표시됩니다.<br>
+          💡 재고 탭 &gt; 제품구매 → 부족 제품을 한 번에 쿠팡에서 검색
+        </div>
+      </details>
+
+      <!-- ━━━━ 판매 / 이익 ━━━━ -->
       <div style="font-size:14px;font-weight:800;color:#F5A623;margin:22px 0 10px;padding-bottom:6px;border-bottom:2px solid #F5A623">📊 판매 & 이익 분석</div>
 
       <details style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
         <summary style="font-weight:700;cursor:pointer;font-size:13px">판매 데이터 확인</summary>
         <div style="margin-top:10px;padding-left:10px;color:var(--text2)">
           판매내역 탭에서:<br>
-          • 기간 선택 (오늘/어제/1주일/한달/직접 입력)<br>
+          • 기간 선택 (오늘 / 어제 / 1주일 / 한달 / 직접 입력)<br>
           • 총 판매량 · 총 매출<br>
           • 제품 판매 순위<br>
-          • 시간대별/금액대별 분포<br>
-          • 건별 판매 내역 (삭제/복구 가능)<br><br>
-          VMMS 연동돼 있으면 매일 12시·19시 자동 수집돼요. 수동으로 <b>⚡ 선택 날짜 데이터 수집</b> 눌러도 돼요.
+          • 시간대별 / 금액대별 분포<br>
+          • 건별 판매 내역 (삭제 / 복구 가능)<br><br>
+          VMMS 연동 시 매일 12시·19시 자동 수집. 수동으로:<br>
+          • <b>🔄 오늘 판매 데이터 수집</b><br>
+          • <b>⚡ 선택 날짜 데이터 수집</b><br>
+          • <b>📤 직접 업로드</b> (CSV)
         </div>
       </details>
 
       <details style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
-        <summary style="font-weight:700;cursor:pointer;font-size:13px">순이익 확인 방법 (중요!)</summary>
+        <summary style="font-weight:700;cursor:pointer;font-size:13px">순이익 확인 (중요!)</summary>
         <div style="margin-top:10px;padding-left:10px;color:var(--text2)">
           이익을 계산하려면 <b>입고 → 차감</b> 순서가 중요해요.<br><br>
-          <b>1.</b> 쿠팡/수기로 재고 <b>입고</b> (원가 등록됨)<br>
+          <b>1.</b> 쿠팡/수기로 재고 <b>입고</b> (개당 원가 등록됨)<br>
           <b>2.</b> VMMS 판매 데이터 수집<br>
           <b>3.</b> 판매내역 탭 &gt; <b>📦 이 기간 재고 차감</b> 클릭<br>
-          <b>4.</b> → 자동으로 FIFO 차감 + 원가 기록<br>
-          <b>5.</b> → <b>총 원가 / 순이익 / 이익률</b> + <b>제품별 이익</b> 표시<br><br>
+          <b>4.</b> 자동으로 FIFO 차감 + 원가 기록<br>
+          <b>5.</b> <b>총 원가 / 순이익 / 이익률</b> + <b>제품별 이익</b> 표시<br><br>
           💡 FIFO: 오래된 입고분부터 차감해서 정확한 원가 계산<br>
-          💡 이미 차감 후 입고를 나중에 했으면 <b>💰 원가 보정</b> 버튼으로 재계산
+          💡 차감 후 입고를 나중에 했다면 <b>💰 원가 보정</b>으로 재계산
         </div>
       </details>
 
-      <div style="font-size:14px;font-weight:800;color:var(--red);margin:22px 0 10px;padding-bottom:6px;border-bottom:2px solid var(--red)">⚙️ 기타 기능</div>
+      <!-- ━━━━ 내 정보 / 보안 ━━━━ -->
+      <div style="font-size:14px;font-weight:800;color:#0EA5E9;margin:22px 0 10px;padding-bottom:6px;border-bottom:2px solid #0EA5E9">🔒 내 정보 · 보안</div>
 
       <details style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
-        <summary style="font-weight:700;cursor:pointer;font-size:13px">재고 부족 알림</summary>
+        <summary style="font-weight:700;cursor:pointer;font-size:13px">정보 수정 (이메일·연락처·PIN)</summary>
         <div style="margin-top:10px;padding-left:10px;color:var(--text2)">
-          홈 화면 상단에 자판기별로 재고 부족 제품 자동 표시.<br>
-          설정 &gt; 개인/보안 &gt; <b>재고 부족 기준</b> 에서 수량 변경 가능 (기본 5개).
+          <b>1.</b> 설정 상단 내 정보 카드 &gt; <b>관리</b> &gt; <b>정보 수정</b><br>
+          <b>2.</b> <b>PIN 인증</b> 통과 → 수정 폼 표시<br>
+          <b>3.</b> 이메일 / 연락처 변경, 또는 <b>PIN 비밀번호 변경</b> (숫자 4자리 이상)<br>
+          <b>4.</b> 저장
         </div>
       </details>
 
       <details style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
-        <summary style="font-weight:700;cursor:pointer;font-size:13px">데이터 초기화</summary>
+        <summary style="font-weight:700;cursor:pointer;font-size:13px">공지사항 확인</summary>
+        <div style="margin-top:10px;padding-left:10px;color:var(--text2)">
+          • 홈 화면 상단 <b>📢 공지사항</b> 버튼 → 전체 목록<br>
+          • 제목으로 검색 / 페이지 넘김 (10개씩)<br>
+          • 관리자가 <b>팝업 공지</b>로 등록한 글은 첫 화면에 자동으로 떠요<br>
+          • 팝업이 여러 개면 좌우로 넘겨서 볼 수 있어요<br>
+          • <b>오늘은 그만 보기</b> / <b>닫기</b> 로 제어
+        </div>
+      </details>
+
+      <details style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
+        <summary style="font-weight:700;cursor:pointer;font-size:13px">⚠️ 회원 탈퇴</summary>
+        <div style="margin-top:10px;padding-left:10px;color:var(--text2)">
+          설정 맨 아래 <b>⚠️ 회원 탈퇴</b><br><br>
+          삭제되는 데이터:<br>
+          • 위치 / 자판기 / 단말기<br>
+          • 제품 · 재고 · 판매 내역<br>
+          • VMMS · 쿠팡 연동<br>
+          • 프로필 (이름·연락처·PIN)<br>
+          • 구글 계정 연결 해제<br><br>
+          ⏳ <b>탈퇴 후 30일</b> 동안은 같은 구글 계정으로 재가입 불가능합니다.<br>
+          🔒 PIN 인증 + "회원탈퇴" 입력 필요. 복구 불가능.
+        </div>
+      </details>
+
+      <!-- ━━━━ 초기화 ━━━━ -->
+      <div style="font-size:14px;font-weight:800;color:var(--red);margin:22px 0 10px;padding-bottom:6px;border-bottom:2px solid var(--red)">⚠️ 데이터 초기화</div>
+
+      <details style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
+        <summary style="font-weight:700;cursor:pointer;font-size:13px">초기화 종류</summary>
         <div style="margin-top:10px;padding-left:10px;color:var(--text2)">
           설정 &gt; ⚠️ 초기화:<br>
-          • 📦 재고 초기화<br>
-          • 🏷️ 제품 초기화<br>
-          • 📊 판매 내역 초기화<br>
-          • 🛒 쿠팡 입고 데이터 초기화 (메일 연동은 유지)<br>
-          • 🗑️ 전체 초기화<br><br>
-          ⚠️ 복구 불가. 비밀번호 재확인 필요.
+          • 📦 <b>재고 초기화</b> — 모든 재고 + 입고/차감 기록 삭제<br>
+          • 🏷️ <b>제품 초기화</b> — 제품·컬럼 매칭 삭제 (VMMS 재수집 가능)<br>
+          • 📊 <b>판매 내역 초기화</b> — 판매 데이터 전부 삭제<br>
+          • 🛒 <b>쿠팡 입고 데이터 초기화</b> — 쿠팡 주문·구매·매핑 삭제 (메일 연동은 유지)<br>
+          • 🗑️ <b>전체 초기화</b> — 위 항목 + 자판기까지 한꺼번에 (내 정보는 유지)<br><br>
+          ⚠️ 복구 불가. PIN 인증 필요.
         </div>
       </details>
 
       <details style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
         <summary style="font-weight:700;cursor:pointer;font-size:13px">과거 쿠팡 주문 가져오기</summary>
         <div style="margin-top:10px;padding-left:10px;color:var(--text2)">
-          메일 연동 <b>이전</b> 주문은 Gmail 에서 수동 전달하면 돼요.<br><br>
+          90일보다 오래된 / 메일 연동 이전 주문은 Gmail에서 수동 전달:<br><br>
           <b>1.</b> Gmail &gt; 해당 쿠팡 메일 열기<br>
           <b>2.</b> ⋮ &gt; 전달 &gt; <code>u-xxx@invendory.kr</code> 붙여넣기<br>
-          <b>3.</b> 1~2분 뒤 앱에서 📥 쿠팡 데이터 가져오기 (해당 날짜 선택)
+          <b>3.</b> 1~2분 뒤 앱 &gt; 📥 쿠팡 데이터 가져오기로 확인
         </div>
       </details>
 
       <div style="background:rgba(122,218,154,.1);border-radius:12px;padding:14px;margin-top:20px;font-size:12px;color:var(--text2);line-height:1.7">
         <b style="color:var(--green)">💬 문의</b><br>
         가이드대로 안 될 때는 운영자에게 연락 주세요.<br>
-        버그/기능 제안도 환영이에요.
+        버그 / 기능 제안도 환영입니다.
       </div>
 
     </div>
