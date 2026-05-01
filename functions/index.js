@@ -6,8 +6,12 @@
  */
 
 const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
+const { defineSecret } = require("firebase-functions/params");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
+
+const COUPANG_ACCESS_KEY = defineSecret("COUPANG_ACCESS_KEY");
+const COUPANG_SECRET_KEY = defineSecret("COUPANG_SECRET_KEY");
 
 admin.initializeApp();
 
@@ -1842,6 +1846,91 @@ exports.receiveForwardedEmail = onRequest(
       console.error("[receiveForwardedEmail] fatal:", e);
       res.status(500).json({ error: String(e.message || e) });
     }
+  }
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 쿠팡 파트너스 Deeplink API
+// 검색어 → 추적되는 단축 링크(link.coupang.com/a/XXXXXX) 변환
+// HMAC-SHA256 서명을 서버에서 처리해야 키가 노출되지 않음.
+// ─────────────────────────────────────────────────────────────────────────────
+function _coupangSign(method, path, accessKey, secretKey) {
+  // datetime: yyMMdd'T'HHmmss'Z' (UTC)
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  const datetime =
+    String(d.getUTCFullYear()).slice(2) +
+    pad(d.getUTCMonth() + 1) +
+    pad(d.getUTCDate()) +
+    "T" +
+    pad(d.getUTCHours()) +
+    pad(d.getUTCMinutes()) +
+    pad(d.getUTCSeconds()) +
+    "Z";
+  // path와 query를 분리
+  const [urlPath, query = ""] = path.split("?");
+  const message = datetime + method + urlPath + query;
+  const signature = crypto
+    .createHmac("sha256", secretKey)
+    .update(message)
+    .digest("hex");
+  return `CEA algorithm=HmacSHA256, access-key=${accessKey}, signed-date=${datetime}, signature=${signature}`;
+}
+
+exports.coupangAffiliateLink = onCall(
+  {
+    region: "asia-northeast3",
+    secrets: [COUPANG_ACCESS_KEY, COUPANG_SECRET_KEY],
+    timeoutSeconds: 30,
+    memory: "256MiB",
+  },
+  async (req) => {
+    if (!req.auth) throw new HttpsError("unauthenticated", "로그인이 필요합니다");
+    const keyword = (req.data && req.data.keyword) || "";
+    if (!keyword || !keyword.trim()) {
+      throw new HttpsError("invalid-argument", "검색어가 필요합니다");
+    }
+    const accessKey = COUPANG_ACCESS_KEY.value();
+    const secretKey = COUPANG_SECRET_KEY.value();
+    if (!accessKey || !secretKey) {
+      throw new HttpsError(
+        "failed-precondition",
+        "쿠팡 파트너스 키가 설정되어 있지 않습니다"
+      );
+    }
+
+    const fullUrl = "https://www.coupang.com/np/search?q=" + encodeURIComponent(keyword.trim());
+    const apiPath = "/v2/providers/affiliate_open_api/apis/openapi/v1/deeplink";
+    const auth = _coupangSign("POST", apiPath, accessKey, secretKey);
+    const body = JSON.stringify({ coupangUrls: [fullUrl], subId: "invendory" });
+
+    const resp = await fetch("https://api-gateway.coupang.com" + apiPath, {
+      method: "POST",
+      headers: {
+        Authorization: auth,
+        "Content-Type": "application/json;charset=UTF-8",
+      },
+      body,
+    });
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => "");
+      console.error("[coupangAffiliateLink] HTTP", resp.status, text);
+      throw new HttpsError(
+        "internal",
+        "쿠팡 파트너스 API 오류: " + resp.status
+      );
+    }
+    const json = await resp.json();
+    const item =
+      json && json.data && Array.isArray(json.data) && json.data[0];
+    if (!item || !item.shortenUrl) {
+      console.error("[coupangAffiliateLink] unexpected response:", json);
+      throw new HttpsError("internal", "단축 링크 변환 실패");
+    }
+    return {
+      shortUrl: item.shortenUrl,
+      landingUrl: item.landingUrl || fullUrl,
+    };
   }
 );
 
