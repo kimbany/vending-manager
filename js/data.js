@@ -94,16 +94,20 @@ function loadNoticesForUser(){
     renderNoticeModal();
 
     // 팝업 공지: 활성 + popup 플래그 + 사용자가 닫지 않은 것
-    var popupNotices = _allActiveNotices.filter(function(n){ return n.popup; });
-    _popupQueue = popupNotices.filter(_shouldShowPopup);
-    _popupCurrentId = null;
-    if(_popupQueue.length > 0) _showNextPopupNotice();
+    _popupSlides = _allActiveNotices
+      .filter(function(n){ return n.popup; })
+      .filter(_shouldShowPopup);
+    _popupIdx = 0;
+    if(_popupSlides.length > 0){
+      _renderPopupSlide();
+      openModal('notice-popup-modal');
+    }
   });
 }
 
-// 팝업 큐 + 노출 제어
-var _popupQueue = [];
-var _popupCurrentId = null;
+// 팝업 슬라이드(캐러셀) 상태
+var _popupSlides = [];
+var _popupIdx = 0;
 
 function _todayKey(){
   var d = new Date(Date.now() + 9*3600000); // KST 기준 날짜
@@ -123,17 +127,76 @@ function _shouldShowPopup(n){
   if(d === _todayKey()) return false; // 오늘 하루 보지 않기
   return true;
 }
-function _showNextPopupNotice(){
-  if(!_popupQueue.length){ _popupCurrentId = null; return; }
-  var n = _popupQueue.shift();
-  _popupCurrentId = n._id;
-  var titleEl = document.getElementById('notice-popup-title');
-  var timeEl  = document.getElementById('notice-popup-time');
-  var bodyEl  = document.getElementById('notice-popup-body');
+
+function _renderPopupSlide(){
+  if(!_popupSlides.length) return;
+  if(_popupIdx >= _popupSlides.length) _popupIdx = _popupSlides.length - 1;
+  if(_popupIdx < 0) _popupIdx = 0;
+  var n = _popupSlides[_popupIdx];
+  var titleEl   = document.getElementById('notice-popup-title');
+  var timeEl    = document.getElementById('notice-popup-time');
+  var bodyEl    = document.getElementById('notice-popup-body');
+  var counterEl = document.getElementById('notice-popup-counter');
+  var prevBtn   = document.getElementById('notice-popup-prev');
+  var nextBtn   = document.getElementById('notice-popup-next');
+  var dotsEl    = document.getElementById('notice-popup-dots');
   if(titleEl) titleEl.textContent = n.title || '';
-  if(timeEl)  timeEl.textContent = '🕒 '+_formatNoticeKst(n.createdAt);
-  if(bodyEl)  bodyEl.textContent = n.content || '';
-  openModal('notice-popup-modal');
+  if(timeEl)  timeEl.textContent  = '🕒 '+_formatNoticeKst(n.createdAt);
+  if(bodyEl){ bodyEl.textContent = n.content || ''; bodyEl.scrollTop = 0; }
+  if(counterEl) counterEl.textContent = _popupSlides.length > 1
+    ? '('+(_popupIdx+1)+'/'+_popupSlides.length+')' : '';
+  var multi = _popupSlides.length > 1;
+  if(prevBtn) prevBtn.style.display = multi ? '' : 'none';
+  if(nextBtn) nextBtn.style.display = multi ? '' : 'none';
+  if(dotsEl){
+    if(!multi){ dotsEl.innerHTML = ''; }
+    else {
+      var html = '';
+      for(var i=0; i<_popupSlides.length; i++){
+        var active = i === _popupIdx;
+        html += '<span onclick="goToPopupNotice('+i+')" '+
+          'style="width:'+(active?'24px':'8px')+';height:8px;border-radius:4px;'+
+          'background:'+(active?'var(--blue)':'var(--text3)')+';opacity:'+(active?'1':'0.45')+';'+
+          'cursor:pointer;transition:all .2s"></span>';
+      }
+      dotsEl.innerHTML = html;
+    }
+  }
+}
+
+function _advanceAfterDismiss(){
+  // 현재 슬라이드를 제거. 남은 게 있으면 같은 인덱스(=다음 항목), 없으면 닫기
+  _popupSlides.splice(_popupIdx, 1);
+  if(!_popupSlides.length){ closeModal('notice-popup-modal'); return; }
+  if(_popupIdx >= _popupSlides.length) _popupIdx = _popupSlides.length - 1;
+  _renderPopupSlide();
+}
+
+function nextPopupNotice(){
+  if(_popupSlides.length <= 1) return;
+  _popupIdx = (_popupIdx + 1) % _popupSlides.length;
+  _renderPopupSlide();
+}
+function prevPopupNotice(){
+  if(_popupSlides.length <= 1) return;
+  _popupIdx = (_popupIdx - 1 + _popupSlides.length) % _popupSlides.length;
+  _renderPopupSlide();
+}
+function goToPopupNotice(i){
+  if(i < 0 || i >= _popupSlides.length) return;
+  _popupIdx = i;
+  _renderPopupSlide();
+}
+
+// 스와이프
+var _popupTouchX = null;
+function onPopupTouchStart(e){ _popupTouchX = e.touches[0].clientX; }
+function onPopupTouchEnd(e){
+  if(_popupTouchX === null) return;
+  var dx = e.changedTouches[0].clientX - _popupTouchX;
+  _popupTouchX = null;
+  if(Math.abs(dx) < 40) return;
+  if(dx < 0) nextPopupNotice(); else prevPopupNotice();
 }
 
 function onNoticeSearch(){
@@ -221,28 +284,37 @@ function renderNoticeModal(){
   }
 }
 
-function closeNoticePopup(){
-  // "닫기": 이 공지는 다시 안 띄움
-  if(_popupCurrentId){
+function dismissNoticeForever(){
+  // "닫기": 현재 공지는 다시 안 띄움
+  var n = _popupSlides[_popupIdx];
+  if(n && n._id){
     var map = _getDismissed();
-    map[_popupCurrentId] = 'forever';
+    map[n._id] = 'forever';
     _setDismissed(map);
   }
-  closeModal('notice-popup-modal');
-  // 큐에 더 있으면 살짝 뒤에 다음 팝업
-  setTimeout(_showNextPopupNotice, 250);
+  _advanceAfterDismiss();
 }
 
 function snoozeNoticeToday(){
   // "오늘은 그만 보기": 오늘만 안 띄움 (내일은 다시)
-  if(_popupCurrentId){
+  var n = _popupSlides[_popupIdx];
+  if(n && n._id){
     var map = _getDismissed();
-    map[_popupCurrentId] = _todayKey();
+    map[n._id] = _todayKey();
     _setDismissed(map);
   }
-  closeModal('notice-popup-modal');
-  setTimeout(_showNextPopupNotice, 250);
+  _advanceAfterDismiss();
 }
+
+function closeAllPopupNotices(){
+  // ✕: 모달만 닫음. 다음 세션엔 다시 표시.
+  _popupSlides = [];
+  _popupIdx = 0;
+  closeModal('notice-popup-modal');
+}
+
+// 하위호환 (이전 이름으로 호출하던 곳 대비)
+function closeNoticePopup(){ closeAllPopupNotices(); }
 
 function loadUserData(){
   db.ref('users/'+currentUser.uid+'/locations').once('value').then(function(snap){
