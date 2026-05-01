@@ -22,10 +22,26 @@ auth.onAuthStateChanged(function(user){
   }
   // 다른 유저로 변경된 경우 새로고침
   if(_lastUid && _lastUid !== user.uid){ location.reload(); return; }
-  _lastUid = user.uid;
-  currentUser = user;
-  REF = db.ref('users/' + user.uid + '/appData');
-  CRAWL_REF = db.ref('users/' + user.uid + '/crawledSales');
+  // 탈퇴 후 재가입 차단 기간 확인
+  checkWithdrawalBlock(user).then(function(blocked){
+    if(blocked) return; // 차단된 경우 signOut 처리 됨
+    _lastUid = user.uid;
+    currentUser = user;
+    REF = db.ref('users/' + user.uid + '/appData');
+    CRAWL_REF = db.ref('users/' + user.uid + '/crawledSales');
+    _continueAuth(user);
+  }).catch(function(e){
+    console.warn('탈퇴 차단 확인 실패:', e);
+    // 확인 실패 시에도 진행 (서비스 가용성 우선)
+    _lastUid = user.uid;
+    currentUser = user;
+    REF = db.ref('users/' + user.uid + '/appData');
+    CRAWL_REF = db.ref('users/' + user.uid + '/crawledSales');
+    _continueAuth(user);
+  });
+});
+
+function _continueAuth(user){
   db.ref('users/' + user.uid).once('value').then(function(snap){
     var val = snap.val()||{};
     var profile = val.profile||{};
@@ -104,7 +120,7 @@ auth.onAuthStateChanged(function(user){
     }
     loadUserData();
   });
-});
+}
 
 // 위치 데이터 + VMMS → adminUsers 자판기 페이로드 변환
 // 제품수: appData.products ∪ vmmsColumns 컬럼 (이름 기준 합집합).
@@ -360,6 +376,35 @@ function submitPinVerify(){
 
 function reauthWithGoogle(){ return Promise.resolve(); }
 
+// ─── 재가입 제한 (탈퇴 후 30일) ────────────────────────────────────────────
+var REJOIN_BLOCK_DAYS = 30;
+function _emailHashKey(email){
+  return hashSHA256((email||'').toString().toLowerCase().trim());
+}
+// 로그인 직후, 이 계정 이메일이 탈퇴 차단 중인지 확인. 차단이면 즉시 로그아웃.
+function checkWithdrawalBlock(user){
+  if(!user || !user.email) return Promise.resolve(false);
+  return _emailHashKey(user.email).then(function(hash){
+    return db.ref('withdrawnEmails/'+hash).once('value');
+  }).then(function(snap){
+    var v = snap.val();
+    if(!v || !v.blockedUntil) return false;
+    var untilMs = new Date(v.blockedUntil).getTime();
+    if(isNaN(untilMs) || Date.now() >= untilMs){
+      // 만료 — 정리
+      _emailHashKey(user.email).then(function(hash){
+        db.ref('withdrawnEmails/'+hash).remove().catch(function(){});
+      });
+      return false;
+    }
+    // 차단 — 사용자에게 알리고 로그아웃
+    var d = new Date(untilMs);
+    var dStr = (d.getMonth()+1)+'월 '+d.getDate()+'일';
+    alert('탈퇴 후 30일이 지나야 재가입할 수 있습니다.\n재가입 가능일: '+dStr+'\n('+v.blockedUntil.slice(0,10)+' 이후)');
+    return auth.signOut().then(function(){ return true; });
+  });
+}
+
 // ─── 회원 탈퇴 ─────────────────────────────────────────────────────────────
 function openWithdrawModal(){
   if(!currentUser) return;
@@ -388,21 +433,33 @@ function confirmWithdraw(){
 function _doWithdraw(){
   if(!currentUser) return;
   var uid = currentUser.uid;
+  var email = currentUser.email || '';
   // 중요: 탈퇴 직후 리스너가 다시 데이터를 쓰지 않도록 분리
   if(typeof detachAdminSync === 'function') detachAdminSync();
 
   showToast('🔄 데이터 삭제 중...');
 
-  // 1) 데이터 삭제 (deviceNumbers 인덱스 + users + adminUsers)
-  db.ref('deviceNumbers').once('value').then(function(snap){
-    var devs = snap.val() || {};
-    var deletes = {};
-    Object.keys(devs).forEach(function(d){
-      if(devs[d] === uid) deletes['deviceNumbers/'+d] = null;
+  var blockedUntilIso = new Date(Date.now() + REJOIN_BLOCK_DAYS*86400000).toISOString();
+
+  // 1) 이메일 해시 + 데이터 삭제 + 재가입 차단 기록
+  _emailHashKey(email).then(function(emailHash){
+    return db.ref('deviceNumbers').once('value').then(function(snap){
+      var devs = snap.val() || {};
+      var updates = {};
+      Object.keys(devs).forEach(function(d){
+        if(devs[d] === uid) updates['deviceNumbers/'+d] = null;
+      });
+      updates['users/'+uid] = null;
+      updates['adminUsers/'+uid] = null;
+      // 30일 재가입 차단
+      if(emailHash){
+        updates['withdrawnEmails/'+emailHash] = {
+          blockedUntil: blockedUntilIso,
+          withdrawnAt: new Date().toISOString()
+        };
+      }
+      return db.ref().update(updates);
     });
-    deletes['users/'+uid] = null;
-    deletes['adminUsers/'+uid] = null;
-    return db.ref().update(deletes);
   }).then(function(){
     // 2) Firebase Auth 계정 삭제 (재인증 필요 시 구글 재로그인)
     return currentUser.delete().catch(function(e){
@@ -414,7 +471,7 @@ function _doWithdraw(){
       throw e;
     });
   }).then(function(){
-    alert('회원 탈퇴가 완료되었습니다.');
+    alert('회원 탈퇴가 완료되었습니다.\n같은 계정으로는 30일 후부터 재가입 가능합니다.');
     location.reload();
   }).catch(function(e){
     if(e && (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request')){
