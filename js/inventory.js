@@ -27,68 +27,120 @@ function renderPurchase(){
   var lt = getLowStockThreshold();
   var el = document.getElementById('purchase-low-list');
 
-  // 모든 자판기에서 재고 부족 제품 수집
-  if(!currentUser || !currentLocationId){
+  if(!currentUser){
     _renderPurchaseList(el, D.products, D.inventory, lt);
     return;
   }
-  db.ref('users/'+currentUser.uid+'/locations').once('value').then(function(snap){
-    if(!snap.exists()||!snap.val()){
+
+  // 재고현황(_renderInvMulti)과 동일한 데이터 소스 사용:
+  // VMMS 컬럼에 있는 제품만 (appData.products 직접 읽지 않음 - 좀비 제품 방지)
+  Promise.all([
+    db.ref('users/'+currentUser.uid+'/vmmsColumns').once('value'),
+    db.ref('users/'+currentUser.uid+'/vmmsMachines').once('value'),
+    db.ref('users/'+currentUser.uid+'/locations').once('value')
+  ]).then(function(results){
+    var colSnap = results[0].val();
+    var machSnap = results[1].val();
+    var locSnap = results[2].val();
+
+    var vmmsColumns = (colSnap && colSnap.machines) ? colSnap.machines : {};
+    var vmmsMachines = (machSnap && machSnap.items) ? machSnap.items : [];
+    if(!Array.isArray(vmmsMachines)) vmmsMachines = Object.values(vmmsMachines);
+
+    if(!vmmsMachines.length){
+      // VMMS 데이터 없으면 기존 방식
       _renderPurchaseList(el, D.products, D.inventory, lt);
       return;
     }
-    var locs = snap.val();
+
     var allLow = [];
-    // 재고현황 카드와 동일하게 — 모든 위치의 모든 자판기에서 부족 제품 수집
-    Object.keys(locs).forEach(function(locId){
-      var loc = locs[locId];
-      if(!loc || !loc.machines) return;
-      Object.keys(loc.machines).forEach(function(mid){
-        var m = loc.machines[mid];
-        if(!m) return;
-        var appData = m.appData||{};
-        var prods = appData.products||[];
-        if(!Array.isArray(prods)) prods = Object.values(prods);
-        prods = prods.filter(function(p){ return p && p.name; });
-        var inv = appData.inventory||[];
-        if(!Array.isArray(inv)) inv = Object.values(inv);
-        var stockIn = appData.stockIn||[];
-        if(!Array.isArray(stockIn)) stockIn = Object.values(stockIn);
-        prods.forEach(function(p){
-          // 이 자판기의 stockIn/inventory에서 직접 재고 계산
-          var q = 0;
-          var pName = (p.name||'').trim().toLowerCase();
-          // stockIn에서 합산
-          stockIn.forEach(function(b){
-            if(!b || !b.remainingQty) return;
-            if(b.productId === p.id) { q += b.remainingQty; return; }
-            if(p.productCode && (b.productId === p.productCode)) { q += b.remainingQty; return; }
-            // batch.productId로 제품 역조회 (id 또는 productCode로)
-            var bProd = prods.find(function(x){
-              return x.id===b.productId || (x.productCode && String(x.productCode)===String(b.productId));
-            });
-            if(bProd && bProd.name && bProd.name.trim().toLowerCase() === pName) q += b.remainingQty;
-          });
-          // stockIn 없으면 inventory
-          if(q === 0){
-            inv.forEach(function(i){
-              if(!i) return;
-              if(i.productId === p.id) q += (i.qty||0);
-              else if(p.productCode && i.productId === p.productCode) q += (i.qty||0);
-              // 역조회
-              else {
-                var iProd = prods.find(function(x){
-                  return x.id===i.productId || (x.productCode && String(x.productCode)===String(i.productId));
-                });
-                if(iProd && iProd.name && iProd.name.trim().toLowerCase() === pName) q += (i.qty||0);
-              }
-            });
+    vmmsMachines.forEach(function(vm){
+      var devno = vm.deviceNo || '';
+      if(!devno) return;
+      var colData = vmmsColumns[devno] || {};
+      var columns = colData.columns || [];
+      if(!Array.isArray(columns)) columns = Object.values(columns);
+
+      // VMMS 컬럼에서 제품 빌드
+      var prods = [];
+      var seen = {};
+      columns.forEach(function(c){
+        if(!c || !c.productName) return;
+        var code = c.productCode || '';
+        var name = c.productName || '';
+        var id = code || name;
+        if(!seen[id]){
+          seen[id] = { id:id, name:name, column:[], deviceNo:devno, productCode:code };
+          prods.push(seen[id]);
+        }
+        if(c.columnNo) seen[id].column.push(c.columnNo);
+      });
+      if(!prods.length) return;
+
+      // 이 deviceNo와 매칭되는 location 자판기 찾기 (재고/판매중단 정보 가져오기)
+      var inv = [], stockIn = [], existingProds = [], machineName = '', locName = '';
+      Object.keys(locSnap || {}).forEach(function(locId){
+        var loc = locSnap[locId];
+        if(!loc) return;
+        Object.keys(loc.machines || {}).forEach(function(mid){
+          var m = loc.machines[mid];
+          if(!m) return;
+          var devnos = Array.isArray(m.deviceNos) ? m.deviceNos : (m.deviceNo ? [m.deviceNo] : []);
+          if(devnos.indexOf(devno) < 0) return;
+          machineName = m.name || '';
+          locName = loc.name || '';
+          if(locId === currentLocationId && mid === currentMachineId){
+            inv = D.inventory || [];
+            stockIn = D.stockIn || [];
+            existingProds = D.products || [];
+          } else {
+            var appData = m.appData || {};
+            inv = appData.inventory || [];
+            stockIn = appData.stockIn || [];
+            existingProds = appData.products || [];
+            if(!Array.isArray(inv)) inv = Object.values(inv);
+            if(!Array.isArray(stockIn)) stockIn = Object.values(stockIn);
+            if(!Array.isArray(existingProds)) existingProds = Object.values(existingProds);
           }
-          if(q <= lt && !p.discontinued) allLow.push({p:p, q:q, locName:loc.name||'', machineName:m.name||''});
         });
       });
+
+      // 판매중단 플래그를 existingProds에서 매칭해서 제외
+      prods.forEach(function(p){
+        var ep = existingProds.find(function(x){
+          return x && x.name && x.name.trim() === (p.name||'').trim();
+        });
+        if(ep && ep.discontinued) return; // 판매중단 제외
+        // 재고 계산
+        var q = 0;
+        var pName = (p.name||'').trim().toLowerCase();
+        stockIn.forEach(function(b){
+          if(!b || !b.remainingQty) return;
+          if(b.productId === p.id) { q += b.remainingQty; return; }
+          if(p.productCode && b.productId === p.productCode) { q += b.remainingQty; return; }
+          var bProd = existingProds.find(function(x){
+            return x && (x.id===b.productId || (x.productCode && String(x.productCode)===String(b.productId)));
+          });
+          if(bProd && bProd.name && bProd.name.trim().toLowerCase() === pName) q += b.remainingQty;
+        });
+        if(q === 0){
+          inv.forEach(function(i){
+            if(!i) return;
+            if(i.productId === p.id) q += (i.qty||0);
+            else if(p.productCode && i.productId === p.productCode) q += (i.qty||0);
+            else {
+              var iProd = existingProds.find(function(x){
+                return x && (x.id===i.productId || (x.productCode && String(x.productCode)===String(i.productId)));
+              });
+              if(iProd && iProd.name && iProd.name.trim().toLowerCase() === pName) q += (i.qty||0);
+            }
+          });
+        }
+        if(q <= lt) allLow.push({ p:p, q:q, locName:locName, machineName:machineName });
+      });
     });
-    // 같은 제품(이름 기준)이 여러 자판기에 부족이면 통합 — 가장 적은 수량 + 자판기 목록
+
+    // 같은 이름이 여러 자판기에 부족이면 한 줄로 통합
     var merged = {};
     allLow.forEach(function(x){
       var key = (x.p.name||'').trim().toLowerCase();
@@ -106,11 +158,11 @@ function renderPurchase(){
       return;
     }
     el.innerHTML = dedupedLow.map(function(x){
-      var cols = Array.isArray(x.p.column)?x.p.column:(x.p.column?[x.p.column]:[]);
-      var locLabel = x.locs.filter(Boolean).join(', ');
+      var cols = Array.isArray(x.p.column) ? x.p.column : (x.p.column ? [x.p.column] : []);
+      var locLabel  = x.locs.filter(Boolean).join(', ');
       var machLabel = x.machines.filter(Boolean).join(', ');
       var subParts = [];
-      if(locLabel) subParts.push('📍 '+locLabel);
+      if(locLabel)  subParts.push('📍 '+locLabel);
       if(machLabel) subParts.push(machLabel);
       if(cols.length) subParts.push('컬럼: '+cols.join(', '));
       return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,90,95,.1)">'+
