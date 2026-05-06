@@ -39,24 +39,17 @@ function renderPurchase(){
     }
     var locs = snap.val();
     var allLow = [];
-    // 현재 선택된 자판기만 표시
-    var targetLocId = currentLocationId || Object.keys(locs)[0];
-    var targetMachineId = currentMachineId || '';
-    var loc = locs[targetLocId];
-    if(!loc || !loc.machines){
-      _renderPurchaseList(el, D.products, D.inventory, lt);
-      return;
-    }
-    var machineIds = targetMachineId ? [targetMachineId] : Object.keys(loc.machines);
-    machineIds.forEach(function(mid){
+    // 재고현황 카드와 동일하게 — 모든 위치의 모든 자판기에서 부족 제품 수집
+    Object.keys(locs).forEach(function(locId){
+      var loc = locs[locId];
+      if(!loc || !loc.machines) return;
+      Object.keys(loc.machines).forEach(function(mid){
         var m = loc.machines[mid];
         if(!m) return;
         var appData = m.appData||{};
         var prods = appData.products||[];
         if(!Array.isArray(prods)) prods = Object.values(prods);
         prods = prods.filter(function(p){ return p && p.name; });
-        var inv = appData.inventory||[];
-        if(!Array.isArray(inv)) inv = Object.values(inv);
         var inv = appData.inventory||[];
         if(!Array.isArray(inv)) inv = Object.values(inv);
         var stockIn = appData.stockIn||[];
@@ -91,19 +84,39 @@ function renderPurchase(){
               }
             });
           }
-          if(q <= lt && !p.discontinued) allLow.push({p:p, q:q, machineName:m.name});
+          if(q <= lt && !p.discontinued) allLow.push({p:p, q:q, locName:loc.name||'', machineName:m.name||''});
         });
+      });
     });
-    if(!allLow.length){
+    // 같은 제품(이름 기준)이 여러 자판기에 부족이면 통합 — 가장 적은 수량 + 자판기 목록
+    var merged = {};
+    allLow.forEach(function(x){
+      var key = (x.p.name||'').trim().toLowerCase();
+      if(!merged[key]){
+        merged[key] = { p: x.p, q: x.q, locs: [x.locName], machines: [x.machineName] };
+      } else {
+        merged[key].q += x.q;
+        if(merged[key].locs.indexOf(x.locName) < 0) merged[key].locs.push(x.locName);
+        if(merged[key].machines.indexOf(x.machineName) < 0) merged[key].machines.push(x.machineName);
+      }
+    });
+    var dedupedLow = Object.values(merged);
+    if(!dedupedLow.length){
       el.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text3);font-size:14px">✅ 재고 부족 제품 없음</div>';
       return;
     }
-    el.innerHTML = allLow.map(function(x){
+    el.innerHTML = dedupedLow.map(function(x){
       var cols = Array.isArray(x.p.column)?x.p.column:(x.p.column?[x.p.column]:[]);
+      var locLabel = x.locs.filter(Boolean).join(', ');
+      var machLabel = x.machines.filter(Boolean).join(', ');
+      var subParts = [];
+      if(locLabel) subParts.push('📍 '+locLabel);
+      if(machLabel) subParts.push(machLabel);
+      if(cols.length) subParts.push('컬럼: '+cols.join(', '));
       return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,90,95,.1)">'+
         '<div style="flex:1;cursor:pointer" onclick="openCoupangSearch(this.dataset.name)" data-name="'+x.p.name+'">'+
           '<div style="font-size:14px;font-weight:600">'+x.p.name+'</div>'+
-          '<div style="font-size:12px;color:var(--text3);margin-top:2px">'+x.machineName+(cols.length?' · 컬럼: '+cols.join(', '):'')+'</div>'+
+          '<div style="font-size:12px;color:var(--text3);margin-top:2px">'+subParts.join(' · ')+'</div>'+
         '</div>'+
         '<span style="font-size:14px;font-weight:800;color:'+(x.q===0?'var(--red)':'#E88B00')+'">'+x.q+'개</span>'+
         '<span onclick="openCoupangSearch(\''+x.p.name.replace(/'/g,"\\'")+'\')" style="font-size:12px;background:rgba(0,100,255,.06);color:var(--blue);border:1px solid rgba(0,100,255,.15);border-radius:6px;padding:3px 8px;white-space:nowrap;cursor:pointer">쿠팡 검색 →</span>'+
