@@ -397,9 +397,9 @@ function onMachineSelect(){
 }
 
 function loadMachineData(locId, machineId){
-  if(!locId||!machineId) return;
+  if(!locId||!machineId) return Promise.resolve();
   var machineREF=db.ref('users/'+currentUser.uid+'/locations/'+locId+'/machines/'+machineId+'/appData');
-  machineREF.once('value').then(function(snap){
+  return machineREF.once('value').then(function(snap){
     var val=snap.val();
     D.products        =(val&&val.products)       ||[];
     D.inventory       =(val&&val.inventory)      ||[];

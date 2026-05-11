@@ -1323,7 +1323,6 @@ function _stockInFromPurchaseAt(purchases, idx){
   // 다를 경우 자동으로 해당 자판기로 전환 후 입고 진행.
   if(mapped.locId && mapped.machineId &&
      (mapped.locId !== currentLocationId || mapped.machineId !== currentMachineId)){
-    // 자동 전환
     var targetLoc = mapped.locId;
     var targetMach = mapped.machineId;
     showToast('🔄 매칭된 자판기로 전환 중...');
@@ -1335,9 +1334,11 @@ function _stockInFromPurchaseAt(purchases, idx){
     currentMachineId = targetMach;
     var machSel = document.getElementById('machine-select');
     if(machSel){ machSel.value = targetMach; }
-    loadMachineData(targetLoc, targetMach);
-    // 데이터 로드 후 입고 재시도 (약간의 지연)
-    setTimeout(function(){ _stockInFromPurchaseAt(idx); }, 1500);
+    // 자판기 데이터 로드 완료 후 입고 재시도
+    Promise.resolve(loadMachineData(targetLoc, targetMach)).then(function(){
+      if(p && p.id) stockInFromPurchaseById(p.id);
+      else _stockInFromPurchaseAt(purchases, idx);
+    });
     return;
   }
 
