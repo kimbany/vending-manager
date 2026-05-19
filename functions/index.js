@@ -1017,9 +1017,8 @@ function parseCoupangEmail(text, dateHint) {
   // 금액 패턴 (1,234원 또는 1234원)
   const priceRe = /([\d,]+)\s*원/;
 
-  // "구매 상세내역" / "주문하신 내역" / "주문 상품" ~ "결제 정보" 사이 섹션 추출
-  // "[쿠팡] 주문하신 내역" 메일은 본문에 "주문하신 내역" 또는 "주문 상품 정보" 헤더 사용
-  const startIdx = text.search(/구매\s*(상세)?\s*내역|구매\s*정보|주문\s*상품|주문\s*하신\s*내역|주문\s*내역|상품\s*정보/);
+  // "구매 상세내역" / "주문하신 내역" / "주문 상품" / "로켓배송" ~ "결제 정보" 사이 섹션 추출
+  const startIdx = text.search(/구매\s*(상세)?\s*내역|구매\s*정보|주문\s*상품|주문\s*하신\s*내역|주문\s*내역|상품\s*정보|로켓배송\s*상품/);
   const endIdx = text.search(/결제\s*정보|주문\s*정보|결제\s*금액|총\s*결제\s*금액/);
   let section = "";
   if (startIdx >= 0) {
@@ -1034,7 +1033,7 @@ function parseCoupangEmail(text, dateHint) {
   for (let li = 0; li < lines.length; li++) {
     const line = lines[li];
     // 헤더 줄 스킵
-    if (/^(구매|상품|쿠팡가|수량|구매금액|배송정보|판매자|결제|주문)/.test(line)) continue;
+    if (/^(구매|상품|쿠팡가|수량|구매금액|배송정보|판매자|결제|주문|로켓배송|오늘|내일|모레)/.test(line)) continue;
     // 한 줄에 "이름 가격원 수량 가격원" 패턴 (네이버 수동 전달)
     const m = line.match(/(.{3,}?)\s+([\d,]+)\s*원\s+(\d{1,3})\s+([\d,]+)\s*원/);
     if (m) {
@@ -1051,6 +1050,35 @@ function parseCoupangEmail(text, dateHint) {
         });
       }
       continue;
+    }
+    // HTML 테이블 변환 패턴: 상품명(3자+) 줄 → 다음 줄들에서 가격원/수량/가격원 탐색
+    // 예: "히트그램 독일군 뮬슬리퍼 스니커즈 3CM, 245~250" → "19,900원" → "1" → "19,900원"
+    if (line.length > 5 && !line.match(/원\s*$/) && !line.match(/^\d{1,3}$/) && !line.match(/^[\d,]+$/)) {
+      let up = 0, q = 0, tp = 0, found = false;
+      for (let j = li + 1; j < Math.min(li + 6, lines.length); j++) {
+        const nl = lines[j];
+        if (/^(구매|상품|쿠팡가|수량|구매금액|배송정보|판매자|결제|로켓배송|오늘|내일)/.test(nl)) continue;
+        const prM = nl.match(/^([\d,]+)\s*원$/);
+        if (prM) {
+          const val = parseInt(prM[1].replace(/,/g, ""), 10);
+          if (!up) up = val;
+          else if (!tp) tp = val;
+        }
+        const qM = nl.match(/^(\d{1,3})$/);
+        if (qM && !q) q = parseInt(qM[1], 10);
+        if (up && q && tp) { found = true; break; }
+        // 다음 상품명처럼 보이는 긴 줄이면 중단
+        if (nl.length > 10 && !nl.match(/원\s*$/) && !nl.match(/^\d{1,3}$/) && up) break;
+      }
+      if (found && line.length > 2) {
+        products.push({
+          product_name: line.replace(/[, ]+$/g, "").trim(),
+          quantity: q,
+          unit_price: up,
+          price: tp || up * q,
+        });
+        continue;
+      }
     }
     // 여러 줄에 걸친 패턴 (Gmail 전달): "상품명, N개" 줄 → 다음 줄들에서 가격/수량 탐색
     const nameMatch = line.match(/^(.{3,}[,\s]+\d+\s*개)\s*$/);
@@ -1238,6 +1266,11 @@ exports.syncCoupangFromGmail = onCall(
           const full = await gmailFetch(accessToken, `users/me/messages/${msg.id}?format=full`);
           const headers = (full.payload && full.payload.headers) || [];
           const subject = getHeader(headers, "Subject");
+          // 비주문 메일 건너뛰기 (멤버십, 마케팅 등)
+          if (/멤버십|이벤트|광고|혜택안내|포인트/.test(subject)) {
+            debugLog.push(`⏭️ "${subject}" → 주문 메일 아님 (건너뜀)`);
+            continue;
+          }
           const dateRaw = getHeader(headers, "Date");
           const dateHint = toKstDateStr(dateRaw);
 
