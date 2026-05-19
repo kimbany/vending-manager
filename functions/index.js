@@ -1330,8 +1330,9 @@ exports.syncCoupangFromGmail = onCall(
         };
       }
 
-      // purchases(구매내역)도 초기화하여 잘못된 데이터 제거
-      updates[`users/${uid}/purchases`] = null;
+      // 기존 coupangOrders + purchases 전체 삭제 후 새로 쓰기
+      await admin.database().ref(`users/${uid}/coupangOrders`).remove();
+      await admin.database().ref(`users/${uid}/purchases`).remove();
 
       if (Object.keys(updates).length > 0) {
         await admin.database().ref().update(updates);
