@@ -1112,12 +1112,8 @@ function parseCoupangEmail(text, dateHint) {
           unit_price: unitPrice,
           price: totalPrice || unitPrice * qty,
         });
-      } else {
-        products.push({
-          product_name: fullName,
-          quantity: 1,
-        });
       }
+      // 가격/수량 못 찾으면 건너뜀 (쓰레기 데이터 방지)
     }
   }
 
