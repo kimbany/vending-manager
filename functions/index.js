@@ -1051,10 +1051,13 @@ function parseCoupangEmail(text, dateHint) {
       }
       continue;
     }
-    // HTML 테이블 변환 패턴: 상품명(3자+) 줄 → 다음 줄들에서 가격원/수량/가격원 탐색
-    // 예: "히트그램 독일군 뮬슬리퍼 스니커즈 3CM, 245~250" → "19,900원" → "1" → "19,900원"
-    if (line.length > 5 && !line.match(/원\s*$/) && !line.match(/^\d{1,3}$/) && !line.match(/^[\d,]+$/)) {
-      let up = 0, q = 0, tp = 0, found = false;
+    // HTML 테이블 변환 패턴: 상품명 줄 → 다음 줄들에서 가격원/수량/가격원 탐색
+    // 판매자명(주식회사/(주) 등)은 상품명이 아니므로 필터링
+    const isSeller = /(주식회사|\(주\)|유한회사|합자회사)/.test(line);
+    const isNonProduct = /^(쿠팡|배송|받으시는|연락처|주소|\[|구매\s*상세|상세\s*정보)/.test(line);
+    if (line.length > 5 && !line.match(/원\s*$/) && !line.match(/^\d{1,3}$/) && !line.match(/^[\d,]+$/)
+        && !isSeller && !isNonProduct) {
+      let up = 0, q = 0, tp = 0, found = false, lastJ = li;
       for (let j = li + 1; j < Math.min(li + 6, lines.length); j++) {
         const nl = lines[j];
         if (/^(구매|상품|쿠팡가|수량|구매금액|배송정보|판매자|결제|로켓배송|오늘|내일)/.test(nl)) continue;
@@ -1066,8 +1069,7 @@ function parseCoupangEmail(text, dateHint) {
         }
         const qM = nl.match(/^(\d{1,3})$/);
         if (qM && !q) q = parseInt(qM[1], 10);
-        if (up && q && tp) { found = true; break; }
-        // 다음 상품명처럼 보이는 긴 줄이면 중단
+        if (up && q && tp) { found = true; lastJ = j; break; }
         if (nl.length > 10 && !nl.match(/원\s*$/) && !nl.match(/^\d{1,3}$/) && up) break;
       }
       if (found && line.length > 2) {
@@ -1077,6 +1079,9 @@ function parseCoupangEmail(text, dateHint) {
           unit_price: up,
           price: tp || up * q,
         });
+        // 가격/수량 줄 + 판매자 줄 건너뛰기
+        li = lastJ;
+        if (li + 1 < lines.length && /(주식회사|\(주\)|유한회사|합자회사|쿠팡\(주\))/.test(lines[li + 1])) li++;
         continue;
       }
     }
