@@ -599,6 +599,7 @@ function syncCoupangFromGmail(){
       if(btn){ btn.textContent = '📧 Gmail로 쿠팡 주문 가져오기'; btn.disabled = false; }
       var d = result.data || {};
       showToast('✅ ' + (d.message || 'Gmail 동기화 완료'));
+      if(d.debug_log && d.debug_log.length) console.log('[Gmail 쿠팡] 디버그:\n' + d.debug_log.join('\n'));
       // Firebase 데이터 → 앱 미입고 목록에 반영 (기존 loadCoupangOrders 재사용)
       setTimeout(function(){ loadCoupangOrders(); }, 500);
     })

@@ -1248,8 +1248,10 @@ exports.syncCoupangFromGmail = onCall(
           if (order && order.products.length > 0) {
             parsed.push({ ...order, message_id: msg.id, subject });
             okCount++;
+            debugLog.push(`✅ "${subject}" → 제품 ${order.products.length}개 (${dateHint})`);
           } else {
             failCount++;
+            debugLog.push(`❌ "${subject}" → 제품 추출 실패 (${dateHint}) 본문길이:${(text||'').length}자`);
           }
         } catch (e) {
           failCount++;
