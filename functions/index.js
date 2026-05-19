@@ -1312,42 +1312,30 @@ exports.syncCoupangFromGmail = onCall(
       let totalOrders = 0;
       let totalProducts = 0;
 
-      // 기존 데이터 로드 (병합용)
-      const existingSnap = await admin.database().ref(`users/${uid}/coupangOrders`).once("value");
-      const existingData = existingSnap.val() || {};
-
+      // Gmail 전체 재파싱이므로 기존 데이터 덮어쓰기 (오래된 잘못된 데이터 제거)
       for (const [dateKey, orders] of Object.entries(grouped)) {
-        // 기존 주문과 새 주문 병합 (message_id 기준 중복 제거)
-        const existingOrders = (existingData[dateKey] && existingData[dateKey].orders) || [];
-        const existingMsgIds = new Set(existingOrders.map(o => o.message_id).filter(Boolean));
-        const newOrders = orders.filter(o => !existingMsgIds.has(o.message_id));
-        const merged = [...existingOrders, ...newOrders.map((o) => ({
-          order_date: o.order_date,
-          order_id: o.order_id || "",
-          total_amount: o.total_amount || 0,
-          products: o.products,
-          message_id: o.message_id || "",
-        }))];
-        // 기존에 message_id가 없는 데이터면 전체 교체
-        const finalOrders = existingOrders.some(o => o.message_id) ? merged : orders.map((o) => ({
+        const orderList = orders.map((o) => ({
           order_date: o.order_date,
           order_id: o.order_id || "",
           total_amount: o.total_amount || 0,
           products: o.products,
           message_id: o.message_id || "",
         }));
-        const products = finalOrders.reduce((acc, o) => acc + (o.products || []).length, 0);
-        totalOrders += finalOrders.length;
+        const products = orderList.reduce((acc, o) => acc + (o.products || []).length, 0);
+        totalOrders += orderList.length;
         totalProducts += products;
         updates[`users/${uid}/coupangOrders/${dateKey}`] = {
           date: dateKey,
           updated_at: nowStr,
           source: "gmail",
-          total_orders: finalOrders.length,
+          total_orders: orderList.length,
           total_products: products,
-          orders: finalOrders,
+          orders: orderList,
         };
       }
+
+      // purchases(구매내역)도 초기화하여 잘못된 데이터 제거
+      updates[`users/${uid}/purchases`] = null;
 
       if (Object.keys(updates).length > 0) {
         await admin.database().ref().update(updates);
