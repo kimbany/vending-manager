@@ -1281,7 +1281,7 @@ exports.syncCoupangFromGmail = onCall(
           if (order && order.products.length > 0) {
             parsed.push({ ...order, message_id: msg.id, subject });
             okCount++;
-            debugLog.push(`✅ "${subject}" → 제품 ${order.products.length}개 (${dateHint})`);
+            debugLog.push(`✅ "${subject}" → 제품 ${order.products.length}개 [주문일:${order.order_date}] (메일일:${dateHint}) 상품:${order.products.map(p=>p.product_name).join(', ')}`);
           } else {
             failCount++;
             debugLog.push(`❌ "${subject}" → 제품 추출 실패 (${dateHint}) 본문길이:${(text||'').length}자`);
@@ -1307,23 +1307,40 @@ exports.syncCoupangFromGmail = onCall(
       let totalOrders = 0;
       let totalProducts = 0;
 
+      // 기존 데이터 로드 (병합용)
+      const existingSnap = await admin.database().ref(`users/${uid}/coupangOrders`).once("value");
+      const existingData = existingSnap.val() || {};
+
       for (const [dateKey, orders] of Object.entries(grouped)) {
-        // 기존 스크립트(🛒 경로) 저장 스키마와 동일하게 맞춰서 저장
-        const products = orders.reduce((acc, o) => acc + o.products.length, 0);
-        totalOrders += orders.length;
+        // 기존 주문과 새 주문 병합 (message_id 기준 중복 제거)
+        const existingOrders = (existingData[dateKey] && existingData[dateKey].orders) || [];
+        const existingMsgIds = new Set(existingOrders.map(o => o.message_id).filter(Boolean));
+        const newOrders = orders.filter(o => !existingMsgIds.has(o.message_id));
+        const merged = [...existingOrders, ...newOrders.map((o) => ({
+          order_date: o.order_date,
+          order_id: o.order_id || "",
+          total_amount: o.total_amount || 0,
+          products: o.products,
+          message_id: o.message_id || "",
+        }))];
+        // 기존에 message_id가 없는 데이터면 전체 교체
+        const finalOrders = existingOrders.some(o => o.message_id) ? merged : orders.map((o) => ({
+          order_date: o.order_date,
+          order_id: o.order_id || "",
+          total_amount: o.total_amount || 0,
+          products: o.products,
+          message_id: o.message_id || "",
+        }));
+        const products = finalOrders.reduce((acc, o) => acc + (o.products || []).length, 0);
+        totalOrders += finalOrders.length;
         totalProducts += products;
         updates[`users/${uid}/coupangOrders/${dateKey}`] = {
           date: dateKey,
           updated_at: nowStr,
           source: "gmail",
-          total_orders: orders.length,
+          total_orders: finalOrders.length,
           total_products: products,
-          orders: orders.map((o) => ({
-            order_date: o.order_date,
-            order_id: o.order_id || "",
-            total_amount: o.total_amount || 0,
-            products: o.products,
-          })),
+          orders: finalOrders,
         };
       }
 
