@@ -23,7 +23,7 @@ jobs:
 
       - name: 패키지 설치
         run: |
-          pip install playwright firebase-admin
+          pip install playwright firebase-admin cryptography
           playwright install chromium
           playwright install-deps chromium
 

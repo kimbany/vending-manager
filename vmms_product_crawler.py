@@ -14,6 +14,19 @@ from datetime import datetime
 from playwright.async_api import async_playwright
 import firebase_admin
 from firebase_admin import credentials, db as rtdb
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+def decrypt_aes_gcm(encoded, uid):
+    """AES-256-GCM 복호화 (브라우저 encryptAES와 동일)"""
+    try:
+        raw = base64.b64decode(encoded)
+        iv = raw[:12]
+        data = raw[12:]
+        key = (uid + "_invedory_secure_key_2026")[:32].encode('utf-8')
+        aesgcm = AESGCM(key)
+        return aesgcm.decrypt(iv, data, None).decode('utf-8')
+    except Exception:
+        return None
 
 DATABASE_URL = "https://vending-manager-2d64e-default-rtdb.asia-southeast1.firebasedatabase.app"
 
@@ -69,16 +82,17 @@ def get_all_user_vmms():
                 continue
             vmms = data.get('vmms', {})
             if vmms.get('id') and vmms.get('pw'):
-                try:
-                    vmms_id = base64.b64decode(vmms['id']).decode('utf-8')
-                    vmms_pw = base64.b64decode(vmms['pw']).decode('utf-8')
-                except:
-                    # AES 암호화된 경우 btoa fallback
+                vmms_id = decrypt_aes_gcm(vmms['id'], uid)
+                vmms_pw = decrypt_aes_gcm(vmms['pw'], uid)
+                if not vmms_id:
                     try:
                         vmms_id = base64.b64decode(vmms['id']).decode('utf-8')
                         vmms_pw = base64.b64decode(vmms['pw']).decode('utf-8')
                     except:
                         continue
+                if not vmms_id or not vmms_pw:
+                    print(f"  유저 {uid[:8]}... 복호화 실패")
+                    continue
                 users.append({'uid': uid, 'id': vmms_id, 'pw': vmms_pw})
                 print(f"  유저 {uid[:8]}... VMMS 계정 발견")
     except Exception as e:
