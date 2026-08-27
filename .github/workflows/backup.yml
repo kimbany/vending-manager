@@ -46,6 +46,19 @@ jobs:
           print("Firebase 전체 데이터 백업 중...")
           data = rtdb.reference('/').get()
 
+          # 민감 데이터 제거 (GitHub Push Protection 차단 방지)
+          if data and isinstance(data, dict):
+              if 'appConfig' in data:
+                  for key in list(data['appConfig'].keys()):
+                      if 'pat' in key.lower() or 'secret' in key.lower() or 'key' in key.lower():
+                          data['appConfig'][key] = '***REDACTED***'
+              # 사용자별 암호화된 계정 정보도 마스킹
+              if 'users' in data and isinstance(data['users'], dict):
+                  for uid, udata in data['users'].items():
+                      if isinstance(udata, dict):
+                          if 'vmms' in udata: udata['vmms'] = '***REDACTED***'
+                          if 'coupangAccount' in udata: udata['coupangAccount'] = '***REDACTED***'
+
           # 백업 디렉토리 생성
           os.makedirs('backups', exist_ok=True)
 
